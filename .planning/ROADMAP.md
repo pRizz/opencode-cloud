@@ -12,7 +12,7 @@ This roadmap delivers a cross-platform CLI toolkit for deploying opencode as a p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Project Foundation** - Monorepo structure, CLI skeletons, config management
+- [x] **Phase 1: Project Foundation** - Monorepo structure, CLI skeletons, config management
 - [ ] **Phase 2: Docker Integration** - Container lifecycle via Dockerode/Bollard
 - [ ] **Phase 3: Service Lifecycle Commands** - Start/stop/restart/status/logs
 - [ ] **Phase 4: Platform Service Installation** - systemd/launchd registration, boot persistence
@@ -161,7 +161,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Foundation | 0/2 | Planned | - |
+| 1. Project Foundation | 2/2 | ✓ Complete | 2026-01-18 |
 | 2. Docker Integration | 0/2 | Not started | - |
 | 3. Service Lifecycle Commands | 0/2 | Not started | - |
 | 4. Platform Service Installation | 0/3 | Not started | - |
@@ -172,4 +172,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-18*
+*Last updated: 2026-01-18 (Phase 1 complete)*

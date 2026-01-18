@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INST-01 | Phase 1 | Pending |
+| INST-01 | Phase 1 | Complete |
 | INST-02 | Phase 5 | Pending |
 | INST-03 | Phase 5 | Pending |
 | INST-04 | Phase 5 | Pending |
@@ -146,10 +146,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-01 | Phase 5 | Pending |
 | CONF-02 | Phase 5 | Pending |
 | CONF-03 | Phase 5 | Pending |
-| CONF-04 | Phase 1 | Pending |
+| CONF-04 | Phase 1 | Complete |
 | CONF-05 | Phase 5 | Pending |
 | CONF-06 | Phase 7 | Pending |
-| CONF-07 | Phase 1 | Pending |
+| CONF-07 | Phase 1 | Complete |
 | PERS-01 | Phase 4 | Pending |
 | PERS-02 | Phase 2 | Pending |
 | PERS-03 | Phase 2 | Pending |
@@ -162,7 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SECU-04 | Phase 6 | Pending |
 | PLAT-01 | Phase 4 | Pending |
 | PLAT-02 | Phase 4 | Pending |
-| CONS-01 | Phase 1 | Pending |
+| CONS-01 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 33 total
@@ -171,4 +171,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-18*
-*Last updated: 2026-01-18 after roadmap creation*
+*Last updated: 2026-01-18 (Phase 1 complete: INST-01, CONF-04, CONF-07, CONS-01)*
