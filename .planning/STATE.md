@@ -59,7 +59,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+1. **Make README sync more robust** (tooling) - Add CI check to verify package READMEs match root; consider husky/lefthook for cross-platform hook management.
 
 ### Blockers/Concerns
 
