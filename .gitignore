@@ -30,3 +30,7 @@ Thumbs.db
 
 # Build artifacts
 *.log
+
+# Ephemeral READMEs (copied during npm publish)
+packages/core/README.md
+packages/cli-node/README.md
