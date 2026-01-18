@@ -1,6 +1,6 @@
 //! opencode-cloud CLI - Manage your opencode cloud service
 //!
-//! This is the main entry point for the Rust CLI binary.
+//! This module contains the shared CLI implementation used by all binaries.
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -66,7 +66,7 @@ fn get_banner() -> &'static str {
 "#
 }
 
-fn main() -> Result<()> {
+pub fn run() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
 
@@ -218,8 +218,8 @@ fn handle_config(cmd: ConfigCommands, config: &Config) -> Result<()> {
     match cmd {
         ConfigCommands::Show => {
             // Display current config as formatted JSON
-            let json =
-                serde_json::to_string_pretty(config).expect("Config should always be serializable");
+            let json = serde_json::to_string_pretty(config)
+                .map_err(|err| anyhow::anyhow!("Config serialization failed: {err}"))?;
             println!("{}", json);
             Ok(())
         }

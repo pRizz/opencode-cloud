@@ -9,11 +9,11 @@ default-run = "opencode-cloud"
 
 [[bin]]
 name = "opencode-cloud"
-path = "src/main.rs"
+path = "src/bin/opencode-cloud.rs"
 
 [[bin]]
 name = "occ"
-path = "src/main.rs"
+path = "src/bin/occ.rs"
 
 [dependencies]
 opencode-cloud-core = { path = "../core" }
