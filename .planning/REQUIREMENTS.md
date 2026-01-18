@@ -1,4 +1,4 @@
-# Requirements: opencode-cloud-service
+# Requirements: opencode-cloud
 
 **Defined:** 2026-01-18
 **Core Value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
@@ -9,23 +9,23 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Installation
 
-- [ ] **INST-01**: User can install via `npx opencode-cloud-service` or `cargo install opencode-cloud-service`
+- [ ] **INST-01**: User can install via `npx opencode-cloud` or `cargo install opencode-cloud`
 - [ ] **INST-02**: Installation wizard guides user through initial setup
 - [ ] **INST-03**: Wizard asks for auth credentials (username/password)
 - [ ] **INST-04**: Wizard asks for port and hostname with sensible defaults
 - [ ] **INST-05**: Wizard allows user to defer API key configuration (can set in opencode later)
-- [ ] **INST-06**: User can uninstall cleanly via `opencode-cloud-service uninstall`
+- [ ] **INST-06**: User can uninstall cleanly via `opencode-cloud uninstall`
 - [ ] **INST-07**: Clear error messages with actionable guidance
 - [ ] **INST-08**: Help documentation available via `--help` for all commands
 
 ### Service Lifecycle
 
-- [ ] **LIFE-01**: User can start service via `opencode-cloud-service start`
-- [ ] **LIFE-02**: User can stop service via `opencode-cloud-service stop`
-- [ ] **LIFE-03**: User can restart service via `opencode-cloud-service restart`
-- [ ] **LIFE-04**: User can check status via `opencode-cloud-service status`
-- [ ] **LIFE-05**: User can view logs via `opencode-cloud-service logs`
-- [ ] **LIFE-06**: User can update opencode to latest via `opencode-cloud-service update`
+- [ ] **LIFE-01**: User can start service via `opencode-cloud start`
+- [ ] **LIFE-02**: User can stop service via `opencode-cloud stop`
+- [ ] **LIFE-03**: User can restart service via `opencode-cloud restart`
+- [ ] **LIFE-04**: User can check status via `opencode-cloud status`
+- [ ] **LIFE-05**: User can view logs via `opencode-cloud logs`
+- [ ] **LIFE-06**: User can update opencode to latest via `opencode-cloud update`
 - [ ] **LIFE-07**: Health check endpoint available for monitoring (e.g., `/health`)
 
 ### Configuration
@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CONF-02**: User can configure basic auth credentials
 - [ ] **CONF-03**: User can configure environment variables for opencode
 - [ ] **CONF-04**: Configuration persisted in JSON file at platform-appropriate location
-- [ ] **CONF-05**: User can view/edit config via `opencode-cloud-service config`
+- [ ] **CONF-05**: User can view/edit config via `opencode-cloud config`
 - [ ] **CONF-06**: Config validated on service startup with clear error messages
 - [ ] **CONF-07**: Config format documented with JSON schema
 
@@ -61,7 +61,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Constraints
 
-- [ ] **CONS-01**: Single instance per host (one opencode-cloud-service per machine)
+- [ ] **CONS-01**: Single instance per host (one opencode-cloud per machine)
 
 ## v2 Requirements
 
@@ -73,7 +73,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ### Cloud Config Sync
 
-- **SYNC-01**: Backup opencode-cloud-service config to Google Drive
+- **SYNC-01**: Backup opencode-cloud config to Google Drive
 - **SYNC-02**: Backup opencode's own config to Google Drive
 - **SYNC-03**: Optional backup of session history to Google Drive
 - **SYNC-04**: Restore config from Google Drive on new deployment

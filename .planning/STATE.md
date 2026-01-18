@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 
 Phase: 1 of 8 (Project Foundation)
 Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-01-18 - Roadmap created
+Status: Planning in progress
+Last activity: 2026-01-18 - Phase 1 context gathered, research completed
 
 Progress: [..........] 0%
 
@@ -43,9 +43,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - [Init]: Use opencode's built-in basic auth (avoid reinventing)
-- [Init]: Monorepo for npm + cargo (shared Docker config)
-- [Init]: JSON for config format (universal, inspectable)
 - [Init]: Google Drive sync deferred to v2 (reduce scope)
+- [Phase 1]: Project renamed to `opencode-cloud` (CLI: `occ`)
+- [Phase 1]: Rust core + NAPI-RS bindings architecture
+- [Phase 1]: Monorepo: packages/core, packages/cli-rust, packages/cli-node
+- [Phase 1]: JSONC config at ~/.config/opencode-cloud/config.json
+- [Phase 1]: Windows support deferred to v2
 
 ### Pending Todos
 
