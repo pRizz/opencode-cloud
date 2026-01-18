@@ -1,0 +1,24 @@
+[package]
+name = "opencode-cloud"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "CLI for opencode-cloud"
+default-run = "opencode-cloud"
+
+[[bin]]
+name = "opencode-cloud"
+path = "src/main.rs"
+
+[[bin]]
+name = "occ"
+path = "src/main.rs"
+
+[dependencies]
+opencode-cloud-core = { path = "../core" }
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+console.workspace = true
+anyhow.workspace = true

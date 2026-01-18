@@ -7,7 +7,13 @@ license.workspace = true
 description = "Core library for opencode-cloud"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+# cdylib for NAPI (only when napi feature is enabled)
+# rlib for Rust consumers
+crate-type = ["rlib"]
+
+[features]
+default = []
+napi = ["dep:napi", "dep:napi-derive"]
 
 [dependencies]
 clap.workspace = true
@@ -20,8 +26,10 @@ thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 console.workspace = true
-napi.workspace = true
-napi-derive.workspace = true
+
+# NAPI dependencies (optional - only for Node bindings)
+napi = { workspace = true, optional = true }
+napi-derive = { workspace = true, optional = true }
 
 [build-dependencies]
 napi-build = "2"

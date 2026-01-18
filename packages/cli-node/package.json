@@ -1,0 +1,20 @@
+{
+  "name": "opencode-cloud",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "opencode-cloud": "./dist/index.js",
+    "occ": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@opencode-cloud/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.7"
+  }
+}
