@@ -75,8 +75,8 @@ publish-npm: lint test build-node
     @echo "Publishing @opencode-cloud/core to npm..."
     pnpm --filter @opencode-cloud/core publish --access public
     @echo ""
-    @echo "Waiting 30s for npm to index..."
-    @sleep 30
+    @echo "Waiting 5s for npm to index..."
+    @sleep 5
     @echo ""
     @echo "Publishing opencode-cloud to npm..."
     pnpm --filter opencode-cloud publish --access public
@@ -87,6 +87,11 @@ publish-npm: lint test build-node
 publish-all: publish-crates publish-npm
     @echo ""
     @echo "✓ All packages published!"
+
+# Dry-run for both crates.io and npm
+publish-all-dry-run: publish-crates-dry-run publish-npm-dry-run
+    @echo ""
+    @echo "✓ All packages ready (dry-run)!"
 
 # Dry-run for crates.io
 publish-crates-dry-run:
