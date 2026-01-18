@@ -62,8 +62,8 @@ publish-crates: lint test
     @echo "Publishing opencode-cloud-core to crates.io..."
     cargo publish -p opencode-cloud-core
     @echo ""
-    @echo "Waiting 30s for crates.io to index..."
-    @sleep 30
+    @echo "Waiting 5s for crates.io to index..."
+    @sleep 5
     @echo ""
     @echo "Publishing opencode-cloud to crates.io..."
     cargo publish -p opencode-cloud
