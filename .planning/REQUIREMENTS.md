@@ -79,6 +79,7 @@ Deferred to future release. Tracked but not in current roadmap.
 - **SYNC-04**: Restore config from Google Drive on new deployment
 - **SYNC-05**: Unique device naming to avoid conflicts
 - **SYNC-06**: Optional replicated config across deployments (with stability warnings)
+- **SYNC-07**: User-configurable versioned backups in Google Drive (keep N previous versions)
 
 ### Additional Platforms
 
