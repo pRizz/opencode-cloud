@@ -57,11 +57,6 @@ release:
     cargo build --workspace --release
     pnpm -C packages/core build
 
-# Pre-publish checks (run before publishing)
-check-publish: lint test
-    cargo publish -p opencode-cloud-core --dry-run
-    @echo "✓ Ready to publish"
-
 # Publish to crates.io (core first, then cli)
 publish: lint test
     @echo "Publishing opencode-cloud-core..."
