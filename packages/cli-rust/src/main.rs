@@ -163,18 +163,30 @@ fn acquire_singleton_lock() -> Result<InstanceLock, SingletonError> {
 fn display_singleton_error(err: &SingletonError) {
     match err {
         SingletonError::AlreadyRunning(pid) => {
-            eprintln!("{} Another instance is already running", style("Error:").red().bold());
+            eprintln!(
+                "{} Another instance is already running",
+                style("Error:").red().bold()
+            );
             eprintln!();
             eprintln!("  Process ID: {}", style(pid).yellow());
             eprintln!();
-            eprintln!("  {} Stop the existing instance first:", style("Tip:").cyan());
+            eprintln!(
+                "  {} Stop the existing instance first:",
+                style("Tip:").cyan()
+            );
             eprintln!("       {} stop", style("opencode-cloud").green());
             eprintln!();
-            eprintln!("  {} If the process is stuck, kill it manually:", style("Tip:").cyan());
+            eprintln!(
+                "  {} If the process is stuck, kill it manually:",
+                style("Tip:").cyan()
+            );
             eprintln!("       {} {}", style("kill").green(), pid);
         }
         SingletonError::CreateDirFailed(msg) => {
-            eprintln!("{} Failed to create data directory", style("Error:").red().bold());
+            eprintln!(
+                "{} Failed to create data directory",
+                style("Error:").red().bold()
+            );
             eprintln!();
             eprintln!("  {}", msg);
             eprintln!();
@@ -189,9 +201,15 @@ fn display_singleton_error(err: &SingletonError) {
             eprintln!("  {}", msg);
         }
         SingletonError::InvalidPath => {
-            eprintln!("{} Could not determine lock file path", style("Error:").red().bold());
+            eprintln!(
+                "{} Could not determine lock file path",
+                style("Error:").red().bold()
+            );
             eprintln!();
-            eprintln!("  {} Ensure XDG_DATA_HOME or HOME is set.", style("Tip:").cyan());
+            eprintln!(
+                "  {} Ensure XDG_DATA_HOME or HOME is set.",
+                style("Tip:").cyan()
+            );
         }
     }
 }
