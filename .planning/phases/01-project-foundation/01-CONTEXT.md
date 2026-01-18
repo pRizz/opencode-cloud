@@ -21,7 +21,9 @@ Establish monorepo structure with working npm and cargo CLI entry points that ca
 - Update README and all documentation to reflect new name
 
 ### Monorepo Structure
-- Architecture: Rust core + Node bindings (compile-on-install for npm users)
+- Architecture: Rust core + Node bindings
+- No prebuilt binaries: Both npm and crates.io packages compile from source (Rust 1.85+ required)
+- Rationale: Improved transparency and trust; users can verify exactly what they're running
 - Directory structure: `packages/` layout
   - `packages/cli-node/` - Node.js CLI wrapper
   - `packages/cli-rust/` - Rust CLI implementation

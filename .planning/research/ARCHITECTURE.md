@@ -553,7 +553,9 @@ cargo build --release        # Rust
 
 ### npm Package Strategy
 
-Following the [Sentry CLI pattern](https://sentry.engineering/blog/publishing-binaries-on-npm) for optional dependencies:
+> **Note:** This section describes the prebuilt binary pattern for reference. For opencode-cloud, we chose **compile-on-install** instead (no prebuilt binaries) for improved transparency. Users must have Rust 1.85+ installed.
+
+The Sentry CLI pattern uses optional dependencies for prebuilt binaries:
 
 ```
 @opencode-cloud-service/cli          # Base package

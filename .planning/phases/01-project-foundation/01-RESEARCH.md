@@ -59,7 +59,7 @@ The established libraries/tools for this domain:
 |------------|-----------|----------|
 | pnpm | npm/yarn | pnpm more efficient for monorepos |
 | just | make | just is simpler, cross-platform |
-| NAPI-RS | node-bindgen | NAPI-RS has better tooling, prebuilt support |
+| NAPI-RS | node-bindgen | NAPI-RS has better tooling, supports compile-on-install |
 | jsonc-parser | serde_json5 | jsonc-parser is more targeted, actively maintained |
 | directories | cross-xdg | directories follows platform conventions |
 | pidlock | pidfile2 | pidlock has stale detection, cross-platform |
@@ -402,7 +402,7 @@ Problems that look simple but have existing solutions:
 | Cross-platform paths | Manual `if darwin/linux/windows` | `directories` crate | Edge cases (no $HOME, network drives, WSL) |
 | JSONC parsing | Regex to strip comments | `jsonc-parser` | Comments in strings, escapes, trailing commas |
 | PID locking | `fs::write(pid)` | `pidlock` | Atomic operations, stale detection, cleanup on crash |
-| Node bindings | node-ffi, wasm | NAPI-RS | Type safety, performance, prebuilt binaries |
+| Node bindings | node-ffi, wasm | NAPI-RS | Type safety, performance, compile-on-install |
 | CLI parsing | Manual arg parsing | clap | Help generation, completions, validation |
 | Async runtime | `std::thread` for async | tokio | Ecosystem compatibility, efficiency |
 
@@ -627,7 +627,7 @@ napi-build = "2"
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| node-gyp compilation | NAPI-RS prebuilt binaries | 2023-2024 | No compile on install, faster npm install |
+| node-gyp compilation | NAPI-RS (prebuilt or compile-on-install) | 2023-2024 | Better tooling, type safety; we chose compile-on-install for transparency |
 | npm/yarn workspaces | pnpm workspaces | 2022-2023 | Better monorepo support, faster installs |
 | Make for tasks | just | 2023-2024 | Simpler syntax, cross-platform |
 | Rust 2021 edition | Rust 2024 edition | Feb 2025 | New language features, MSRV-aware resolver |

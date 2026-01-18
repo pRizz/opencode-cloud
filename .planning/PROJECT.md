@@ -17,7 +17,7 @@ Developers can access a persistent, secure opencode instance from anywhere witho
 ### Active
 
 - [ ] Docker container configuration that runs opencode web UI
-- [ ] CLI installable via `npx opencode-cloud` or `cargo install opencode-cloud`
+- [ ] CLI installable via `npx opencode-cloud` or `cargo install opencode-cloud` (both compile from source; Rust 1.85+ required)
 - [ ] CLI command: `opencode-cloud` with alias `occ`
 - [ ] Cross-platform service installation (Linux systemd, macOS launchd, Windows services)
 - [ ] CLI commands: start, stop, status, logs, config, update
@@ -53,6 +53,8 @@ Developers can access a persistent, secure opencode instance from anywhere witho
 ## Constraints
 
 - **Architecture**: Rust core library with NAPI-RS bindings for Node.js (single codebase, two distribution channels)
+- **No prebuilt binaries**: Both npm and crates.io packages compile from source for transparency; no binaries shipped
+- **Rust required**: Users must have Rust 1.85+ installed for both npm and cargo installation
 - **Monorepo**: `packages/core` (Rust), `packages/cli-rust` (Rust CLI), `packages/cli-node` (Node CLI wrapper)
 - **Cross-platform**: Must support Linux and macOS (Windows deferred to v2)
 - **Custom Docker image**: We supply our own Ubuntu-based Dockerfile for complete control; user-configurable base image deferred to future
@@ -65,7 +67,7 @@ Developers can access a persistent, secure opencode instance from anywhere witho
 |----------|-----------|---------|
 | Project name: opencode-cloud | Cleaner than opencode-cloud-service, CLI command `occ` is memorable | — Pending |
 | Rust core + NAPI-RS bindings | Single codebase serves both npm and cargo users | — Pending |
-| Compile-on-install for npm | No prebuilt binaries; users need Rust 1.82+ installed; simpler CI/CD | — Pending |
+| No prebuilt binaries | Both npm and crates.io compile from source; Rust 1.85+ required; improved transparency and trust | — Pending |
 | Custom Ubuntu-based Dockerfile | Complete control over sandbox environment; can respond to upstream issues | — Pending |
 | Use opencode's built-in basic auth | Avoid reinventing authentication, leverage upstream config options | — Pending |
 | Auth credentials stored on host | Credentials in host config file (platform-appropriate path), passed to opencode process | — Pending |

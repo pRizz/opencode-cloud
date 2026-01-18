@@ -55,7 +55,7 @@ Recent decisions affecting current work:
 - [01-02]: XDG paths for macOS: Use ~/.config/ instead of ~/Library for consistency
 - [01-02]: Singleton via kill -0: Use subprocess call for process existence check
 - [01-02]: Strict config validation: deny_unknown_fields rejects unknown keys
-- [Phase 1]: Compile-on-install for npm: No prebuilt binaries, users need Rust 1.82+
+- [Phase 1]: No prebuilt binaries: Both npm and crates.io compile from source; Rust 1.85+ required for transparency
 
 ### Pending Todos
 

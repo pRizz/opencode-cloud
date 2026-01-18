@@ -180,8 +180,8 @@ Mistakes that cause rewrites, security incidents, or major user frustration.
 3. Recommend nvm/fnm for Node.js installation (avoids permission issues)
 4. Check for required build tools (Python, C++ compiler) before attempting native module compilation
 5. Prefer pure JS dependencies over native modules when possible
-6. Pre-build native binaries for major platforms if native modules required
-7. Provide alternative installation methods: direct binary download, Docker, Homebrew
+6. For native modules: either pre-build binaries OR require compile-on-install (we chose compile-on-install for transparency)
+7. For compile-on-install: provide clear error messages when Rust toolchain is missing
 
 **Detection:** Test `npm install -g` on fresh system without running as root.
 

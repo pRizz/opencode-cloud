@@ -38,7 +38,7 @@ The stack prioritizes battle-tested libraries with high download counts and acti
 ### Expected Features
 
 **Must have (table stakes):**
-- One-command installation (`npm install -g` / `cargo install` / `npx`)
+- One-command installation (`npm install -g` / `cargo install` / `npx`) — compiles from source; Rust 1.85+ required
 - Start/stop/restart/status commands
 - Service logs access (`logs`, `logs -f`)
 - Persistence across reboots (OS service integration)
@@ -232,7 +232,7 @@ Phases with standard patterns (skip research-phase):
 
 ### Secondary (MEDIUM confidence)
 - [Cloudflared Service Management](https://deepwiki.com/cloudflare/cloudflared/2.3-service-management-commands) - Cross-platform pattern reference
-- [Sentry CLI npm Distribution](https://sentry.engineering/blog/publishing-binaries-on-npm) - Binary distribution pattern
+- [Sentry CLI npm Distribution](https://sentry.engineering/blog/publishing-binaries-on-npm) - Binary distribution pattern (we chose compile-on-install instead)
 - [systemd User ArchWiki](https://wiki.archlinux.org/title/Systemd/User) - User service best practices
 - [Node.js CLI Best Practices](https://github.com/lirantal/nodejs-cli-apps-best-practices) - CLI design patterns
 

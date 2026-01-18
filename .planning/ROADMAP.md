@@ -28,8 +28,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Nothing (first phase)
 **Requirements**: INST-01, CONF-04, CONF-07, CONS-01
 **Success Criteria** (what must be TRUE):
-  1. User can install via `npx opencode-cloud --version` and see version output
-  2. User can install via `cargo install` (from local path) and run `opencode-cloud --version`
+  1. User can install via `npx opencode-cloud --version` and see version output (compiles from source; Rust 1.85+ required)
+  2. User can install via `cargo install` (from local path) and run `opencode-cloud --version` (compiles from source)
   3. Configuration file is created at platform-appropriate XDG-compliant path
   4. Configuration file format matches documented JSON schema
   5. Only one instance can run per host (singleton enforcement)

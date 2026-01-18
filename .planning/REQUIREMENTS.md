@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Installation
 
-- [ ] **INST-01**: User can install via `npx opencode-cloud` or `cargo install opencode-cloud`
+- [ ] **INST-01**: User can install via `npx opencode-cloud` or `cargo install opencode-cloud` (both compile from source; Rust 1.85+ required)
 - [ ] **INST-02**: Installation wizard guides user through initial setup
 - [ ] **INST-03**: Wizard asks for auth credentials (username/password)
 - [ ] **INST-04**: Wizard asks for port and hostname with sensible defaults
