@@ -9,6 +9,7 @@ use clap::Args;
 use console::style;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError};
+use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::time::Duration;
 
 /// Arguments for the status command
@@ -153,6 +154,28 @@ pub async fn cmd_status(_args: &StatusArgs, quiet: bool, _verbose: u8) -> Result
     }
 
     println!("Config:      {}", style(&config_path).dim());
+
+    // Show installation status
+    if is_service_registration_supported() {
+        if let Ok(manager) = get_service_manager() {
+            let installed = manager.is_installed().unwrap_or(false);
+            let install_status = if installed {
+                // Load config to determine boot mode
+                let boot_mode = config::load_config()
+                    .map(|c| c.boot_mode)
+                    .unwrap_or_else(|_| "user".to_string());
+                let boot_desc = if boot_mode == "system" {
+                    "starts on boot"
+                } else {
+                    "starts on login"
+                };
+                format!("{} ({})", style("yes").green(), boot_desc)
+            } else {
+                style("no").yellow().to_string()
+            };
+            println!("Installed:   {}", install_status);
+        }
+    }
 
     // If stopped, show when it stopped
     if !running {

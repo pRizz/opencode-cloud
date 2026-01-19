@@ -45,6 +45,10 @@ enum Commands {
     Status(commands::StatusArgs),
     /// View service logs
     Logs(commands::LogsArgs),
+    /// Register service to start on boot/login
+    Install(commands::InstallArgs),
+    /// Remove service registration
+    Uninstall(commands::UninstallArgs),
     /// Manage configuration
     #[command(subcommand)]
     Config(ConfigCommands),
@@ -154,6 +158,14 @@ pub fn run() -> Result<()> {
         Some(Commands::Logs(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(commands::cmd_logs(&args, cli.quiet))
+        }
+        Some(Commands::Install(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_install(&args, cli.quiet, cli.verbose))
+        }
+        Some(Commands::Uninstall(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_uninstall(&args, cli.quiet, cli.verbose))
         }
         Some(Commands::Config(cmd)) => handle_config(cmd, &config),
         None => {
