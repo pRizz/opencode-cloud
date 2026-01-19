@@ -47,3 +47,6 @@ bytes = "1.9"
 webbrowser = "1.0"
 humantime = "2.1"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+# Platform service management
+plist = "1.8"

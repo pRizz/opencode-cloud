@@ -47,6 +47,9 @@ indicatif.workspace = true
 http-body-util.workspace = true
 bytes.workspace = true
 
+# Platform service management (macOS)
+plist.workspace = true
+
 [build-dependencies]
 napi-build = "2"
 
