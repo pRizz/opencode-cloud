@@ -32,9 +32,13 @@ pub struct StartArgs {
     #[arg(long)]
     pub no_daemon: bool,
 
-    /// Force rebuild the Docker image from scratch (no cache)
+    /// Rebuild Docker image using cache (fast, picks up Dockerfile changes)
     #[arg(long)]
-    pub rebuild: bool,
+    pub cached_rebuild: bool,
+
+    /// Rebuild Docker image from scratch without cache (slow, for troubleshooting)
+    #[arg(long)]
+    pub full_rebuild: bool,
 }
 
 /// Start the opencode service
@@ -56,8 +60,10 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     let port = args.port.unwrap_or(OPENCODE_WEB_PORT);
 
+    let any_rebuild = args.cached_rebuild || args.full_rebuild;
+
     // Handle rebuild: remove existing container so a new one is created from the new image
-    if args.rebuild {
+    if any_rebuild {
         handle_rebuild(&client, verbose).await?;
     } else if container_is_running(&client, CONTAINER_NAME).await? {
         // Already running (idempotent behavior) - only when not rebuilding
@@ -71,10 +77,11 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     // Build image if needed (first run or rebuild)
     let needs_build =
-        args.rebuild || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+        any_rebuild || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
 
     if needs_build {
-        build_docker_image(&client, args.rebuild, verbose).await?;
+        // full_rebuild uses no_cache, cached_rebuild uses cache
+        build_docker_image(&client, args.full_rebuild, verbose).await?;
     }
 
     // Start container
@@ -107,7 +114,7 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
     Ok(())
 }
 
-/// Handle the --rebuild flag: remove existing container
+/// Handle rebuild flags: remove existing container so a new one is created from the new image
 async fn handle_rebuild(client: &DockerClient, verbose: u8) -> Result<()> {
     let exists =
         opencode_cloud_core::docker::container::container_exists(client, CONTAINER_NAME).await?;
@@ -151,14 +158,21 @@ fn port_in_use_error(port: u16) -> anyhow::Error {
 }
 
 /// Build the Docker image with progress reporting
-async fn build_docker_image(client: &DockerClient, rebuild: bool, verbose: u8) -> Result<()> {
+///
+/// If `no_cache` is true, builds from scratch ignoring Docker layer cache.
+/// Otherwise uses cached layers for faster builds.
+async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) -> Result<()> {
     if verbose > 0 {
-        let action = if rebuild {
-            "Rebuilding Docker image"
+        let action = if no_cache {
+            "Full rebuilding Docker image"
         } else {
             "Building Docker image"
         };
-        let cache_note = if rebuild { " (no cache)" } else { "" };
+        let cache_note = if no_cache {
+            " (no cache)"
+        } else {
+            " (using cache)"
+        };
         eprintln!(
             "{} {} from embedded Dockerfile{}",
             style("[info]").cyan(),
@@ -167,14 +181,14 @@ async fn build_docker_image(client: &DockerClient, rebuild: bool, verbose: u8) -
         );
     }
 
-    let context = if rebuild {
-        "Rebuilding Docker image (no cache)"
+    let context = if no_cache {
+        "Full rebuilding Docker image (no cache)"
     } else {
         "Building Docker image"
     };
 
     let mut progress = ProgressReporter::with_context(context);
-    build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, rebuild).await?;
+    build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, no_cache).await?;
     Ok(())
 }
 
@@ -387,7 +401,7 @@ async fn wait_for_service_ready(
         if last_log_check.elapsed() > log_check_interval {
             if let Some(error) = check_for_fatal_errors(client).await {
                 return Err(anyhow!(
-                    "Fatal error detected in container:\n  {}\n\nThe service cannot start. Try rebuilding the Docker image: occ start --rebuild",
+                    "Fatal error detected in container:\n  {}\n\nThe service cannot start. Try rebuilding the Docker image: occ start --full-rebuild",
                     error
                 ));
             }

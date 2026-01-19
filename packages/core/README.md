@@ -102,20 +102,28 @@ occ config show
 When developing locally or after updating opencode-cloud, you may need to rebuild the Docker image to pick up changes in the embedded Dockerfile:
 
 ```bash
-# Force rebuild the image from scratch (no Docker cache)
-occ start --rebuild
+# Rebuild using Docker cache (fast - only rebuilds changed layers)
+occ start --cached-rebuild
+
+# Rebuild from scratch without cache (slow - for troubleshooting)
+occ start --full-rebuild
 ```
 
-The `--rebuild` flag is essential for local development because:
-- Docker caches layers from previous builds, so changes to the Dockerfile may not take effect
-- It stops and removes any existing container before rebuilding
-- It ensures you're running the latest version of the image with all changes applied
+**`--cached-rebuild`** (recommended for most cases):
+- Uses Docker layer cache for fast rebuilds
+- Only rebuilds layers that changed (e.g., if only the CMD changed, it's nearly instant)
+- Stops and removes any existing container before rebuilding
 
-**When to use `--rebuild`:**
-- After pulling updates to opencode-cloud
-- When modifying the Dockerfile during development
-- When the container fails to start due to image issues
-- When you want a completely fresh environment
+**`--full-rebuild`** (for troubleshooting):
+- Ignores Docker cache and rebuilds everything from scratch
+- Takes 10-15 minutes but guarantees a completely fresh image
+- Use when cached rebuild doesn't fix issues
+
+**When to rebuild:**
+- After pulling updates to opencode-cloud → use `--cached-rebuild`
+- When modifying the Dockerfile during development → use `--cached-rebuild`
+- When the container fails to start due to image issues → try `--cached-rebuild` first, then `--full-rebuild`
+- When you want a completely fresh environment → use `--full-rebuild`
 
 ## Configuration
 

@@ -268,7 +268,7 @@ Plans:
   3. Clear explanation of trade-offs shown (prebuilt = faster, build = customizable/latest)
   4. New config option `image_source` with values: `prebuilt`, `build`, `ask` (default)
   5. `occ start --pull` forces pull of prebuilt image
-  6. `occ start --build` forces build from source (like current `--rebuild` but for first run)
+  6. `occ start --build` forces build from source (like current `--cached-rebuild` but for first run)
   7. Prebuilt images are multi-arch (amd64, arm64) for cross-platform support
 **Plans**: TBD
 
