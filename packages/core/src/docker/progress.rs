@@ -10,6 +10,36 @@ use std::time::{Duration, Instant};
 /// Minimum time between spinner message updates to prevent flickering
 const SPINNER_UPDATE_THROTTLE: Duration = Duration::from_millis(150);
 
+/// Strip ANSI escape codes from a string
+///
+/// Docker build output often contains ANSI color codes that can interfere
+/// with our spinner display. This removes them for clean output.
+fn strip_ansi_codes(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Check for CSI sequence: ESC [
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                // Skip until we hit a letter (the command character)
+                while let Some(&next) = chars.peek() {
+                    chars.next();
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            // Also handle ESC followed by other sequences (less common)
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 /// Format duration as MM:SS, or HH:MM:SS if over an hour
 fn format_elapsed(duration: Duration) -> String {
     let total_secs = duration.as_secs();
@@ -75,10 +105,13 @@ impl ProgressReporter {
     fn format_message(&self, message: &str) -> String {
         let elapsed = format_elapsed(self.start_time.elapsed());
 
+        // Strip ANSI escape codes that Docker may include in its output
+        let stripped = strip_ansi_codes(message);
+
         // Collapse message to single line for spinner display:
         // - Replace all whitespace sequences (including newlines) with single space
         // - Trim leading/trailing whitespace
-        let clean_msg = message.split_whitespace().collect::<Vec<_>>().join(" ");
+        let clean_msg = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
 
         match &self.context {
             // Always show context prefix: "Building image · Step 1/10 (elapsed)"
@@ -327,5 +360,36 @@ mod tests {
         let msg = reporter.format_message("Compiling foo\n     Compiling bar\n");
         assert!(!msg.contains('\n'));
         assert!(msg.contains("Compiling foo Compiling bar ("));
+    }
+
+    #[test]
+    fn strip_ansi_codes_removes_color_codes() {
+        // Red text: \x1b[31m ... \x1b[0m
+        let input = "\x1b[31mError:\x1b[0m something failed";
+        let result = strip_ansi_codes(input);
+        assert_eq!(result, "Error: something failed");
+    }
+
+    #[test]
+    fn strip_ansi_codes_handles_plain_text() {
+        let input = "Just plain text";
+        let result = strip_ansi_codes(input);
+        assert_eq!(result, "Just plain text");
+    }
+
+    #[test]
+    fn strip_ansi_codes_handles_multiple_codes() {
+        // Bold green: \x1b[1;32m
+        let input = "\x1b[1;32mSuccess\x1b[0m and \x1b[33mwarning\x1b[0m";
+        let result = strip_ansi_codes(input);
+        assert_eq!(result, "Success and warning");
+    }
+
+    #[test]
+    fn format_message_strips_ansi_codes() {
+        let reporter = ProgressReporter::new();
+        let msg = reporter.format_message("\x1b[31mCompiling\x1b[0m foo");
+        assert!(msg.contains("Compiling foo"));
+        assert!(!msg.contains("\x1b"));
     }
 }
