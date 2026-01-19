@@ -14,13 +14,15 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Project Foundation** - Monorepo structure, CLI skeletons, config management
 - [x] **Phase 2: Docker Integration** - Container lifecycle via Bollard
-- [ ] **Phase 3: Service Lifecycle Commands** - Start/stop/restart/status/logs
+- [x] **Phase 3: Service Lifecycle Commands** - Start/stop/restart/status/logs
 - [ ] **Phase 4: Platform Service Installation** - systemd/launchd registration, boot persistence
 - [ ] **Phase 5: Interactive Setup Wizard** - Guided first-run experience
 - [ ] **Phase 6: Security and Authentication** - Basic auth, localhost binding, network exposure opt-in
 - [ ] **Phase 7: Update and Maintenance** - Update command, health check endpoint
 - [ ] **Phase 8: Polish and Documentation** - Help docs, error messages, uninstall cleanup
 - [ ] **Phase 9: Dockerfile Version Pinning** - Pin explicit versions for GitHub-installed tools
+- [ ] **Phase 10: Remote Administration via Cockpit** - Integrate and expose remote admin of Docker container via Cockpit
+- [ ] **Phase 11: Remote Host Management** - Allow occ to remotely install and interact with Docker containers on different hosts
 
 ## Phase Details
 
@@ -70,8 +72,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Start/stop/restart commands with spinner feedback and idempotent behavior
-- [ ] 03-02-PLAN.md — Status and logs commands with colored output and log streaming
+- [x] 03-01-PLAN.md — Start/stop/restart commands with spinner feedback and idempotent behavior
+- [x] 03-02-PLAN.md — Status and logs commands with colored output and log streaming
 
 ### Phase 4: Platform Service Installation
 **Goal**: Service survives host reboots and auto-restarts on crash
@@ -171,23 +173,55 @@ Plans:
 Plans:
 - [ ] 09-01: TBD (audit and pin versions)
 
+### Phase 10: Remote Administration via Cockpit
+**Goal**: Integrate and expose remote administration of the Docker container via Cockpit running in the container
+**Depends on**: Phase 9
+**Requirements**: None (enhancement)
+**Note**: Provides a web-based admin interface for managing the containerized environment, complementing the CLI for users who prefer GUI access.
+**Success Criteria** (what must be TRUE):
+  1. Cockpit is installed and running in the Docker container
+  2. Cockpit web interface is accessible via a dedicated port
+  3. Authentication is integrated with existing opencode-cloud credentials
+  4. User can manage container services and view system status via Cockpit
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01: TBD (Cockpit installation and configuration)
+
+### Phase 11: Remote Host Management
+**Goal**: Allow occ command to remotely install and interact with Docker containers running on different hosts
+**Depends on**: Phase 10
+**Requirements**: None (enhancement)
+**Note**: Extends the CLI to manage opencode instances across multiple machines via SSH or Docker API, enabling centralized management of distributed deployments.
+**Success Criteria** (what must be TRUE):
+  1. User can add remote hosts via `occ host add <hostname>`
+  2. User can list and manage containers on remote hosts
+  3. Secure connection to remote Docker daemons (SSH tunnel or TLS)
+  4. Commands work transparently across local and remote hosts
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01: TBD (remote host management)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 2/2 | ✓ Complete | 2026-01-18 |
 | 2. Docker Integration | 3/3 | ✓ Complete | 2026-01-19 |
-| 3. Service Lifecycle Commands | 0/2 | Planned | - |
+| 3. Service Lifecycle Commands | 2/2 | ✓ Complete | 2026-01-19 |
 | 4. Platform Service Installation | 0/3 | Not started | - |
 | 5. Interactive Setup Wizard | 0/2 | Not started | - |
 | 6. Security and Authentication | 0/2 | Not started | - |
 | 7. Update and Maintenance | 0/2 | Not started | - |
 | 8. Polish and Documentation | 0/2 | Not started | - |
 | 9. Dockerfile Version Pinning | 0/1 | Not started | - |
+| 10. Remote Administration via Cockpit | 0/1 | Not started | - |
+| 11. Remote Host Management | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-19 (Phase 3 planned)*
+*Last updated: 2026-01-19 (Phase 3 complete)*
