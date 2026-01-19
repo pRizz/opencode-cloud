@@ -24,6 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 10: Remote Administration via Cockpit** - Integrate and expose remote admin of Docker container via Cockpit
 - [ ] **Phase 11: Remote Host Management** - Allow occ to remotely install and interact with Docker containers on different hosts
 - [ ] **Phase 12: Web Desktop UI Investigation** - Investigate integrating secure web-exposed desktop UI (Friend OS, WDE, etc.)
+- [ ] **Phase 13: Container Security Tools** - Add trivy, gitleaks, hadolint, age, sops, mkcert to container
 
 ## Phase Details
 
@@ -221,10 +222,26 @@ Plans:
 Plans:
 - [ ] 12-01: TBD (research and evaluation)
 
+### Phase 13: Container Security Tools
+**Goal**: Add security scanning and secrets management tools to the container image
+**Depends on**: Phase 12
+**Requirements**: None (enhancement)
+**Note**: Deferred from initial Dockerfile to reduce image size and build time. Adds trivy, gitleaks, hadolint, age, sops, mkcert.
+**Success Criteria** (what must be TRUE):
+  1. trivy installed for vulnerability scanning
+  2. gitleaks installed for secret detection
+  3. hadolint installed for Dockerfile linting
+  4. age and sops installed for secrets management
+  5. mkcert installed for local TLS certificate generation
+**Plans**: TBD
+
+Plans:
+- [ ] 13-01: TBD (security tools installation)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -240,7 +257,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 10. Remote Administration via Cockpit | 0/1 | Not started | - |
 | 11. Remote Host Management | 0/1 | Not started | - |
 | 12. Web Desktop UI Investigation | 0/1 | Not started | - |
+| 13. Container Security Tools | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-19 (Phase 4 complete)*
+*Last updated: 2026-01-19 (Phase 13 added - security tools deferred)*

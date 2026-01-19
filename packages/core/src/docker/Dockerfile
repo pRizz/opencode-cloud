@@ -8,7 +8,6 @@
 # - Non-root user with passwordless sudo
 # - Multiple languages via mise (Node.js, Python, Rust, Go)
 # - Modern CLI tools (ripgrep, eza, fzf, lazygit, etc.)
-# - Security tools (trivy, gitleaks, hadolint, age, sops)
 # - GSD opencode plugin for task management
 #
 # Usage:
@@ -278,33 +277,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     && apt-get update && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 USER opencode
-
-# -----------------------------------------------------------------------------
-# Security Tools
-# -----------------------------------------------------------------------------
-# Install trivy (security scanner)
-USER root
-RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-USER opencode
-
-# Install gitleaks (secret scanner)
-RUN curl -sL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')_linux_$([ "$(dpkg --print-architecture)" = "amd64" ] && echo "x64" || echo "arm64").tar.gz | tar xz -C /home/opencode/.local/bin gitleaks
-
-# Install hadolint (Dockerfile linter)
-RUN curl -sL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-$([ "$(dpkg --print-architecture)" = "amd64" ] && echo "x86_64" || echo "arm64") -o /home/opencode/.local/bin/hadolint \
-    && chmod +x /home/opencode/.local/bin/hadolint
-
-# Install age (encryption)
-RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
-    && go install filippo.io/age/cmd/...@latest
-
-# Install sops (secrets operations)
-RUN curl -sL https://github.com/getsops/sops/releases/latest/download/sops-v$(curl -s https://api.github.com/repos/getsops/sops/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')-linux.$(dpkg --print-architecture) -o /home/opencode/.local/bin/sops \
-    && chmod +x /home/opencode/.local/bin/sops
-
-# Install mkcert (local TLS)
-RUN curl -sL https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v$(curl -s https://api.github.com/repos/FiloSottile/mkcert/releases/latest | grep tag_name | cut -d '"' -f 4 | sed 's/v//')-linux-$(dpkg --print-architecture) -o /home/opencode/.local/bin/mkcert \
-    && chmod +x /home/opencode/.local/bin/mkcert
 
 # -----------------------------------------------------------------------------
 # CI/CD Tools
