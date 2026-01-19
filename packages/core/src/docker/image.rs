@@ -13,8 +13,12 @@ use bytes::Bytes;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use futures_util::StreamExt;
+use std::collections::VecDeque;
 use tar::Builder as TarBuilder;
 use tracing::{debug, warn};
+
+/// Maximum number of recent build log lines to capture for error context
+const BUILD_LOG_BUFFER_SIZE: usize = 15;
 
 /// Check if an image exists locally
 pub async fn image_exists(
@@ -69,6 +73,7 @@ pub async fn build_image(
     progress.add_spinner("build", "Building image...");
 
     let mut maybe_image_id = None;
+    let mut recent_logs: VecDeque<String> = VecDeque::with_capacity(BUILD_LOG_BUFFER_SIZE);
 
     while let Some(result) = stream.next().await {
         match result {
@@ -78,6 +83,12 @@ pub async fn build_image(
                     let msg = stream_msg.trim();
                     if !msg.is_empty() {
                         progress.update_spinner("build", msg);
+
+                        // Capture recent log lines for error context
+                        if recent_logs.len() >= BUILD_LOG_BUFFER_SIZE {
+                            recent_logs.pop_front();
+                        }
+                        recent_logs.push_back(msg.to_string());
 
                         // Capture step information for better progress
                         if msg.starts_with("Step ") {
@@ -89,7 +100,8 @@ pub async fn build_image(
                 // Handle error messages
                 if let Some(error_msg) = info.error {
                     progress.abandon_all(&error_msg);
-                    return Err(DockerError::Build(error_msg));
+                    let context = format_build_error_with_context(&error_msg, &recent_logs);
+                    return Err(DockerError::Build(context));
                 }
 
                 // Capture the image ID from aux field
@@ -108,7 +120,8 @@ pub async fn build_image(
             }
             Err(e) => {
                 progress.abandon_all("Build failed");
-                return Err(DockerError::Build(format!("Build failed: {e}")));
+                let context = format_build_error_with_context(&e.to_string(), &recent_logs);
+                return Err(DockerError::Build(context));
             }
         }
     }
@@ -277,6 +290,41 @@ async fn do_pull(
     Ok(())
 }
 
+/// Format a build error with recent log context for actionable debugging
+fn format_build_error_with_context(error: &str, recent_logs: &VecDeque<String>) -> String {
+    let mut message = String::new();
+
+    // Add main error message
+    message.push_str(error);
+
+    // Add recent log context if available
+    if !recent_logs.is_empty() {
+        message.push_str("\n\nRecent build output:");
+        for line in recent_logs {
+            message.push_str("\n  ");
+            message.push_str(line);
+        }
+    }
+
+    // Add actionable suggestions based on common error patterns
+    let error_lower = error.to_lowercase();
+    if error_lower.contains("network")
+        || error_lower.contains("connection")
+        || error_lower.contains("timeout")
+    {
+        message.push_str("\n\nSuggestion: Check your network connection and Docker's ability to reach the internet.");
+    } else if error_lower.contains("disk")
+        || error_lower.contains("space")
+        || error_lower.contains("no space")
+    {
+        message.push_str("\n\nSuggestion: Free up disk space with 'docker system prune' or check available storage.");
+    } else if error_lower.contains("permission") || error_lower.contains("denied") {
+        message.push_str("\n\nSuggestion: Check Docker permissions. You may need to add your user to the 'docker' group.");
+    }
+
+    message
+}
+
 /// Create a gzipped tar archive containing the Dockerfile
 fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
     let mut archive_buffer = Vec::new();
@@ -321,5 +369,45 @@ mod tests {
     #[test]
     fn default_tag_is_latest() {
         assert_eq!(IMAGE_TAG_DEFAULT, "latest");
+    }
+
+    #[test]
+    fn format_build_error_includes_recent_logs() {
+        let mut logs = VecDeque::new();
+        logs.push_back("Step 1/5 : FROM ubuntu:22.04".to_string());
+        logs.push_back("Step 2/5 : RUN apt-get update".to_string());
+        logs.push_back("E: Unable to fetch some archives".to_string());
+
+        let result = format_build_error_with_context("Build failed: exit code 1", &logs);
+
+        assert!(result.contains("Build failed: exit code 1"));
+        assert!(result.contains("Recent build output:"));
+        assert!(result.contains("Step 1/5"));
+        assert!(result.contains("Unable to fetch"));
+    }
+
+    #[test]
+    fn format_build_error_handles_empty_logs() {
+        let logs = VecDeque::new();
+        let result = format_build_error_with_context("Stream error", &logs);
+
+        assert!(result.contains("Stream error"));
+        assert!(!result.contains("Recent build output:"));
+    }
+
+    #[test]
+    fn format_build_error_adds_network_suggestion() {
+        let logs = VecDeque::new();
+        let result = format_build_error_with_context("connection timeout", &logs);
+
+        assert!(result.contains("Check your network connection"));
+    }
+
+    #[test]
+    fn format_build_error_adds_disk_suggestion() {
+        let logs = VecDeque::new();
+        let result = format_build_error_with_context("no space left on device", &logs);
+
+        assert!(result.contains("Free up disk space"));
     }
 }
