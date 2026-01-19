@@ -338,10 +338,13 @@ RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
 # opencode Installation
 # -----------------------------------------------------------------------------
 # Install opencode using official install script
-# The script installs to ~/.local/bin which is already in PATH
+# The script installs to ~/.opencode/bin/
 RUN curl -fsSL https://opencode.ai/install | bash \
-    && ls -la /home/opencode/.local/bin/opencode || echo "opencode not in .local/bin" \
-    && which opencode || echo "opencode not in PATH"
+    && ls -la /home/opencode/.opencode/bin/opencode \
+    && /home/opencode/.opencode/bin/opencode --version
+
+# Add opencode to PATH
+ENV PATH="/home/opencode/.opencode/bin:${PATH}"
 
 # -----------------------------------------------------------------------------
 # GSD Plugin Installation
@@ -434,5 +437,5 @@ EXPOSE 3000
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
 # Default command: start opencode web interface on port 3000
-# Using full path to ensure binary is found
-CMD ["/home/opencode/.local/bin/opencode", "web", "--port", "3000"]
+# Using full path to ensure binary is found (opencode installs to ~/.opencode/bin/)
+CMD ["/home/opencode/.opencode/bin/opencode", "web", "--port", "3000"]
