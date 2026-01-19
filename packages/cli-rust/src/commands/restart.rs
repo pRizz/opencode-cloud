@@ -3,12 +3,12 @@
 //! Restarts the opencode service (stop + start).
 
 use crate::output::CommandSpinner;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::docker::{
-    container_is_running, setup_and_start, stop_service, DockerClient, DockerError,
-    CONTAINER_NAME, DEFAULT_PORT,
+    CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError, container_is_running, setup_and_start,
+    stop_service,
 };
 
 /// Arguments for the restart command
@@ -25,7 +25,13 @@ pub struct RestartArgs {
 /// 3. Starts the service
 pub async fn cmd_restart(_args: &RestartArgs, quiet: bool, verbose: u8) -> Result<()> {
     // Connect to Docker
-    let client = connect_docker(verbose).await?;
+    let client = connect_docker(verbose)?;
+
+    // Verify connection
+    client.verify_connection().await.map_err(|e| {
+        let msg = format_docker_error(&e);
+        anyhow!("{}", msg)
+    })?;
 
     // Create single spinner for the full operation
     let spinner = CommandSpinner::new_maybe("Restarting service...", quiet);
@@ -67,12 +73,12 @@ pub async fn cmd_restart(_args: &RestartArgs, quiet: bool, verbose: u8) -> Resul
 }
 
 /// Connect to Docker with actionable error messages
-async fn connect_docker(verbose: u8) -> Result<DockerClient> {
+fn connect_docker(verbose: u8) -> Result<DockerClient> {
     if verbose > 0 {
         eprintln!("{} Connecting to Docker...", style("[info]").cyan());
     }
 
-    DockerClient::connect().await.map_err(|e| {
+    DockerClient::new().map_err(|e| {
         let msg = format_docker_error(&e);
         anyhow!("{}", msg)
     })

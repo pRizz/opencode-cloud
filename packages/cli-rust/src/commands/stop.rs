@@ -3,11 +3,11 @@
 //! Stops the opencode service with a graceful 30-second timeout.
 
 use crate::output::CommandSpinner;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::docker::{
-    container_is_running, stop_service, DockerClient, DockerError, CONTAINER_NAME,
+    CONTAINER_NAME, DockerClient, DockerError, container_is_running, stop_service,
 };
 
 /// Arguments for the stop command
@@ -24,7 +24,13 @@ pub struct StopArgs {
 /// 3. Stops the container with 30s graceful timeout
 pub async fn cmd_stop(_args: &StopArgs, quiet: bool) -> Result<()> {
     // Connect to Docker
-    let client = connect_docker().await?;
+    let client = connect_docker()?;
+
+    // Verify connection
+    client.verify_connection().await.map_err(|e| {
+        let msg = format_docker_error(&e);
+        anyhow!("{}", msg)
+    })?;
 
     // Check if already stopped (idempotent behavior)
     if !container_is_running(&client, CONTAINER_NAME).await? {
@@ -54,8 +60,8 @@ pub async fn cmd_stop(_args: &StopArgs, quiet: bool) -> Result<()> {
 }
 
 /// Connect to Docker with actionable error messages
-async fn connect_docker() -> Result<DockerClient> {
-    DockerClient::connect().await.map_err(|e| {
+fn connect_docker() -> Result<DockerClient> {
+    DockerClient::new().map_err(|e| {
         let msg = format_docker_error(&e);
         anyhow!("{}", msg)
     })

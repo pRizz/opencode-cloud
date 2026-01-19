@@ -2,6 +2,9 @@
 //!
 //! This module contains the shared CLI implementation used by all binaries.
 
+mod commands;
+mod output;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::style;
@@ -32,14 +35,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start the opencode service
+    Start(commands::StartArgs),
+    /// Stop the opencode service
+    Stop(commands::StopArgs),
+    /// Restart the opencode service
+    Restart(commands::RestartArgs),
     /// Manage configuration
     #[command(subcommand)]
     Config(ConfigCommands),
-    // Future commands (Phase 3+):
-    // Start - Start the opencode service
-    // Stop - Stop the opencode service
-    // Status - Show service status
-    // Restart - Restart the opencode service
 }
 
 #[derive(Subcommand)]
@@ -127,6 +131,18 @@ pub fn run() -> Result<()> {
     }
 
     match cli.command {
+        Some(Commands::Start(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_start(&args, cli.quiet, cli.verbose))
+        }
+        Some(Commands::Stop(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_stop(&args, cli.quiet))
+        }
+        Some(Commands::Restart(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_restart(&args, cli.quiet, cli.verbose))
+        }
         Some(Commands::Config(cmd)) => handle_config(cmd, &config),
         None => {
             // No command - show a welcome message and hint to use --help

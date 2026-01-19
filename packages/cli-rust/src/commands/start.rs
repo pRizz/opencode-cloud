@@ -3,12 +3,14 @@
 //! Starts the opencode service, building the image if needed.
 
 use crate::output::CommandSpinner;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use bollard::container::{LogOutput, LogsOptions};
 use clap::Args;
 use console::style;
+use futures_util::stream::StreamExt;
 use opencode_cloud_core::docker::{
-    build_image, container_is_running, image_exists, setup_and_start, DockerClient, DockerError,
-    CONTAINER_NAME, DEFAULT_PORT, DOCKERFILE, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    ProgressReporter, build_image, container_is_running, image_exists, setup_and_start,
 };
 use std::net::TcpListener;
 
@@ -35,7 +37,13 @@ pub struct StartArgs {
 /// 6. Shows URL and container info
 pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()> {
     // Connect to Docker
-    let client = connect_docker(verbose).await?;
+    let client = connect_docker(verbose)?;
+
+    // Verify connection
+    client.verify_connection().await.map_err(|e| {
+        let msg = format_docker_error(&e);
+        anyhow!("{}", msg)
+    })?;
 
     let port = args.port.unwrap_or(DEFAULT_PORT);
 
@@ -68,12 +76,15 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
         spinner.update("Building image (first run)...");
 
         if verbose > 0 {
-            eprintln!("{} Building from embedded Dockerfile", style("[info]").cyan());
+            eprintln!(
+                "{} Building from embedded Dockerfile",
+                style("[info]").cyan()
+            );
         }
 
-        // Create a no-op progress reporter for the build
-        let progress = opencode_cloud_core::docker::ProgressReporter::new(quiet);
-        build_image(&client, DOCKERFILE, IMAGE_TAG_DEFAULT, &progress).await?;
+        // Create a progress reporter for the build
+        let mut progress = ProgressReporter::new();
+        build_image(&client, Some(IMAGE_TAG_DEFAULT), &mut progress).await?;
     }
 
     // Start container
@@ -112,10 +123,7 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
         );
         println!("Port:       {} -> 3000", port);
         println!();
-        println!(
-            "{}",
-            style("Open in browser: occ start --open").dim()
-        );
+        println!("{}", style("Open in browser: occ start --open").dim());
     }
 
     // Open browser if requested
@@ -133,12 +141,12 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 }
 
 /// Connect to Docker with actionable error messages
-async fn connect_docker(verbose: u8) -> Result<DockerClient> {
+fn connect_docker(verbose: u8) -> Result<DockerClient> {
     if verbose > 0 {
         eprintln!("{} Connecting to Docker...", style("[info]").cyan());
     }
 
-    DockerClient::connect().await.map_err(|e| {
+    DockerClient::new().map_err(|e| {
         let msg = format_docker_error(&e);
         anyhow!("{}", msg)
     })
@@ -210,9 +218,6 @@ fn find_next_available_port(start: u16) -> Option<u16> {
 
 /// Show recent container logs for debugging
 async fn show_recent_logs(client: &DockerClient, lines: usize) {
-    use bollard::container::{LogOutput, LogsOptions};
-    use futures_util::stream::StreamExt;
-
     let options = LogsOptions::<String> {
         stdout: true,
         stderr: true,

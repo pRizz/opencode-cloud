@@ -6,6 +6,6 @@ mod restart;
 mod start;
 mod stop;
 
-pub use restart::{cmd_restart, RestartArgs};
-pub use start::{cmd_start, StartArgs};
-pub use stop::{cmd_stop, StopArgs};
+pub use restart::{RestartArgs, cmd_restart};
+pub use start::{StartArgs, cmd_start};
+pub use stop::{StopArgs, cmd_stop};

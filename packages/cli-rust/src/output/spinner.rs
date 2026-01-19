@@ -71,11 +71,7 @@ impl CommandSpinner {
     /// Finish the spinner with a failure message (red X)
     pub fn fail(self, message: &str) {
         if let Some(bar) = self.bar {
-            bar.finish_with_message(format!(
-                "{} {}",
-                console::style("\u{2717}").red(),
-                message
-            ));
+            bar.finish_with_message(format!("{} {}", console::style("\u{2717}").red(), message));
         }
     }
 }
