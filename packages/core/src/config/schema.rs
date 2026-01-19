@@ -14,8 +14,8 @@ pub struct Config {
     pub version: u32,
 
     /// Port for the opencode web UI (default: 3000)
-    #[serde(default = "default_port")]
-    pub port: u16,
+    #[serde(default = "default_opencode_web_port")]
+    pub opencode_web_port: u16,
 
     /// Bind address (default: "localhost")
     /// Use "localhost" for local-only access (secure default)
@@ -42,7 +42,7 @@ pub struct Config {
     pub restart_delay: u32,
 }
 
-fn default_port() -> u16 {
+fn default_opencode_web_port() -> u16 {
     3000
 }
 
@@ -70,7 +70,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             version: 1,
-            port: default_port(),
+            opencode_web_port: default_opencode_web_port(),
             bind: default_bind(),
             auto_restart: default_auto_restart(),
             boot_mode: default_boot_mode(),
@@ -95,7 +95,7 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert_eq!(config.version, 1);
-        assert_eq!(config.port, 3000);
+        assert_eq!(config.opencode_web_port, 3000);
         assert_eq!(config.bind, "localhost");
         assert!(config.auto_restart);
         assert_eq!(config.boot_mode, "user");
@@ -116,7 +116,7 @@ mod tests {
         let json = r#"{"version": 1}"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.version, 1);
-        assert_eq!(config.port, 3000);
+        assert_eq!(config.opencode_web_port, 3000);
         assert_eq!(config.bind, "localhost");
         assert!(config.auto_restart);
         assert_eq!(config.boot_mode, "user");
@@ -128,7 +128,7 @@ mod tests {
     fn test_serialize_deserialize_roundtrip_with_service_fields() {
         let config = Config {
             version: 1,
-            port: 9000,
+            opencode_web_port: 9000,
             bind: "0.0.0.0".to_string(),
             auto_restart: false,
             boot_mode: "system".to_string(),

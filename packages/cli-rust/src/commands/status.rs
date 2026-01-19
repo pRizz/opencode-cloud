@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::config;
-use opencode_cloud_core::docker::{CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError};
+use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, DockerError, OPENCODE_WEB_PORT};
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::time::Duration;
 
@@ -96,7 +96,7 @@ pub async fn cmd_status(_args: &StatusArgs, quiet: bool, _verbose: u8) -> Result
         .and_then(|bindings| bindings.first())
         .and_then(|binding| binding.host_port.as_ref())
         .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_PORT);
+        .unwrap_or(OPENCODE_WEB_PORT);
 
     // Quiet mode: just exit with appropriate code
     if quiet {

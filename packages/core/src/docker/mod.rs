@@ -36,7 +36,7 @@ pub use volume::{
 
 // Container lifecycle
 pub use container::{
-    CONTAINER_NAME, DEFAULT_PORT, container_exists, container_is_running, container_state,
+    CONTAINER_NAME, OPENCODE_WEB_PORT, container_exists, container_is_running, container_state,
     create_container, remove_container, start_container, stop_container,
 };
 
@@ -47,11 +47,11 @@ pub use container::{
 ///
 /// # Arguments
 /// * `client` - Docker client
-/// * `host_port` - Port to bind on host (defaults to DEFAULT_PORT)
+/// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
 pub async fn setup_and_start(
     client: &DockerClient,
-    host_port: Option<u16>,
+    opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
 ) -> Result<String, DockerError> {
     // Ensure volumes exist first
@@ -71,7 +71,7 @@ pub async fn setup_and_start(
             .unwrap_or_else(|| container::CONTAINER_NAME.to_string())
     } else {
         // Create new container
-        container::create_container(client, None, None, host_port, env_vars).await?
+        container::create_container(client, None, None, opencode_web_port, env_vars).await?
     };
 
     // Start if not running

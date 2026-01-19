@@ -20,7 +20,7 @@ use tracing::debug;
 pub const CONTAINER_NAME: &str = "opencode-cloud";
 
 /// Default port for opencode web UI
-pub const DEFAULT_PORT: u16 = 3000;
+pub const OPENCODE_WEB_PORT: u16 = 3000;
 
 /// Create the opencode container with volume mounts
 ///
@@ -31,19 +31,19 @@ pub const DEFAULT_PORT: u16 = 3000;
 /// * `client` - Docker client
 /// * `name` - Container name (defaults to CONTAINER_NAME)
 /// * `image` - Image to use (defaults to IMAGE_NAME_GHCR:IMAGE_TAG_DEFAULT)
-/// * `host_port` - Port to bind on host (defaults to DEFAULT_PORT)
+/// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
 pub async fn create_container(
     client: &DockerClient,
     name: Option<&str>,
     image: Option<&str>,
-    host_port: Option<u16>,
+    opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
 ) -> Result<String, DockerError> {
     let container_name = name.unwrap_or(CONTAINER_NAME);
     let default_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
     let image_name = image.unwrap_or(&default_image);
-    let port = host_port.unwrap_or(DEFAULT_PORT);
+    let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
 
     debug!(
         "Creating container {} from image {} with port {}",
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn container_constants_are_correct() {
         assert_eq!(CONTAINER_NAME, "opencode-cloud");
-        assert_eq!(DEFAULT_PORT, 3000);
+        assert_eq!(OPENCODE_WEB_PORT, 3000);
     }
 
     #[test]

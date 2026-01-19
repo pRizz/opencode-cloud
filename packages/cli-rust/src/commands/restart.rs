@@ -7,8 +7,8 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError, container_is_running, setup_and_start,
-    stop_service,
+    CONTAINER_NAME, DockerClient, DockerError, OPENCODE_WEB_PORT, container_is_running,
+    setup_and_start, stop_service,
 };
 
 /// Arguments for the restart command
@@ -48,12 +48,12 @@ pub async fn cmd_restart(_args: &RestartArgs, quiet: bool, verbose: u8) -> Resul
 
     // Start
     spinner.update("Starting service...");
-    match setup_and_start(&client, Some(DEFAULT_PORT), None).await {
+    match setup_and_start(&client, Some(OPENCODE_WEB_PORT), None).await {
         Ok(container_id) => {
             spinner.success("Service restarted");
 
             if !quiet {
-                let url = format!("http://127.0.0.1:{}", DEFAULT_PORT);
+                let url = format!("http://127.0.0.1:{}", OPENCODE_WEB_PORT);
                 println!();
                 println!("URL:        {}", style(&url).cyan());
                 println!(

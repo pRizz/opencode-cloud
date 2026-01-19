@@ -9,8 +9,9 @@ use clap::Args;
 use console::style;
 use futures_util::stream::StreamExt;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
-    ProgressReporter, build_image, container_is_running, image_exists, setup_and_start,
+    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    OPENCODE_WEB_PORT, ProgressReporter, build_image, container_is_running, image_exists,
+    setup_and_start,
 };
 use std::net::TcpListener;
 
@@ -50,7 +51,7 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
         anyhow!("{}", msg)
     })?;
 
-    let port = args.port.unwrap_or(DEFAULT_PORT);
+    let port = args.port.unwrap_or(OPENCODE_WEB_PORT);
 
     // Check if already running (idempotent behavior)
     if container_is_running(&client, CONTAINER_NAME).await? {

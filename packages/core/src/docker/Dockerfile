@@ -427,7 +427,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # -----------------------------------------------------------------------------
 WORKDIR /home/opencode/workspace
 
-# Expose opencode web port (matches DEFAULT_PORT in container.rs)
+# Expose opencode web port (matches OPENCODE_WEB_PORT in container.rs)
 EXPOSE 3000
 
 # Use tini as init system for proper signal handling

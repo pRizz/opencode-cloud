@@ -19,7 +19,7 @@ pub use config::{Config, load_config, save_config};
 pub use singleton::{InstanceLock, SingletonError};
 
 // Re-export docker types
-pub use docker::{CONTAINER_NAME, DEFAULT_PORT, DockerClient, DockerError};
+pub use docker::{CONTAINER_NAME, DockerClient, DockerError, OPENCODE_WEB_PORT};
 
 // Re-export platform types
 pub use platform::{
