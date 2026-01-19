@@ -13,7 +13,7 @@ pub struct Config {
     /// Config file version for migrations
     pub version: u32,
 
-    /// Port for the opencode web UI (default: 8080)
+    /// Port for the opencode web UI (default: 3000)
     #[serde(default = "default_port")]
     pub port: u16,
 
@@ -43,7 +43,7 @@ pub struct Config {
 }
 
 fn default_port() -> u16 {
-    8080
+    3000
 }
 
 fn default_bind() -> String {
@@ -95,7 +95,7 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert_eq!(config.version, 1);
-        assert_eq!(config.port, 8080);
+        assert_eq!(config.port, 3000);
         assert_eq!(config.bind, "localhost");
         assert!(config.auto_restart);
         assert_eq!(config.boot_mode, "user");
@@ -116,7 +116,7 @@ mod tests {
         let json = r#"{"version": 1}"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.version, 1);
-        assert_eq!(config.port, 8080);
+        assert_eq!(config.port, 3000);
         assert_eq!(config.bind, "localhost");
         assert!(config.auto_restart);
         assert_eq!(config.boot_mode, "user");
