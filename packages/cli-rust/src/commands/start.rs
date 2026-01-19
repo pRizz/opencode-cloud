@@ -350,7 +350,7 @@ async fn wait_for_service_ready(
         if last_log_check.elapsed() > log_check_interval {
             if let Some(error) = check_for_fatal_errors(client).await {
                 return Err(anyhow!(
-                    "Fatal error detected in container:\n  {}\n\nThe service cannot start. Check the Docker image with: occ start --rebuild",
+                    "Fatal error detected in container:\n  {}\n\nThe service cannot start. Try rebuilding the Docker image: occ start --rebuild",
                     error
                 ));
             }
