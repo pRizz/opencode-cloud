@@ -2,12 +2,14 @@
 //!
 //! This module contains the implementations for service lifecycle commands.
 
+mod install;
 mod logs;
 mod restart;
 mod start;
 mod status;
 mod stop;
 
+pub use install::{InstallArgs, cmd_install};
 pub use logs::{LogsArgs, cmd_logs};
 pub use restart::{RestartArgs, cmd_restart};
 pub use start::{StartArgs, cmd_start};

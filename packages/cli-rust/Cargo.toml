@@ -36,3 +36,4 @@ humantime.workspace = true
 futures-util.workspace = true
 bollard.workspace = true
 chrono.workspace = true
+dialoguer.workspace = true
