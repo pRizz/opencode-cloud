@@ -67,11 +67,11 @@ Plans:
   3. User can restart the service via `opencode-cloud restart`
   4. User can check status via `opencode-cloud status` and see running/stopped state
   5. User can view logs via `opencode-cloud logs` with follow mode (`-f`)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD (start/stop/restart commands)
-- [ ] 03-02: TBD (status and logs commands)
+- [ ] 03-01-PLAN.md — Start/stop/restart commands with spinner feedback and idempotent behavior
+- [ ] 03-02-PLAN.md — Status and logs commands with colored output and log streaming
 
 ### Phase 4: Platform Service Installation
 **Goal**: Service survives host reboots and auto-restarts on crash
@@ -180,7 +180,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 |-------|----------------|--------|-----------|
 | 1. Project Foundation | 2/2 | ✓ Complete | 2026-01-18 |
 | 2. Docker Integration | 3/3 | ✓ Complete | 2026-01-19 |
-| 3. Service Lifecycle Commands | 0/2 | Not started | - |
+| 3. Service Lifecycle Commands | 0/2 | Planned | - |
 | 4. Platform Service Installation | 0/3 | Not started | - |
 | 5. Interactive Setup Wizard | 0/2 | Not started | - |
 | 6. Security and Authentication | 0/2 | Not started | - |
@@ -190,4 +190,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-19 (Phase 2 complete)*
+*Last updated: 2026-01-19 (Phase 3 planned)*
