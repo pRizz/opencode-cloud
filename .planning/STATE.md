@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 2 - Docker Integration (Complete)
+**Current focus:** Phase 3 - Service Lifecycle Commands (In Progress)
 
 ## Current Position
 
-Phase: 2 of 9 (Docker Integration)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-19 - Completed 02-03-PLAN.md (Volume and Container Lifecycle)
+Phase: 3 of 10 (Service Lifecycle Commands)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-01-19 - Completed 03-01-PLAN.md (Start, Stop, Restart Commands)
 
-Progress: [#####.....] 28%
+Progress: [######....] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 6.4 min
-- Total execution time: 0.53 hours
+- Total plans completed: 6
+- Average duration: 7 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [#####.....] 28%
 |-------|-------|-------|----------|
 | 01 | 2 | 14 min | 7 min |
 | 02 | 3 | 18 min | 6 min |
+| 03 | 1 | 12 min | 12 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 5 min, 6 min, 7 min
-- Trend: Stable
+- Last 5 plans: 5 min, 6 min, 7 min, 12 min
+- Trend: Slight increase (API corrections in 03-01)
 
 *Updated after each plan completion*
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [02-03]: Named volumes over bind mounts for cross-platform compatibility
 - [02-03]: Port binding to 127.0.0.1 only for security (prevents external access)
 - [02-03]: Volume label 'managed-by: opencode-cloud' for identification
+- [03-01]: DockerClient::new() is synchronous; verify_connection() validates async
+- [03-01]: Port availability pre-checked before container creation
+- [03-01]: Quiet mode (-q) outputs only URL for scripting
 
 ### Pending Todos
 
@@ -76,6 +80,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 9 added: Dockerfile Version Pinning (pin explicit versions for GitHub-installed tools)
+- Phase 10 added: Remote Administration via Cockpit (integrate and expose remote admin of Docker container)
 
 ### Blockers/Concerns
 
@@ -83,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-19 17:52:00 UTC
-Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
+Last session: 2026-01-19 18:15:00 UTC
+Stopped at: Completed 03-01-PLAN.md (Start, Stop, Restart Commands)
 Resume file: None
