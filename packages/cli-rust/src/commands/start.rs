@@ -24,6 +24,11 @@ pub struct StartArgs {
     /// Open browser after starting
     #[arg(long)]
     pub open: bool,
+
+    /// Run in foreground (for service managers like systemd/launchd)
+    /// Note: This is the default behavior; flag exists for compatibility
+    #[arg(long)]
+    pub no_daemon: bool,
 }
 
 /// Start the opencode service
