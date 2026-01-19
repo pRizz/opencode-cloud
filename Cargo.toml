@@ -42,3 +42,7 @@ tokio-retry = "0.3"
 indicatif = { version = "0.17", features = ["tokio", "futures"] }
 http-body-util = "0.1"
 bytes = "1.9"
+
+# CLI utilities
+webbrowser = "1.0"
+humantime = "2.1"
