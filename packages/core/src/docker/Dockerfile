@@ -7,7 +7,7 @@
 # - Ubuntu 24.04 LTS (noble) base
 # - Non-root user with passwordless sudo
 # - Multiple languages via mise (Node.js, Python, Rust, Go)
-# - Modern CLI tools (ripgrep, bat, eza, fzf, lazygit, etc.)
+# - Modern CLI tools (ripgrep, eza, fzf, lazygit, etc.)
 # - Container/K8s tools (kubectl, helm, k9s, dive)
 # - Security tools (trivy, gitleaks, hadolint, age, sops)
 # - GSD opencode plugin for task management
@@ -221,24 +221,8 @@ RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
 # Install via cargo for latest versions
 RUN . /home/opencode/.cargo/env \
     && cargo install --locked \
-    # File search/viewing
     ripgrep \
-    bat \
-    eza \
-    fd-find \
-    # Git tools
-    git-delta \
-    difftastic \
-    # Directory/process tools
-    procs \
-    dust \
-    duf \
-    # Task runner
-    just \
-    # Shell tools
-    starship \
-    # Other utilities
-    glow
+    eza
 
 # Install lazygit (Go-based)
 RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
@@ -418,10 +402,6 @@ RUN git clone https://github.com/rokicool/gsd-opencode.git /home/opencode/.confi
 RUN git config --global init.defaultBranch main \
     && git config --global core.editor "nvim" \
     && git config --global pull.rebase false \
-    && git config --global core.pager "delta" \
-    && git config --global interactive.diffFilter "delta --color-only" \
-    && git config --global delta.navigate true \
-    && git config --global delta.light false \
     && git config --global merge.conflictstyle diff3 \
     && git config --global diff.colorMoved default
 
@@ -459,13 +439,8 @@ alias ls="eza --icons"
 alias ll="eza -l --icons"
 alias la="eza -la --icons"
 alias lt="eza --tree --icons"
-alias cat="bat --paging=never"
 alias grep="rg"
-alias find="fd"
 alias top="btop"
-alias ps="procs"
-alias du="dust"
-alias df="duf"
 
 # Git aliases
 alias g="git"
