@@ -47,10 +47,8 @@ pub struct StartArgs {
 /// 5. Creates and starts the container
 /// 6. Shows URL and container info
 pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()> {
-    // Connect to Docker
     let client = connect_docker(verbose)?;
 
-    // Verify connection
     client.verify_connection().await.map_err(|e| {
         let msg = format_docker_error(&e);
         anyhow!("{}", msg)
@@ -58,100 +56,40 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     let port = args.port.unwrap_or(OPENCODE_WEB_PORT);
 
-    // If rebuilding, stop and remove existing container first
-    // Must remove the container (not just stop) so a new one is created from the new image
+    // Handle rebuild: remove existing container so a new one is created from the new image
     if args.rebuild {
-        if opencode_cloud_core::docker::container::container_exists(&client, CONTAINER_NAME).await?
-        {
-            if verbose > 0 {
-                eprintln!(
-                    "{} Removing existing container for rebuild...",
-                    style("[info]").cyan()
-                );
-            }
-            // Stop and remove container so we can create a fresh one with the new image
-            stop_service(&client, true).await.ok(); // Ignore errors if container doesn't exist
-        }
-    } else {
-        // Check if already running (idempotent behavior) - only when not rebuilding
-        if container_is_running(&client, CONTAINER_NAME).await? {
-            if !quiet {
-                let url = format!("http://127.0.0.1:{}", port);
-                println!("{}", style("Service is already running").dim());
-                println!();
-                println!("URL:        {}", style(&url).cyan());
-            }
-            return Ok(());
-        }
+        handle_rebuild(&client, verbose).await?;
+    } else if container_is_running(&client, CONTAINER_NAME).await? {
+        // Already running (idempotent behavior) - only when not rebuilding
+        return show_already_running(port, quiet);
     }
 
     // Pre-check port availability
     if !check_port_available(port) {
-        let suggestion = find_next_available_port(port);
-        let mut msg = format!("Port {} is already in use", port);
-        if let Some(p) = suggestion {
-            msg.push_str(&format!(". Try: occ start --port {}", p));
-        }
-        return Err(anyhow!(msg));
+        return Err(port_in_use_error(port));
     }
 
-    // Check if image exists - build if not, or rebuild if requested
+    // Build image if needed (first run or rebuild)
     let needs_build =
         args.rebuild || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
 
     if needs_build {
-        if verbose > 0 {
-            let action = if args.rebuild {
-                "Rebuilding Docker image"
-            } else {
-                "Building Docker image"
-            };
-            eprintln!(
-                "{} {} from embedded Dockerfile{}",
-                style("[info]").cyan(),
-                action,
-                if args.rebuild { " (no cache)" } else { "" }
-            );
-        }
-
-        // Use ProgressReporter for the build with context prefix
-        let context = if args.rebuild {
-            "Rebuilding Docker image (no cache)"
-        } else {
-            "Building Docker image"
-        };
-        let mut progress = ProgressReporter::with_context(context);
-        build_image(
-            &client,
-            Some(IMAGE_TAG_DEFAULT),
-            &mut progress,
-            args.rebuild,
-        )
-        .await?;
+        build_docker_image(&client, args.rebuild, verbose).await?;
     }
 
-    // Create spinner for container start phase (after build completes)
+    // Start container
     let spinner = CommandSpinner::new_maybe("Starting container...", quiet);
-
-    let container_id = match setup_and_start(&client, Some(port), None).await {
+    let container_id = match start_container(&client, port).await {
         Ok(id) => id,
         Err(e) => {
             spinner.fail("Failed to start container");
             show_docker_error(&e);
-            // Try to show last logs if container exists
-            if let Ok(true) =
-                opencode_cloud_core::docker::container::container_exists(&client, CONTAINER_NAME)
-                    .await
-            {
-                eprintln!();
-                eprintln!("{}", style("Recent container logs:").yellow());
-                show_recent_logs(&client, 20).await;
-            }
+            show_logs_if_container_exists(&client).await;
             return Err(e.into());
         }
     };
 
-    // Wait for service to be ready (health check with fatal error detection)
+    // Wait for service to be ready
     if let Err(e) = wait_for_service_ready(&client, port, &spinner).await {
         spinner.fail("Service failed to become ready");
         eprintln!();
@@ -162,34 +100,136 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     spinner.success("Service started and ready");
 
-    // Show result
-    let url = format!("http://127.0.0.1:{}", port);
-    if quiet {
-        println!("{}", url);
-    } else {
-        println!();
-        println!("URL:        {}", style(&url).cyan());
-        println!(
-            "Container:  {}",
-            style(&container_id[..12.min(container_id.len())]).dim()
-        );
-        println!("Port:       {} -> 3000", port);
-        println!();
-        println!("{}", style("Open in browser: occ start --open").dim());
-    }
-
-    // Open browser if requested
-    if args.open {
-        if let Err(e) = webbrowser::open(&url) {
-            eprintln!(
-                "{} Failed to open browser: {}",
-                style("Warning:").yellow(),
-                e
-            );
-        }
-    }
+    // Show result and optionally open browser
+    show_start_result(&container_id, port, quiet);
+    open_browser_if_requested(args.open, port);
 
     Ok(())
+}
+
+/// Handle the --rebuild flag: remove existing container
+async fn handle_rebuild(client: &DockerClient, verbose: u8) -> Result<()> {
+    let exists =
+        opencode_cloud_core::docker::container::container_exists(client, CONTAINER_NAME).await?;
+
+    if !exists {
+        return Ok(());
+    }
+
+    if verbose > 0 {
+        eprintln!(
+            "{} Removing existing container for rebuild...",
+            style("[info]").cyan()
+        );
+    }
+
+    // Ignore errors if container doesn't exist
+    stop_service(client, true).await.ok();
+    Ok(())
+}
+
+/// Show message when service is already running
+fn show_already_running(port: u16, quiet: bool) -> Result<()> {
+    if quiet {
+        return Ok(());
+    }
+
+    let url = format!("http://127.0.0.1:{}", port);
+    println!("{}", style("Service is already running").dim());
+    println!();
+    println!("URL:        {}", style(&url).cyan());
+    Ok(())
+}
+
+/// Create error message for port already in use
+fn port_in_use_error(port: u16) -> anyhow::Error {
+    let mut msg = format!("Port {} is already in use", port);
+    if let Some(p) = find_next_available_port(port) {
+        msg.push_str(&format!(". Try: occ start --port {}", p));
+    }
+    anyhow!(msg)
+}
+
+/// Build the Docker image with progress reporting
+async fn build_docker_image(client: &DockerClient, rebuild: bool, verbose: u8) -> Result<()> {
+    if verbose > 0 {
+        let action = if rebuild {
+            "Rebuilding Docker image"
+        } else {
+            "Building Docker image"
+        };
+        let cache_note = if rebuild { " (no cache)" } else { "" };
+        eprintln!(
+            "{} {} from embedded Dockerfile{}",
+            style("[info]").cyan(),
+            action,
+            cache_note
+        );
+    }
+
+    let context = if rebuild {
+        "Rebuilding Docker image (no cache)"
+    } else {
+        "Building Docker image"
+    };
+
+    let mut progress = ProgressReporter::with_context(context);
+    build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, rebuild).await?;
+    Ok(())
+}
+
+/// Start the container, returning the container ID or error
+async fn start_container(client: &DockerClient, port: u16) -> Result<String, DockerError> {
+    setup_and_start(client, Some(port), None).await
+}
+
+/// Show recent logs if the container exists (for debugging failures)
+async fn show_logs_if_container_exists(client: &DockerClient) {
+    let Ok(true) =
+        opencode_cloud_core::docker::container::container_exists(client, CONTAINER_NAME).await
+    else {
+        return;
+    };
+
+    eprintln!();
+    eprintln!("{}", style("Recent container logs:").yellow());
+    show_recent_logs(client, 20).await;
+}
+
+/// Display the start result
+fn show_start_result(container_id: &str, port: u16, quiet: bool) {
+    let url = format!("http://127.0.0.1:{}", port);
+
+    if quiet {
+        println!("{}", url);
+        return;
+    }
+
+    println!();
+    println!("URL:        {}", style(&url).cyan());
+    println!(
+        "Container:  {}",
+        style(&container_id[..12.min(container_id.len())]).dim()
+    );
+    println!("Port:       {} -> 3000", port);
+    println!();
+    println!("{}", style("Open in browser: occ start --open").dim());
+}
+
+/// Open browser if requested
+fn open_browser_if_requested(should_open: bool, port: u16) {
+    if !should_open {
+        return;
+    }
+
+    let url = format!("http://127.0.0.1:{}", port);
+    if let Err(e) = webbrowser::open(&url) {
+        eprintln!(
+            "{} Failed to open browser: {}",
+            style("Warning:").yellow(),
+            e
+        );
+    }
 }
 
 /// Connect to Docker with actionable error messages
@@ -295,29 +335,24 @@ async fn check_for_fatal_errors(client: &DockerClient) -> Option<String> {
     let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
     let mut logs = Vec::new();
 
-    while let Some(result) = stream.next().await {
-        if let Ok(output) = result {
-            let line = match output {
-                LogOutput::StdOut { message } | LogOutput::StdErr { message } => {
-                    String::from_utf8_lossy(&message).to_string()
-                }
-                _ => continue,
-            };
-            logs.push(line);
-        }
+    while let Some(Ok(output)) = stream.next().await {
+        let line = match output {
+            LogOutput::StdOut { message } | LogOutput::StdErr { message } => {
+                String::from_utf8_lossy(&message).to_string()
+            }
+            _ => continue,
+        };
+        logs.push(line);
     }
 
     // Check for fatal error patterns
-    for log_line in &logs {
+    logs.iter().find_map(|log_line| {
         let lower = log_line.to_lowercase();
-        for pattern in FATAL_ERROR_PATTERNS {
-            if lower.contains(&pattern.to_lowercase()) {
-                return Some(log_line.trim().to_string());
-            }
-        }
-    }
-
-    None
+        FATAL_ERROR_PATTERNS
+            .iter()
+            .any(|pattern| lower.contains(&pattern.to_lowercase()))
+            .then(|| log_line.trim().to_string())
+    })
 }
 
 /// Wait for the service to be ready by checking TCP connectivity
@@ -333,14 +368,14 @@ async fn wait_for_service_ready(
     let start = Instant::now();
     let timeout = Duration::from_secs(HEALTH_CHECK_TIMEOUT_SECS);
     let interval = Duration::from_millis(HEALTH_CHECK_INTERVAL_MS);
+    let log_check_interval = Duration::from_secs(1);
+
     let mut consecutive_success = 0;
     let mut last_log_check = Instant::now();
-    let log_check_interval = Duration::from_secs(1);
 
     spinner.update("Waiting for service to be ready...");
 
     loop {
-        // Check timeout
         if start.elapsed() > timeout {
             return Err(anyhow!(
                 "Service did not become ready within {} seconds. Check logs with: occ logs",
@@ -360,30 +395,24 @@ async fn wait_for_service_ready(
         }
 
         // Try to connect to the service
-        match TcpStream::connect_timeout(
-            &format!("127.0.0.1:{}", port).parse().unwrap(),
-            Duration::from_secs(1),
-        ) {
-            Ok(_) => {
-                consecutive_success += 1;
-                if consecutive_success >= HEALTH_CHECK_CONSECUTIVE_REQUIRED {
-                    return Ok(());
-                }
-                // Update spinner with progress
-                spinner.update(&format!(
-                    "Service responding ({}/{})",
-                    consecutive_success, HEALTH_CHECK_CONSECUTIVE_REQUIRED
-                ));
+        let addr = format!("127.0.0.1:{}", port).parse().unwrap();
+        let connected = TcpStream::connect_timeout(&addr, Duration::from_secs(1)).is_ok();
+
+        if connected {
+            consecutive_success += 1;
+            if consecutive_success >= HEALTH_CHECK_CONSECUTIVE_REQUIRED {
+                return Ok(());
             }
-            Err(_) => {
-                // Reset counter on failure
-                consecutive_success = 0;
-                let elapsed = start.elapsed().as_secs();
-                spinner.update(&format!(
-                    "Waiting for service to be ready... ({}s)",
-                    elapsed
-                ));
-            }
+            spinner.update(&format!(
+                "Service responding ({}/{})",
+                consecutive_success, HEALTH_CHECK_CONSECUTIVE_REQUIRED
+            ));
+        } else {
+            consecutive_success = 0;
+            spinner.update(&format!(
+                "Waiting for service to be ready... ({}s)",
+                start.elapsed().as_secs()
+            ));
         }
 
         tokio::time::sleep(interval).await;
@@ -402,23 +431,20 @@ async fn show_recent_logs(client: &DockerClient, lines: usize) {
     let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
     let mut count = 0;
 
-    while let Some(result) = stream.next().await {
+    while let Some(Ok(output)) = stream.next().await {
         if count >= lines {
             break;
         }
-        match result {
-            Ok(output) => {
-                let line = match output {
-                    LogOutput::StdOut { message } | LogOutput::StdErr { message } => {
-                        String::from_utf8_lossy(&message).to_string()
-                    }
-                    _ => continue,
-                };
-                eprint!("  {}", line);
-                count += 1;
+
+        let line = match output {
+            LogOutput::StdOut { message } | LogOutput::StdErr { message } => {
+                String::from_utf8_lossy(&message).to_string()
             }
-            Err(_) => break,
-        }
+            _ => continue,
+        };
+
+        eprint!("  {}", line);
+        count += 1;
     }
 }
 
