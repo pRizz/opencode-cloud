@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 4 of 12 (Platform Service Installation)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-19 - Completed 04-02-PLAN.md (SystemdManager Implementation)
+Last activity: 2026-01-19 - Completed 04-03-PLAN.md (macOS launchd Service Manager)
 
-Progress: [########..] 50%
+Progress: [#########.] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 7 min
-- Total execution time: 1.0 hours
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [########..] 50%
 | 01 | 2 | 14 min | 7 min |
 | 02 | 3 | 18 min | 6 min |
 | 03 | 2 | 16 min | 8 min |
-| 04 | 2 | 10 min | 5 min |
+| 04 | 3 | 18 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 12 min, 4 min, 6 min, 4 min
+- Last 5 plans: 4 min, 6 min, 4 min, 8 min
 - Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 - [04-02]: User mode directory ~/.config/systemd/user/ for no-root services
 - [04-02]: Quote executable paths with spaces in ExecStart/ExecStop
 - [04-02]: Rate limiting formula: StartLimitIntervalSec = delay * retries * 2
+- [04-03]: plist crate for XML serialization instead of manual templating
+- [04-03]: Modern launchctl bootstrap/bootout syntax over deprecated load/unload
+- [04-03]: User mode by default (~/Library/LaunchAgents/) for non-root installation
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-19 19:51:00 UTC
-Stopped at: Completed 04-02-PLAN.md (SystemdManager Implementation)
+Last session: 2026-01-19 19:58:00 UTC
+Stopped at: Completed 04-03-PLAN.md (macOS launchd Service Manager)
 Resume file: None
