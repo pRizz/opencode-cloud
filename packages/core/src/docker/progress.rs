@@ -10,6 +10,20 @@ use std::time::{Duration, Instant};
 /// Minimum time between spinner message updates to prevent flickering
 const SPINNER_UPDATE_THROTTLE: Duration = Duration::from_millis(150);
 
+/// Format duration as MM:SS, or HH:MM:SS if over an hour
+fn format_elapsed(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+
+    if hours > 0 {
+        format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    } else {
+        format!("{:02}:{:02}", minutes, seconds)
+    }
+}
+
 /// Progress reporter for Docker operations
 ///
 /// Manages multiple progress bars for concurrent operations like
@@ -19,6 +33,7 @@ pub struct ProgressReporter {
     bars: HashMap<String, ProgressBar>,
     last_update: HashMap<String, Instant>,
     last_message: HashMap<String, String>,
+    start_time: Instant,
 }
 
 impl Default for ProgressReporter {
@@ -35,6 +50,7 @@ impl ProgressReporter {
             bars: HashMap::new(),
             last_update: HashMap::new(),
             last_message: HashMap::new(),
+            start_time: Instant::now(),
         }
     }
 
@@ -43,11 +59,13 @@ impl ProgressReporter {
         let spinner = self.multi.add(ProgressBar::new_spinner());
         spinner.set_style(
             ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg} ({elapsed_precise:.dim})")
+                .template("{spinner:.green} {msg}")
                 .expect("valid template")
                 .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
         );
-        spinner.set_message(message.to_string());
+        // Include elapsed time in message (formatted as MM:SS or HH:MM:SS)
+        let elapsed = format_elapsed(self.start_time.elapsed());
+        spinner.set_message(format!("{} ({})", message, elapsed));
         spinner.enable_steady_tick(std::time::Duration::from_millis(100));
         self.bars.insert(id.to_string(), spinner);
         self.bars.get(id).expect("just inserted")
@@ -114,9 +132,12 @@ impl ProgressReporter {
             }
         }
 
-        // Perform the update
+        // Perform the update with elapsed time
+        let elapsed = format_elapsed(self.start_time.elapsed());
+        let message_with_time = format!("{} ({})", message, elapsed);
+
         if let Some(spinner) = self.bars.get(id) {
-            spinner.set_message(message.to_string());
+            spinner.set_message(message_with_time);
         } else {
             // Create new spinner if doesn't exist
             self.add_spinner(id, message);
@@ -213,5 +234,29 @@ mod tests {
         let reporter = ProgressReporter::new();
         // Should not panic on empty
         reporter.abandon_all("Failed");
+    }
+
+    #[test]
+    fn format_elapsed_shows_seconds_only() {
+        let duration = Duration::from_secs(45);
+        assert_eq!(format_elapsed(duration), "00:45");
+    }
+
+    #[test]
+    fn format_elapsed_shows_minutes_and_seconds() {
+        let duration = Duration::from_secs(90); // 1m 30s
+        assert_eq!(format_elapsed(duration), "01:30");
+    }
+
+    #[test]
+    fn format_elapsed_shows_hours_when_needed() {
+        let duration = Duration::from_secs(3661); // 1h 1m 1s
+        assert_eq!(format_elapsed(duration), "01:01:01");
+    }
+
+    #[test]
+    fn format_elapsed_zero() {
+        let duration = Duration::from_secs(0);
+        assert_eq!(format_elapsed(duration), "00:00");
     }
 }
