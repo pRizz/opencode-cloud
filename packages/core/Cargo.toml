@@ -45,6 +45,7 @@ flate2.workspace = true
 tokio-retry.workspace = true
 indicatif.workspace = true
 http-body-util.workspace = true
+bytes.workspace = true
 
 [build-dependencies]
 napi-build = "2"
