@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 2 of 8 (Docker Integration)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-19 - Completed 02-01-PLAN.md (Docker Client Foundation)
+Last activity: 2026-01-19 - Completed 02-02-PLAN.md (Image Operations)
 
-Progress: [###.......] 17%
+Progress: [####......] 22%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 6.3 min
-- Total execution time: 0.32 hours
+- Total execution time: 0.42 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 2 | 14 min | 7 min |
-| 02 | 1 | 5 min | 5 min |
+| 02 | 2 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 9 min, 5 min, 5 min
-- Trend: Improving
+- Last 5 plans: 9 min, 5 min, 5 min, 6 min
+- Trend: Stable
 
 *Updated after each plan completion*
 
@@ -61,6 +61,9 @@ Recent decisions affecting current work:
 - [02-01]: Connection errors categorized: NotRunning, PermissionDenied, Connection, Timeout
 - [02-01]: Dockerfile embedded via include_str! for single-binary distribution
 - [02-01]: Ubuntu 24.04 LTS base image for stability
+- [02-02]: Manual retry loop instead of tokio-retry due to async closure capture limitations
+- [02-02]: Per-layer progress bars for downloads, spinners for build steps
+- [02-02]: Exponential backoff: 1s, 2s, 4s (max 3 attempts) for image pull
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-19 16:51:59 UTC
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-01-19 17:00:24 UTC
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
