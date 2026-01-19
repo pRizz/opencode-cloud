@@ -203,6 +203,11 @@ RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
     && corepack enable \
     && corepack prepare pnpm@latest --activate
 
+# Set up pnpm global bin directory
+ENV PNPM_HOME="/home/opencode/.local/share/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
+RUN mkdir -p "${PNPM_HOME}"
+
 # Install uv (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
