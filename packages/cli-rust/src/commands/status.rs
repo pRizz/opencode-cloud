@@ -36,14 +36,19 @@ pub async fn cmd_status(_args: &StatusArgs, quiet: bool, _verbose: u8) -> Result
     let client = DockerClient::new().map_err(|e| format_docker_error(&e))?;
 
     // Verify connection
-    client.verify_connection().await.map_err(|e| format_docker_error(&e))?;
+    client
+        .verify_connection()
+        .await
+        .map_err(|e| format_docker_error(&e))?;
 
     // Check if container exists
     let inspect_result = client.inner().inspect_container(CONTAINER_NAME, None).await;
 
     let info = match inspect_result {
         Ok(info) => info,
-        Err(bollard::errors::Error::DockerResponseServerError { status_code: 404, .. }) => {
+        Err(bollard::errors::Error::DockerResponseServerError {
+            status_code: 404, ..
+        }) => {
             if quiet {
                 std::process::exit(1);
             }
@@ -114,7 +119,11 @@ pub async fn cmd_status(_args: &StatusArgs, quiet: bool, _verbose: u8) -> Result
         println!("URL:         {}", style(&url).cyan());
     }
 
-    println!("Container:   {} ({})", CONTAINER_NAME, style(id_short).dim());
+    println!(
+        "Container:   {} ({})",
+        CONTAINER_NAME,
+        style(id_short).dim()
+    );
     println!("Image:       {}", image);
 
     if running {
@@ -154,10 +163,7 @@ pub async fn cmd_status(_args: &StatusArgs, quiet: bool, _verbose: u8) -> Result
             }
         }
         println!();
-        println!(
-            "Run '{}' to start the service.",
-            style("occ start").cyan()
-        );
+        println!("Run '{}' to start the service.", style("occ start").cyan());
     }
 
     Ok(())
