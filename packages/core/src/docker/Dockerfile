@@ -211,6 +211,11 @@ RUN mkdir -p "${PNPM_HOME}"
 # Install uv (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# Install pipx for isolated Python application installs
+RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
+    && pip install --user pipx \
+    && pipx ensurepath
+
 # Install global TypeScript compiler
 RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
     && pnpm add -g typescript
