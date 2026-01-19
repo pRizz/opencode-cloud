@@ -151,9 +151,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-06 | Phase 7 | Pending |
 | CONF-07 | Phase 1 | Complete |
 | PERS-01 | Phase 4 | Pending |
-| PERS-02 | Phase 2 | Pending |
-| PERS-03 | Phase 2 | Pending |
-| PERS-04 | Phase 2 | Pending |
+| PERS-02 | Phase 2 | Complete |
+| PERS-03 | Phase 2 | Complete |
+| PERS-04 | Phase 2 | Complete |
 | PERS-05 | Phase 4 | Pending |
 | PERS-06 | Phase 4 | Pending |
 | SECU-01 | Phase 6 | Pending |
@@ -171,4 +171,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-18*
-*Last updated: 2026-01-18 (Phase 1 complete: INST-01, CONF-04, CONF-07, CONS-01)*
+*Last updated: 2026-01-19 (Phase 2 complete: PERS-02, PERS-03, PERS-04)*
