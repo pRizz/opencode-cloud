@@ -93,6 +93,9 @@ git config core.hooksPath .githooks
 # Build everything
 just build
 
+# Compile and run occ (arguments automatically get passed to the binary)
+just run --version
+
 # Run tests
 just test
 
