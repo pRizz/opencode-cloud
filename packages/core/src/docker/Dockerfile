@@ -291,18 +291,13 @@ RUN . /home/opencode/.cargo/env \
     && cargo install --locked \
     cargo-nextest \
     cargo-audit \
-    cargo-deny \
-    sccache \
-    cross
+    cargo-deny
 
 # Install mold (fast linker) via apt for easier setup
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends mold \
     && rm -rf /var/lib/apt/lists/*
 USER opencode
-
-# Configure sccache
-ENV RUSTC_WRAPPER="/home/opencode/.cargo/bin/sccache"
 
 # -----------------------------------------------------------------------------
 # Code Quality Tools
