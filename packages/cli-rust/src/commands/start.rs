@@ -13,7 +13,8 @@ use opencode_cloud_core::docker::{
     OPENCODE_WEB_PORT, ProgressReporter, build_image, container_is_running, image_exists,
     setup_and_start, stop_service,
 };
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
+use std::time::{Duration, Instant};
 
 /// Arguments for the start command
 #[derive(Args)]
@@ -133,7 +134,7 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
     let container_id = match setup_and_start(&client, Some(port), None).await {
         Ok(id) => id,
         Err(e) => {
-            spinner.fail("Failed to start");
+            spinner.fail("Failed to start container");
             show_docker_error(&e);
             // Try to show last logs if container exists
             if let Ok(true) =
@@ -148,7 +149,16 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
         }
     };
 
-    spinner.success("Service started");
+    // Wait for service to be ready (health check)
+    if let Err(e) = wait_for_service_ready(port, &spinner) {
+        spinner.fail("Service failed to become ready");
+        eprintln!();
+        eprintln!("{}", style("Recent container logs:").yellow());
+        show_recent_logs(&client, 20).await;
+        return Err(e);
+    }
+
+    spinner.success("Service started and ready");
 
     // Show result
     let url = format!("http://127.0.0.1:{}", port);
@@ -254,6 +264,63 @@ fn check_port_available(port: u16) -> bool {
 /// Find the next available port starting from the given port
 fn find_next_available_port(start: u16) -> Option<u16> {
     (start..start.saturating_add(100)).find(|&p| check_port_available(p))
+}
+
+/// Configuration for health check waiting
+const HEALTH_CHECK_TIMEOUT_SECS: u64 = 60;
+const HEALTH_CHECK_INTERVAL_MS: u64 = 500;
+const HEALTH_CHECK_CONSECUTIVE_REQUIRED: u32 = 3;
+
+/// Wait for the service to be ready by checking TCP connectivity
+///
+/// Returns Ok(()) when the service is ready, or Err if timeout is reached.
+/// Requires multiple consecutive successful connections to avoid false positives.
+fn wait_for_service_ready(port: u16, spinner: &CommandSpinner) -> Result<()> {
+    let start = Instant::now();
+    let timeout = Duration::from_secs(HEALTH_CHECK_TIMEOUT_SECS);
+    let interval = Duration::from_millis(HEALTH_CHECK_INTERVAL_MS);
+    let mut consecutive_success = 0;
+
+    spinner.update("Waiting for service to be ready...");
+
+    loop {
+        // Check timeout
+        if start.elapsed() > timeout {
+            return Err(anyhow!(
+                "Service did not become ready within {} seconds. Check logs with: occ logs",
+                HEALTH_CHECK_TIMEOUT_SECS
+            ));
+        }
+
+        // Try to connect to the service
+        match TcpStream::connect_timeout(
+            &format!("127.0.0.1:{}", port).parse().unwrap(),
+            Duration::from_secs(2),
+        ) {
+            Ok(_) => {
+                consecutive_success += 1;
+                if consecutive_success >= HEALTH_CHECK_CONSECUTIVE_REQUIRED {
+                    return Ok(());
+                }
+                // Update spinner with progress
+                spinner.update(&format!(
+                    "Service responding ({}/{})",
+                    consecutive_success, HEALTH_CHECK_CONSECUTIVE_REQUIRED
+                ));
+            }
+            Err(_) => {
+                // Reset counter on failure
+                consecutive_success = 0;
+                let elapsed = start.elapsed().as_secs();
+                spinner.update(&format!(
+                    "Waiting for service to be ready... ({}s)",
+                    elapsed
+                ));
+            }
+        }
+
+        std::thread::sleep(interval);
+    }
 }
 
 /// Show recent container logs for debugging
