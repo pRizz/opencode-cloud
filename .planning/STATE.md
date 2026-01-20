@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 5 - Interactive Setup Wizard (In Progress)
+**Current focus:** Phase 5 - Interactive Setup Wizard (Complete)
 
 ## Current Position
 
 Phase: 5 of 18 (Interactive Setup Wizard)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-01-20 - Completed 05-02-PLAN.md (Config Mutation Commands)
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-01-20 - Completed 05-03-PLAN.md (Interactive Setup Wizard)
 
-Progress: [######] 31%
+Progress: [########] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: 6 min
-- Total execution time: 1.38 hours
+- Total execution time: 1.47 hours
 
 **By Phase:**
 
@@ -31,10 +31,10 @@ Progress: [######] 31%
 | 02 | 3 | 18 min | 6 min |
 | 03 | 2 | 16 min | 8 min |
 | 04 | 4 | 21 min | 5 min |
-| 05 | 2 | 14 min | 7 min |
+| 05 | 3 | 19 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 8 min, 3 min, 8 min, 6 min
+- Last 5 plans: 3 min, 8 min, 6 min, 5 min
 - Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
@@ -94,6 +94,10 @@ Recent decisions affecting current work:
 - [05-02]: Password via CLI rejected: Security error with instructions for interactive prompt
 - [05-02]: Username validation: 3-32 chars, alphanumeric and underscore only
 - [05-02]: Env var update: Remove existing entry with same key before adding new
+- [05-03]: WizardState struct collects values before applying to Config
+- [05-03]: Quick setup mode: single confirmation skips port/hostname prompts
+- [05-03]: Random password: 24-char alphanumeric using rand crate
+- [05-03]: Auto-trigger excludes setup and config commands
 
 ### Pending Todos
 
@@ -120,5 +124,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed 05-02-PLAN.md (Config Mutation Commands)
+Stopped at: Completed 05-03-PLAN.md (Interactive Setup Wizard)
 Resume file: None
