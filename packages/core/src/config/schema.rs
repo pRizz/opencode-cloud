@@ -182,9 +182,18 @@ impl Config {
 
     /// Check if required auth credentials are configured
     ///
-    /// Returns true if both auth_username and auth_password are Some and non-empty.
+    /// Returns true if:
+    /// - Both auth_username and auth_password are Some and non-empty (legacy), OR
+    /// - The users array is non-empty (PAM-based auth)
+    ///
     /// This is used to determine if the setup wizard needs to run.
     pub fn has_required_auth(&self) -> bool {
+        // New PAM-based auth: users array
+        if !self.users.is_empty() {
+            return true;
+        }
+
+        // Legacy basic auth: username/password
         match (&self.auth_username, &self.auth_password) {
             (Some(username), Some(password)) => !username.is_empty() && !password.is_empty(),
             _ => false,
