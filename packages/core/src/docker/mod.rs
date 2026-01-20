@@ -9,6 +9,7 @@
 //! - Volume management for persistent storage
 //! - Container lifecycle (create, start, stop, remove)
 //! - Container exec for running commands inside containers
+//! - User management operations (create, delete, lock/unlock users)
 
 mod client;
 pub mod container;
@@ -17,6 +18,7 @@ mod error;
 pub mod exec;
 pub mod image;
 pub mod progress;
+pub mod users;
 pub mod volume;
 
 // Core types
@@ -32,6 +34,12 @@ pub use image::{build_image, image_exists, pull_image};
 
 // Container exec operations
 pub use exec::{exec_command, exec_command_exit_code, exec_command_with_stdin};
+
+// User management operations
+pub use users::{
+    UserInfo, create_user, delete_user, list_users, lock_user, set_user_password, unlock_user,
+    user_exists,
+};
 
 // Volume management
 pub use volume::{
