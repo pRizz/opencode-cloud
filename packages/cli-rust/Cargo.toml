@@ -38,3 +38,4 @@ chrono.workspace = true
 dialoguer.workspace = true
 comfy-table.workspace = true
 serde.workspace = true
+rand.workspace = true

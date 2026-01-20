@@ -4,6 +4,7 @@
 
 mod commands;
 mod output;
+pub mod wizard;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
