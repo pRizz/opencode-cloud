@@ -21,6 +21,10 @@ perl -0pi -e "s/version = \"[0-9]+\\.[0-9]+\\.[0-9]+\"/version = \"${new_version
 perl -0pi -e "s/opencode-cloud-core = \\{ version = \"[0-9]+\\.[0-9]+\\.[0-9]+\"/opencode-cloud-core = { version = \"${new_version}\"/" \
   "${repo_root}/Cargo.toml"
 
+# Update core package Cargo.toml (standalone, not workspace-inherited)
+perl -pi -e "s/^version = \"[0-9]+\\.[0-9]+\\.[0-9]+\"/version = \"${new_version}\"/" \
+  "${repo_root}/packages/core/Cargo.toml"
+
 perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
   "${repo_root}/packages/cli-node/package.json"
 

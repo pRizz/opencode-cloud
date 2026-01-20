@@ -1,16 +1,16 @@
 [package]
 name = "opencode-cloud-core"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-repository.workspace = true
-homepage.workspace = true
-documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+version = "1.0.7"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/pRizz/opencode-cloud"
+homepage = "https://github.com/pRizz/opencode-cloud"
+documentation = "https://docs.rs/opencode-cloud"
+keywords = ["opencode", "ai", "cloud", "docker", "cli"]
+categories = ["command-line-utilities", "development-tools"]
 description = "Core library for opencode-cloud - config management, singleton enforcement, and shared utilities"
-readme = "../../README.md"
+readme = "README.md"
 exclude = ["*.node", "index.js", "index.d.ts"]
 
 [lib]
@@ -22,36 +22,36 @@ default = []
 napi = ["dep:napi", "dep:napi-derive"]
 
 [dependencies]
-clap.workspace = true
-tokio.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-jsonc-parser.workspace = true
-directories.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-tracing.workspace = true
-console.workspace = true
+clap = { version = "4.5", features = ["derive"] }
+tokio = { version = "1.43", features = ["rt-multi-thread", "macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonc-parser = { version = "0.29", features = ["serde"] }
+directories = "5"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+console = "0.16"
 
 # NAPI dependencies (optional - only for Node bindings)
-napi = { workspace = true, optional = true }
-napi-derive = { workspace = true, optional = true }
+napi = { version = "2", features = ["tokio_rt", "napi9"], optional = true }
+napi-derive = { version = "2", optional = true }
 
 # Docker integration
-bollard.workspace = true
-futures-util.workspace = true
-tar.workspace = true
-flate2.workspace = true
-tokio-retry.workspace = true
-indicatif.workspace = true
-http-body-util.workspace = true
-bytes.workspace = true
+bollard = { version = "0.18", features = ["chrono", "buildkit"] }
+futures-util = "0.3"
+tar = "0.4"
+flate2 = "1.0"
+tokio-retry = "0.3"
+indicatif = { version = "0.17", features = ["tokio", "futures"] }
+http-body-util = "0.1"
+bytes = "1.9"
 
 # Platform service management (macOS)
-plist.workspace = true
+plist = "1.8"
 
 [build-dependencies]
 napi-build = "2"
 
 [dev-dependencies]
-tempfile.workspace = true
+tempfile = "3"
