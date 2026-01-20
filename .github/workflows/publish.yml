@@ -1,0 +1,138 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'release/v*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Run full CI checks before publishing
+  check:
+    name: Pre-publish Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build Rust
+        run: cargo build --workspace
+
+      - name: Test Rust
+        run: cargo test --workspace
+
+      - name: Build Node packages
+        run: |
+          pnpm -C packages/core build
+          pnpm -C packages/cli-node build
+
+      - name: Verify CLI works
+        run: |
+          cargo run -p opencode-cloud -- --version
+          node packages/cli-node/dist/index.js --version
+
+  # Publish to crates.io
+  publish-crates:
+    name: Publish to crates.io
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish opencode-cloud-core
+        run: cargo publish -p opencode-cloud-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io to index
+        run: sleep 30
+
+      - name: Publish opencode-cloud
+        run: cargo publish -p opencode-cloud
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Publish to npm with provenance
+  publish-npm:
+    name: Publish to npm
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Build Node packages
+        run: |
+          pnpm -C packages/core build
+          pnpm -C packages/cli-node build
+
+      - name: Publish @opencode-cloud/core
+        run: pnpm --filter @opencode-cloud/core publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Wait for npm to index
+        run: sleep 10
+
+      - name: Publish opencode-cloud
+        run: pnpm --filter opencode-cloud publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

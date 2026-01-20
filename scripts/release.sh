@@ -10,7 +10,9 @@ set -euo pipefail
 # 4. Runs publish dry-run to verify packages are ready
 # 5. Creates a git tag
 # 6. Pushes the commit and tag to the remote
-# 7. Publishes to crates.io and npm
+#
+# Publishing to crates.io and npm is handled automatically by the
+# GitHub Action (.github/workflows/publish.yml) when the tag is pushed.
 #
 # Usage: ./scripts/release.sh <version>
 # Example: ./scripts/release.sh 1.2.3
@@ -81,11 +83,9 @@ git push
 git push origin "${tag_name}"
 echo ""
 
-# Step 7: Publish to registries
-echo "==> Publishing to crates.io and npm..."
-just publish-all
-echo ""
-
 echo "=========================================="
 echo "Release v${new_version} complete!"
 echo "=========================================="
+echo ""
+echo "GitHub Action will now publish to crates.io and npm."
+echo "Monitor progress at: https://github.com/pRizz/opencode-cloud/actions"
