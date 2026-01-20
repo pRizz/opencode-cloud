@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 4 - Platform Service Installation (In Progress)
+**Current focus:** Phase 5 - Interactive Setup Wizard (In Progress)
 
 ## Current Position
 
-Phase: 4 of 18 (Platform Service Installation)
-Plan: 4 of 4 in current phase
-Status: Phase complete
-Last activity: 2026-01-19 - Completed 04-04-PLAN.md (Install/Uninstall CLI Commands)
+Phase: 5 of 18 (Interactive Setup Wizard)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-20 - Completed 05-01-PLAN.md (Config Schema & Read Commands)
 
-Progress: [####] 24%
+Progress: [#####] 27%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: 6 min
-- Total execution time: 1.15 hours
+- Total execution time: 1.28 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [####] 24%
 | 02 | 3 | 18 min | 6 min |
 | 03 | 2 | 16 min | 8 min |
 | 04 | 4 | 21 min | 5 min |
+| 05 | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 6 min, 4 min, 8 min, 3 min
-- Trend: Stable (~5 min average)
+- Last 5 plans: 4 min, 8 min, 3 min, 8 min
+- Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
 
@@ -86,6 +87,10 @@ Recent decisions affecting current work:
 - [04-04]: dialoguer for interactive confirmation prompts
 - [04-04]: Idempotent uninstall: exit 0 if service not installed
 - [04-04]: --volumes requires --force for safety
+- [05-01]: Password masking: auth_password always shown as ******** in output
+- [05-01]: Default subcommand: occ config defaults to show using optional subcommand pattern
+- [05-01]: Key aliases: config get supports both short (port) and full (opencode_web_port) names
+- [05-01]: comfy-table for CLI table output formatting
 
 ### Pending Todos
 
@@ -111,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-19 19:56:55 UTC
-Stopped at: Completed 04-04-PLAN.md (Install/Uninstall CLI Commands) - Phase 4 complete
+Last session: 2026-01-20
+Stopped at: Completed 05-01-PLAN.md (Config Schema & Read Commands)
 Resume file: None
