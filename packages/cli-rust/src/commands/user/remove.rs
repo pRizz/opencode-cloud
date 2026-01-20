@@ -22,10 +22,24 @@ pub struct UserRemoveArgs {
     pub force: bool,
 }
 
+/// System user that cannot be removed (container depends on it)
+const PROTECTED_USER: &str = "opencode";
+
 /// Remove a user from the container
 pub async fn cmd_user_remove(args: &UserRemoveArgs, quiet: bool, _verbose: u8) -> Result<()> {
     let client = DockerClient::new()?;
     let username = &args.username;
+
+    // Protect the opencode system user - cannot be removed even with --force
+    if username == PROTECTED_USER {
+        bail!(
+            "Cannot remove '{}' - this is a protected system user required for the container to function.\n\n\
+            To manage authentication users, use:\n  \
+            occ user add <username>\n  \
+            occ user remove <username>",
+            PROTECTED_USER
+        );
+    }
 
     // Check if user exists
     if !user_exists(&client, CONTAINER_NAME, username).await? {
