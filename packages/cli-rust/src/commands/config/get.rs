@@ -15,6 +15,7 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
         "version" => config.version.to_string(),
         "port" | "opencode_web_port" => config.opencode_web_port.to_string(),
         "bind" | "hostname" => config.bind.clone(),
+        "bind_address" | "host" => config.bind_address.clone(),
         "auto_restart" => config.auto_restart.to_string(),
         "boot_mode" => config.boot_mode.clone(),
         "restart_retries" => config.restart_retries.to_string(),
@@ -38,6 +39,7 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
                   version\n  \
                   port / opencode_web_port\n  \
                   bind / hostname\n  \
+                  bind_address / host\n  \
                   auto_restart\n  \
                   boot_mode\n  \
                   restart_retries\n  \

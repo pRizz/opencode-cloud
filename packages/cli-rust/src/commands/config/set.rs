@@ -5,6 +5,7 @@
 use anyhow::{Result, bail};
 use console::style;
 use dialoguer::Password;
+use opencode_cloud_core::config::validate_bind_address;
 use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
 use opencode_cloud_core::{load_config, save_config};
 
@@ -51,6 +52,48 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()>
         "bind" | "hostname" => {
             let val = require_value(value, key)?;
             config.bind = val.to_string();
+            display_value = val.to_string();
+        }
+
+        "bind_address" | "host" => {
+            let val = require_value(value, key)?;
+
+            // Validate the address
+            validate_bind_address(val).map_err(|_| {
+                anyhow::anyhow!(
+                    "Invalid address: {val}\n\
+                     Valid examples: 127.0.0.1, ::1, 0.0.0.0, ::, or localhost"
+                )
+            })?;
+
+            // Check for network exposure and show warning
+            if val == "0.0.0.0" || val == "::" {
+                eprintln!();
+                eprintln!(
+                    "{} {}",
+                    style("WARNING:").yellow().bold(),
+                    style("Network exposure enabled!").yellow()
+                );
+                eprintln!();
+                eprintln!(
+                    "Binding to {} exposes the service to all network interfaces.",
+                    style(val).cyan()
+                );
+                eprintln!("Anyone on your network can access the opencode web UI.");
+                eprintln!();
+                eprintln!("{}", style("Recommendations:").bold());
+                eprintln!("  - Ensure strong authentication is configured (occ user add)");
+                eprintln!("  - Consider using a firewall to restrict access");
+                eprintln!("  - For internet exposure, use a reverse proxy with TLS");
+                eprintln!();
+                eprintln!(
+                    "To bind to localhost only: {}",
+                    style("occ config set bind_address 127.0.0.1").cyan()
+                );
+                eprintln!();
+            }
+
+            config.bind_address = val.to_string();
             display_value = val.to_string();
         }
 
@@ -105,6 +148,7 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()>
                 Valid keys:\n  \
                   port / opencode_web_port\n  \
                   bind / hostname\n  \
+                  bind_address / host\n  \
                   username / auth_username\n  \
                   password / auth_password\n  \
                   auto_restart\n  \

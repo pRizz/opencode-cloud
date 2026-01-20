@@ -3,7 +3,7 @@
 //! Displays current configuration in table or JSON format.
 
 use anyhow::Result;
-use comfy_table::{Cell, Table};
+use comfy_table::{Cell, Color, Table};
 use opencode_cloud_core::{Config, config};
 
 /// Show current configuration
@@ -31,6 +31,10 @@ pub fn cmd_config_show(config: &Config, json: bool, _quiet: bool) -> Result<()> 
             Cell::new(config.opencode_web_port.to_string()),
         ]);
         table.add_row(vec![Cell::new("bind"), Cell::new(&config.bind)]);
+        table.add_row(vec![
+            Cell::new("bind_address"),
+            format_bind_address(&config.bind_address, config.is_network_exposed()),
+        ]);
         table.add_row(vec![
             Cell::new("auto_restart"),
             Cell::new(config.auto_restart.to_string()),
@@ -77,6 +81,15 @@ fn format_optional(value: &Option<String>) -> String {
     }
 }
 
+/// Format bind_address with color coding based on security status
+fn format_bind_address(value: &str, is_exposed: bool) -> Cell {
+    if is_exposed {
+        Cell::new(value).fg(Color::Yellow)
+    } else {
+        Cell::new(value).fg(Color::Green)
+    }
+}
+
 /// Format a password for display (masked)
 fn format_password(value: &Option<String>) -> String {
     match value {
@@ -100,6 +113,7 @@ struct MaskedConfig {
     version: u32,
     opencode_web_port: u16,
     bind: String,
+    bind_address: String,
     auto_restart: bool,
     boot_mode: String,
     restart_retries: u32,
@@ -115,6 +129,7 @@ impl From<&Config> for MaskedConfig {
             version: config.version,
             opencode_web_port: config.opencode_web_port,
             bind: config.bind.clone(),
+            bind_address: config.bind_address.clone(),
             auto_restart: config.auto_restart,
             boot_mode: config.boot_mode.clone(),
             restart_retries: config.restart_retries,
