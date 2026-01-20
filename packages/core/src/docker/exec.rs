@@ -33,6 +33,7 @@ pub async fn exec_command(
         attach_stdout: Some(true),
         attach_stderr: Some(true),
         cmd: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        user: Some("root".to_string()),
         ..Default::default()
     };
 
@@ -120,6 +121,7 @@ pub async fn exec_command_with_stdin(
         attach_stdout: Some(true),
         attach_stderr: Some(true),
         cmd: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        user: Some("root".to_string()),
         ..Default::default()
     };
 
@@ -208,6 +210,7 @@ pub async fn exec_command_exit_code(
         attach_stdout: Some(true),
         attach_stderr: Some(true),
         cmd: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        user: Some("root".to_string()),
         ..Default::default()
     };
 
