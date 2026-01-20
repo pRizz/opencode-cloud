@@ -2,6 +2,7 @@
 //!
 //! Provides `occ config` subcommands for viewing and managing configuration.
 
+mod env;
 mod get;
 mod reset;
 mod set;
@@ -11,6 +12,7 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use opencode_cloud_core::Config;
 
+pub use env::{EnvCommands, cmd_config_env};
 pub use get::cmd_config_get;
 pub use reset::cmd_config_reset;
 pub use set::cmd_config_set;
@@ -54,6 +56,9 @@ pub enum ConfigSubcommands {
         #[arg(long, short)]
         force: bool,
     },
+    /// Manage container environment variables
+    #[command(subcommand)]
+    Env(EnvCommands),
 }
 
 /// Handle config command
@@ -68,6 +73,7 @@ pub fn cmd_config(args: ConfigArgs, config: &Config, quiet: bool) -> Result<()> 
             cmd_config_set(&key, value.as_deref(), quiet)
         }
         Some(ConfigSubcommands::Reset { force }) => cmd_config_reset(force, quiet),
+        Some(ConfigSubcommands::Env(env_cmd)) => cmd_config_env(env_cmd, quiet),
         None => {
             // Default to show when no subcommand given
             cmd_config_show(config, args.json, quiet)
