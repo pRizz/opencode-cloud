@@ -36,3 +36,5 @@ humantime.workspace = true
 futures-util.workspace = true
 chrono.workspace = true
 dialoguer.workspace = true
+comfy-table.workspace = true
+serde.workspace = true
