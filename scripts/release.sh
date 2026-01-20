@@ -9,7 +9,8 @@ set -euo pipefail
 # 3. Commits all changes (including Cargo.lock)
 # 4. Runs publish dry-run to verify packages are ready
 # 5. Creates a git tag
-# 6. Pushes the tag to the remote
+# 6. Pushes the commit and tag to the remote
+# 7. Publishes to crates.io and npm
 #
 # Usage: ./scripts/release.sh <version>
 # Example: ./scripts/release.sh 1.2.3
@@ -80,10 +81,11 @@ git push
 git push origin "${tag_name}"
 echo ""
 
+# Step 7: Publish to registries
+echo "==> Publishing to crates.io and npm..."
+just publish-all
+echo ""
+
 echo "=========================================="
 echo "Release v${new_version} complete!"
-echo "=========================================="
-echo ""
-echo "Next step:"
-echo "  Publish to registries: just publish-all"
-echo ""
+echo "==========================================""
