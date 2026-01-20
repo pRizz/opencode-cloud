@@ -10,10 +10,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Installation
 
 - [ ] **INST-01**: User can install via `npx opencode-cloud` or `cargo install opencode-cloud` (both compile from source; Rust 1.85+ required)
-- [ ] **INST-02**: Installation wizard guides user through initial setup
-- [ ] **INST-03**: Wizard asks for auth credentials (username/password)
-- [ ] **INST-04**: Wizard asks for port and hostname with sensible defaults
-- [ ] **INST-05**: Wizard allows user to defer API key configuration (can set in opencode later)
+- [x] **INST-02**: Installation wizard guides user through initial setup
+- [x] **INST-03**: Wizard asks for auth credentials (username/password)
+- [x] **INST-04**: Wizard asks for port and hostname with sensible defaults
+- [x] **INST-05**: Wizard allows user to defer API key configuration (can set in opencode later)
 - [ ] **INST-06**: User can uninstall cleanly via `opencode-cloud uninstall`
 - [ ] **INST-07**: Clear error messages with actionable guidance
 - [ ] **INST-08**: Help documentation available via `--help` for all commands
@@ -30,11 +30,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Configuration
 
-- [ ] **CONF-01**: User can configure port for web UI
-- [ ] **CONF-02**: User can configure basic auth credentials
-- [ ] **CONF-03**: User can configure environment variables for opencode
+- [x] **CONF-01**: User can configure port for web UI
+- [x] **CONF-02**: User can configure basic auth credentials
+- [x] **CONF-03**: User can configure environment variables for opencode
 - [ ] **CONF-04**: Configuration persisted in JSON file at platform-appropriate location
-- [ ] **CONF-05**: User can view/edit config via `opencode-cloud config`
+- [x] **CONF-05**: User can view/edit config via `opencode-cloud config`
 - [ ] **CONF-06**: Config validated on service startup with clear error messages
 - [ ] **CONF-07**: Config format documented with JSON schema
 
@@ -129,10 +129,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INST-01 | Phase 1 | Complete |
-| INST-02 | Phase 5 | Pending |
-| INST-03 | Phase 5 | Pending |
-| INST-04 | Phase 5 | Pending |
-| INST-05 | Phase 5 | Pending |
+| INST-02 | Phase 5 | Complete |
+| INST-03 | Phase 5 | Complete |
+| INST-04 | Phase 5 | Complete |
+| INST-05 | Phase 5 | Complete |
 | INST-06 | Phase 8 | Pending |
 | INST-07 | Phase 8 | Pending |
 | INST-08 | Phase 8 | Pending |
@@ -143,11 +143,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LIFE-05 | Phase 3 | Complete |
 | LIFE-06 | Phase 7 | Pending |
 | LIFE-07 | Phase 7 | Pending |
-| CONF-01 | Phase 5 | Pending |
-| CONF-02 | Phase 5 | Pending |
-| CONF-03 | Phase 5 | Pending |
+| CONF-01 | Phase 5 | Complete |
+| CONF-02 | Phase 5 | Complete |
+| CONF-03 | Phase 5 | Complete |
 | CONF-04 | Phase 1 | Complete |
-| CONF-05 | Phase 5 | Pending |
+| CONF-05 | Phase 5 | Complete |
 | CONF-06 | Phase 7 | Pending |
 | CONF-07 | Phase 1 | Complete |
 | PERS-01 | Phase 4 | Complete |
@@ -171,4 +171,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-18*
-*Last updated: 2026-01-19 (Phase 4 complete: PLAT-01, PLAT-02, PERS-01, PERS-05, PERS-06)*
+*Last updated: 2026-01-20 (Phase 5 complete: INST-02, INST-03, INST-04, INST-05, CONF-01, CONF-02, CONF-03, CONF-05)*
