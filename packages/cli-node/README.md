@@ -1,6 +1,10 @@
 # opencode-cloud
 
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
+[![npm](https://img.shields.io/npm/v/opencode-cloud.svg)](https://www.npmjs.com/package/opencode-cloud)
+[![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A production-ready toolkit for deploying [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service.
