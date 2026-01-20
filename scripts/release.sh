@@ -6,8 +6,8 @@ set -euo pipefail
 # This script:
 # 1. Updates all version numbers across the monorepo
 # 2. Builds the workspace to verify compilation
-# 3. Runs publish dry-run to verify packages are ready
-# 4. Commits all changes (including Cargo.lock)
+# 3. Commits all changes (including Cargo.lock)
+# 4. Runs publish dry-run to verify packages are ready
 # 5. Creates a git tag
 # 6. Pushes the tag to the remote
 #
@@ -58,15 +58,15 @@ echo "==> Building workspace..."
 just build
 echo ""
 
-# Step 3: Run publish dry-run
-echo "==> Running publish dry-run..."
-just publish-all-dry-run
-echo ""
-
-# Step 4: Commit all changes
+# Step 3: Commit all changes
 echo "==> Committing changes..."
 git add -A
 git commit -m "chore(release): v${new_version}"
+echo ""
+
+# Step 4: Run publish dry-run (after commit so file changes don't interfere)
+echo "==> Running publish dry-run..."
+just publish-all-dry-run
 echo ""
 
 # Step 5: Create tag
