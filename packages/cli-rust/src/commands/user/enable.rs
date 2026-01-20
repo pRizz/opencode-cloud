@@ -1,9 +1,13 @@
-//! User enable/disable subcommands (placeholder)
+//! User enable/disable subcommands
 //!
 //! Enables or disables user accounts.
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Args;
+use console::style;
+use opencode_cloud_core::docker::{
+    CONTAINER_NAME, DockerClient, lock_user, unlock_user, user_exists,
+};
 
 /// Arguments for the user enable command
 #[derive(Args)]
@@ -20,13 +24,51 @@ pub struct UserDisableArgs {
 }
 
 /// Enable a user account
-pub async fn cmd_user_enable(_args: &UserEnableArgs, _quiet: bool, _verbose: u8) -> Result<()> {
-    // Placeholder - will be implemented in Task 2
-    todo!("cmd_user_enable not yet implemented")
+pub async fn cmd_user_enable(args: &UserEnableArgs, quiet: bool, _verbose: u8) -> Result<()> {
+    let client = DockerClient::new()?;
+    let username = &args.username;
+
+    // Check if user exists
+    if !user_exists(&client, CONTAINER_NAME, username).await? {
+        bail!("User '{}' does not exist in the container", username);
+    }
+
+    // Unlock the user account
+    unlock_user(&client, CONTAINER_NAME, username).await?;
+
+    // Display success
+    if !quiet {
+        println!(
+            "{} User '{}' enabled",
+            style("Success:").green().bold(),
+            username
+        );
+    }
+
+    Ok(())
 }
 
 /// Disable a user account
-pub async fn cmd_user_disable(_args: &UserDisableArgs, _quiet: bool, _verbose: u8) -> Result<()> {
-    // Placeholder - will be implemented in Task 2
-    todo!("cmd_user_disable not yet implemented")
+pub async fn cmd_user_disable(args: &UserDisableArgs, quiet: bool, _verbose: u8) -> Result<()> {
+    let client = DockerClient::new()?;
+    let username = &args.username;
+
+    // Check if user exists
+    if !user_exists(&client, CONTAINER_NAME, username).await? {
+        bail!("User '{}' does not exist in the container", username);
+    }
+
+    // Lock the user account
+    lock_user(&client, CONTAINER_NAME, username).await?;
+
+    // Display success
+    if !quiet {
+        println!(
+            "{} User '{}' disabled",
+            style("Success:").green().bold(),
+            username
+        );
+    }
+
+    Ok(())
 }
