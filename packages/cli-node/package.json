@@ -1,6 +1,6 @@
 {
   "name": "opencode-cloud",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "CLI for managing opencode as a persistent cloud service",
   "type": "module",
   "license": "MIT",
