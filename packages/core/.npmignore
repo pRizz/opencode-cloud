@@ -1,0 +1,8 @@
+# Exclude prebuilt binaries - users compile from source
+*.node
+
+# Exclude build artifacts
+target/
+
+# Exclude dev files
+.gitignore

@@ -26,7 +26,7 @@
   "scripts": {
     "build": "napi build --platform --release --features napi --no-js && cp src/bindings.js index.js && cp src/bindings.d.ts index.d.ts",
     "build:debug": "napi build --platform --features napi --no-js && cp src/bindings.js index.js && cp src/bindings.d.ts index.d.ts",
-    "postinstall": "npm run build || echo 'Build failed - ensure Rust 1.82+ is installed (rustup.rs)'"
+    "postinstall": "echo 'Building native module (requires Rust 1.85+)...' && npm run build"
   },
   "dependencies": {
     "@napi-rs/cli": "^3.0.0-alpha.69"
