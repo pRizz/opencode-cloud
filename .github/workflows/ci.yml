@@ -11,7 +11,8 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # Formatting check - only needs to run once (platform-independent)
+  # Formatting check - only needs to run once since cargo fmt is purely textual
+  # (no compilation, so no platform-specific code paths like #[cfg(target_os)])
   format:
     name: Format Check
     runs-on: ubuntu-latest
@@ -27,6 +28,8 @@ jobs:
         run: cargo fmt --all -- --check
 
   # Build, lint, and test on multiple platforms
+  # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
+  # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
