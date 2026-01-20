@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Service Lifecycle Commands** - Start/stop/restart/status/logs
 - [x] **Phase 4: Platform Service Installation** - systemd/launchd registration, boot persistence
 - [x] **Phase 5: Interactive Setup Wizard** - Guided first-run experience
-- [ ] **Phase 6: Security and Authentication** - Basic auth, localhost binding, network exposure opt-in
+- [ ] **Phase 6: Security and Authentication** - PAM-based auth, localhost binding, network exposure opt-in
 - [ ] **Phase 7: Update and Maintenance** - Update command, health check endpoint
 - [ ] **Phase 8: Polish and Documentation** - Help docs, error messages, uninstall cleanup
 - [ ] **Phase 9: Dockerfile Version Pinning** - Pin explicit versions for GitHub-installed tools
@@ -123,19 +123,22 @@ Plans:
 **Goal**: Service is secure by default with explicit opt-in for network exposure
 **Depends on**: Phase 5
 **Requirements**: SECU-01, SECU-02, SECU-03, SECU-04
-**Note**: Auth credentials configured here are for opencode's web UI (passed to opencode process). Credentials are stored in the host config file at the platform-appropriate path. Future remote terminal/desktop features (v2/v3) may introduce a separate auth layer.
+**Note**: PAM-based authentication - opencode authenticates via PAM, so opencode-cloud manages system users in the container. Credentials are stored in the container's /etc/shadow (not in host config file). Users are tracked in config.users[] for persistence across rebuilds.
 **Success Criteria** (what must be TRUE):
   1. Basic authentication is required to access the opencode web UI
-  2. User chooses auth method during wizard; credentials passed to opencode process
+  2. User manages container users via `occ user add/remove/list/passwd/enable/disable`
   3. Service binds to localhost (127.0.0.1) by default
   4. User must explicitly configure network exposure (0.0.0.0 binding)
   5. Warning is displayed when enabling network exposure
-  6. Service works correctly behind AWS ALB/ELB with SSL termination
-**Plans**: TBD
+  6. Service works correctly behind AWS ALB/ELB with SSL termination (trust_proxy config)
+**Plans**: 5 plans
 
 Plans:
-- [ ] 06-01: TBD (opencode authentication configuration)
-- [ ] 06-02: TBD (network binding controls)
+- [ ] 06-01-PLAN.md — Config schema extension (bind_address, trust_proxy, rate_limit, users) and Docker exec/users modules
+- [ ] 06-02-PLAN.md — occ user commands (add, remove, list, passwd, enable, disable)
+- [ ] 06-03-PLAN.md — Network binding controls (bind_address config, container port binding, security warnings)
+- [ ] 06-04-PLAN.md — Status Security section and wizard PAM user creation integration
+- [ ] 06-05-PLAN.md — Config support for trust_proxy, rate_limit_*, allow_unauthenticated_network
 
 ### Phase 7: Update and Maintenance
 **Goal**: User can update opencode and monitor service health
@@ -347,7 +350,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 3. Service Lifecycle Commands | 2/2 | ✓ Complete | 2026-01-19 |
 | 4. Platform Service Installation | 4/4 | ✓ Complete | 2026-01-19 |
 | 5. Interactive Setup Wizard | 3/3 | ✓ Complete | 2026-01-20 |
-| 6. Security and Authentication | 0/2 | Not started | - |
+| 6. Security and Authentication | 0/5 | Not started | - |
 | 7. Update and Maintenance | 0/2 | Not started | - |
 | 8. Polish and Documentation | 0/2 | Not started | - |
 | 9. Dockerfile Version Pinning | 0/1 | Not started | - |
@@ -363,4 +366,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-20 (Phase 5 complete - Interactive Setup Wizard)*
+*Last updated: 2026-01-20 (Phase 6 planned - Security and Authentication)*
