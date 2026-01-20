@@ -112,11 +112,12 @@ Plans:
   5. User can view current config via `opencode-cloud config`
   6. User can modify config values via `opencode-cloud config set <key> <value>`
   7. User can pass environment variables to opencode container
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD (interactive wizard flow)
-- [ ] 05-02: TBD (config view/edit commands)
+- [ ] 05-01-PLAN.md — Config schema extension (auth, env) and read-only config commands (show, get, reset)
+- [ ] 05-02-PLAN.md — Config mutation commands (set, env set/list/remove)
+- [ ] 05-03-PLAN.md — Interactive setup wizard with auto-trigger and setup command
 
 ### Phase 6: Security and Authentication
 **Goal**: Service is secure by default with explicit opt-in for network exposure
@@ -345,7 +346,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 2. Docker Integration | 3/3 | ✓ Complete | 2026-01-19 |
 | 3. Service Lifecycle Commands | 2/2 | ✓ Complete | 2026-01-19 |
 | 4. Platform Service Installation | 4/4 | ✓ Complete | 2026-01-19 |
-| 5. Interactive Setup Wizard | 0/2 | Not started | - |
+| 5. Interactive Setup Wizard | 0/3 | Not started | - |
 | 6. Security and Authentication | 0/2 | Not started | - |
 | 7. Update and Maintenance | 0/2 | Not started | - |
 | 8. Polish and Documentation | 0/2 | Not started | - |
@@ -362,4 +363,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-19 (Phase 18 added - CLI sync strategy)*
+*Last updated: 2026-01-20 (Phase 5 planned - 3 plans in 3 waves)*
