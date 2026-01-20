@@ -32,6 +32,21 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
             // Output as JSON array for scripting
             serde_json::to_string(&config.container_env)?
         }
+        "trust_proxy" | "proxy" => config.trust_proxy.to_string(),
+        "allow_unauthenticated_network" | "allow_unauth" | "unauth_network" => {
+            config.allow_unauthenticated_network.to_string()
+        }
+        "rate_limit_attempts" | "rate_attempts" => config.rate_limit_attempts.to_string(),
+        "rate_limit_window_seconds" | "rate_window" | "rate_limit_window" => {
+            config.rate_limit_window_seconds.to_string()
+        }
+        "users" => {
+            if config.users.is_empty() {
+                "(none)".to_string()
+            } else {
+                config.users.join(",")
+            }
+        }
         _ => {
             bail!(
                 "Unknown configuration key: {key}\n\n\
@@ -46,7 +61,12 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
                   restart_delay\n  \
                   username / auth_username\n  \
                   password / auth_password\n  \
-                  env / container_env"
+                  env / container_env\n  \
+                  trust_proxy / proxy\n  \
+                  allow_unauthenticated_network / allow_unauth\n  \
+                  rate_limit_attempts / rate_attempts\n  \
+                  rate_limit_window_seconds / rate_window\n  \
+                  users"
             );
         }
     };

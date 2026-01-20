@@ -61,6 +61,41 @@ pub fn cmd_config_show(config: &Config, json: bool, _quiet: bool) -> Result<()> 
             Cell::new(format_env_vars(&config.container_env)),
         ]);
 
+        // Security fields
+        table.add_row(vec![
+            Cell::new("trust_proxy"),
+            Cell::new(if config.trust_proxy { "true" } else { "false" }),
+        ]);
+        table.add_row(vec![
+            Cell::new("allow_unauthenticated_network"),
+            Cell::new(if config.allow_unauthenticated_network {
+                "true"
+            } else {
+                "false"
+            })
+            .fg(if config.allow_unauthenticated_network {
+                Color::Yellow
+            } else {
+                Color::Reset
+            }),
+        ]);
+        table.add_row(vec![
+            Cell::new("rate_limit_attempts"),
+            Cell::new(config.rate_limit_attempts.to_string()),
+        ]);
+        table.add_row(vec![
+            Cell::new("rate_limit_window_seconds"),
+            Cell::new(config.rate_limit_window_seconds.to_string()),
+        ]);
+        table.add_row(vec![
+            Cell::new("users"),
+            Cell::new(if config.users.is_empty() {
+                "(none)".to_string()
+            } else {
+                config.users.join(", ")
+            }),
+        ]);
+
         println!("{table}");
 
         // Show config file location
@@ -121,6 +156,11 @@ struct MaskedConfig {
     auth_username: Option<String>,
     auth_password: Option<String>,
     container_env: Vec<String>,
+    trust_proxy: bool,
+    allow_unauthenticated_network: bool,
+    rate_limit_attempts: u32,
+    rate_limit_window_seconds: u32,
+    users: Vec<String>,
 }
 
 impl From<&Config> for MaskedConfig {
@@ -144,6 +184,11 @@ impl From<&Config> for MaskedConfig {
                 }
             }),
             container_env: config.container_env.clone(),
+            trust_proxy: config.trust_proxy,
+            allow_unauthenticated_network: config.allow_unauthenticated_network,
+            rate_limit_attempts: config.rate_limit_attempts,
+            rate_limit_window_seconds: config.rate_limit_window_seconds,
+            users: config.users.clone(),
         }
     }
 }
