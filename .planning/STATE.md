@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 5 of 18 (Interactive Setup Wizard)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-20 - Completed 05-01-PLAN.md (Config Schema & Read Commands)
+Last activity: 2026-01-20 - Completed 05-02-PLAN.md (Config Mutation Commands)
 
-Progress: [#####] 27%
+Progress: [######] 31%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 6 min
-- Total execution time: 1.28 hours
+- Total execution time: 1.38 hours
 
 **By Phase:**
 
@@ -31,10 +31,10 @@ Progress: [#####] 27%
 | 02 | 3 | 18 min | 6 min |
 | 03 | 2 | 16 min | 8 min |
 | 04 | 4 | 21 min | 5 min |
-| 05 | 1 | 8 min | 8 min |
+| 05 | 2 | 14 min | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: 4 min, 8 min, 3 min, 8 min
+- Last 5 plans: 8 min, 3 min, 8 min, 6 min
 - Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
@@ -91,6 +91,9 @@ Recent decisions affecting current work:
 - [05-01]: Default subcommand: occ config defaults to show using optional subcommand pattern
 - [05-01]: Key aliases: config get supports both short (port) and full (opencode_web_port) names
 - [05-01]: comfy-table for CLI table output formatting
+- [05-02]: Password via CLI rejected: Security error with instructions for interactive prompt
+- [05-02]: Username validation: 3-32 chars, alphanumeric and underscore only
+- [05-02]: Env var update: Remove existing entry with same key before adding new
 
 ### Pending Todos
 
@@ -117,5 +120,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed 05-01-PLAN.md (Config Schema & Read Commands)
+Stopped at: Completed 05-02-PLAN.md (Config Mutation Commands)
 Resume file: None
