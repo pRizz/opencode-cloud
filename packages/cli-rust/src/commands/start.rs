@@ -10,8 +10,8 @@ use futures_util::stream::StreamExt;
 use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
-    OPENCODE_WEB_PORT, ProgressReporter, build_image, container_is_running, image_exists,
-    setup_and_start, stop_service,
+    ProgressReporter, build_image, container_is_running, image_exists, setup_and_start,
+    stop_service,
 };
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
@@ -58,7 +58,10 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
         anyhow!("{}", msg)
     })?;
 
-    let port = args.port.unwrap_or(OPENCODE_WEB_PORT);
+    // Load config for port and bind_address
+    let config = opencode_cloud_core::config::load_config()?;
+    let port = args.port.unwrap_or(config.opencode_web_port);
+    let bind_addr = &config.bind_address;
 
     let any_rebuild = args.cached_rebuild || args.full_rebuild;
 
@@ -86,7 +89,7 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     // Start container
     let spinner = CommandSpinner::new_maybe("Starting container...", quiet);
-    let container_id = match start_container(&client, port).await {
+    let container_id = match start_container(&client, port, bind_addr).await {
         Ok(id) => id,
         Err(e) => {
             spinner.fail("Failed to start container");
@@ -193,8 +196,12 @@ async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) 
 }
 
 /// Start the container, returning the container ID or error
-async fn start_container(client: &DockerClient, port: u16) -> Result<String, DockerError> {
-    setup_and_start(client, Some(port), None).await
+async fn start_container(
+    client: &DockerClient,
+    port: u16,
+    bind_address: &str,
+) -> Result<String, DockerError> {
+    setup_and_start(client, Some(port), None, Some(bind_address)).await
 }
 
 /// Show recent logs if the container exists (for debugging failures)

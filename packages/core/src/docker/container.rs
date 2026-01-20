@@ -33,12 +33,14 @@ pub const OPENCODE_WEB_PORT: u16 = 3000;
 /// * `image` - Image to use (defaults to IMAGE_NAME_GHCR:IMAGE_TAG_DEFAULT)
 /// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
+/// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 pub async fn create_container(
     client: &DockerClient,
     name: Option<&str>,
     image: Option<&str>,
     opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
+    bind_address: Option<&str>,
 ) -> Result<String, DockerError> {
     let container_name = name.unwrap_or(CONTAINER_NAME);
     let default_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
@@ -98,12 +100,13 @@ pub async fn create_container(
         },
     ];
 
-    // Create port bindings (localhost only for security)
+    // Create port bindings (default to localhost for security)
+    let bind_addr = bind_address.unwrap_or("127.0.0.1");
     let mut port_bindings: PortMap = HashMap::new();
     port_bindings.insert(
         "3000/tcp".to_string(),
         Some(vec![PortBinding {
-            host_ip: Some("127.0.0.1".to_string()),
+            host_ip: Some(bind_addr.to_string()),
             host_port: Some(port.to_string()),
         }]),
     );

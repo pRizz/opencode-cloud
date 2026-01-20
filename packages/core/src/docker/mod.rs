@@ -62,10 +62,12 @@ pub use container::{
 /// * `client` - Docker client
 /// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
+/// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 pub async fn setup_and_start(
     client: &DockerClient,
     opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
+    bind_address: Option<&str>,
 ) -> Result<String, DockerError> {
     // Ensure volumes exist first
     volume::ensure_volumes_exist(client).await?;
@@ -84,7 +86,15 @@ pub async fn setup_and_start(
             .unwrap_or_else(|| container::CONTAINER_NAME.to_string())
     } else {
         // Create new container
-        container::create_container(client, None, None, opencode_web_port, env_vars).await?
+        container::create_container(
+            client,
+            None,
+            None,
+            opencode_web_port,
+            env_vars,
+            bind_address,
+        )
+        .await?
     };
 
     // Start if not running
