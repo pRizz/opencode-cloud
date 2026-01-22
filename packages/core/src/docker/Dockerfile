@@ -75,9 +75,13 @@ ENV LC_ALL=C.UTF-8
 
 # Group 1: Core utilities and build tools (2026-01-22)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Signal handling
+    # Init systems
     tini=0.19.* \
     dumb-init=1.2.* \
+    # systemd for Cockpit support
+    systemd=255.* \
+    systemd-sysv=255.* \
+    dbus=1.14.* \
     # Shell and terminal
     zsh=5.9-* \
     tmux=3.4-* \
@@ -122,6 +126,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils=5.6.* \
     p7zip-full=16.02* \
     && rm -rf /var/lib/apt/lists/*
+
+# Mask unnecessary systemd services for container environment
+RUN systemctl mask \
+    dev-hugepages.mount \
+    sys-fs-fuse-connections.mount \
+    systemd-update-utmp.service \
+    systemd-tmpfiles-setup.service \
+    systemd-remount-fs.service
 
 # Group 2: Database clients (2026-01-22)
 RUN apt-get update && apt-get install -y --no-install-recommends \
