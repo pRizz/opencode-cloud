@@ -2,6 +2,7 @@
 //!
 //! This module contains the implementations for service lifecycle commands.
 
+mod cockpit;
 mod config;
 mod install;
 mod logs;
@@ -14,6 +15,7 @@ mod uninstall;
 mod update;
 mod user;
 
+pub use cockpit::{CockpitArgs, cmd_cockpit};
 pub use config::{ConfigArgs, cmd_config};
 pub use install::{InstallArgs, cmd_install};
 pub use logs::{LogsArgs, cmd_logs};
