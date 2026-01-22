@@ -31,7 +31,7 @@ pub use progress::ProgressReporter;
 
 // Health check operations
 pub use health::{
-    HealthError, HealthResponse, ExtendedHealthResponse, check_health, check_health_extended,
+    ExtendedHealthResponse, HealthError, HealthResponse, check_health, check_health_extended,
 };
 
 // Dockerfile constants

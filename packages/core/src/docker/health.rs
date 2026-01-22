@@ -104,43 +104,40 @@ pub async fn check_health_extended(
     let container_name = super::CONTAINER_NAME;
 
     // Try to get container info
-    let (container_state, uptime_seconds, memory_usage_mb) = match client
-        .inner()
-        .inspect_container(container_name, None)
-        .await
-    {
-        Ok(info) => {
-            let state = info
-                .state
-                .as_ref()
-                .and_then(|s| s.status.as_ref())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "unknown".to_string());
+    let (container_state, uptime_seconds, memory_usage_mb) =
+        match client.inner().inspect_container(container_name, None).await {
+            Ok(info) => {
+                let state = info
+                    .state
+                    .as_ref()
+                    .and_then(|s| s.status.as_ref())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "unknown".to_string());
 
-            // Calculate uptime
-            let uptime = info
-                .state
-                .as_ref()
-                .and_then(|s| s.started_at.as_ref())
-                .and_then(|started| {
-                    let timestamp = chrono::DateTime::parse_from_rfc3339(started).ok()?;
-                    let now = chrono::Utc::now();
-                    let started_utc = timestamp.with_timezone(&chrono::Utc);
-                    if now >= started_utc {
-                        Some((now - started_utc).num_seconds() as u64)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
+                // Calculate uptime
+                let uptime = info
+                    .state
+                    .as_ref()
+                    .and_then(|s| s.started_at.as_ref())
+                    .and_then(|started| {
+                        let timestamp = chrono::DateTime::parse_from_rfc3339(started).ok()?;
+                        let now = chrono::Utc::now();
+                        let started_utc = timestamp.with_timezone(&chrono::Utc);
+                        if now >= started_utc {
+                            Some((now - started_utc).num_seconds() as u64)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(0);
 
-            // Get memory usage (would require stats API call - skip for now)
-            let memory = None;
+                // Get memory usage (would require stats API call - skip for now)
+                let memory = None;
 
-            (state, uptime, memory)
-        }
-        Err(_) => ("unknown".to_string(), 0, None),
-    };
+                (state, uptime, memory)
+            }
+            Err(_) => ("unknown".to_string(), 0, None),
+        };
 
     Ok(ExtendedHealthResponse {
         healthy: health.healthy,
@@ -161,7 +158,7 @@ mod tests {
         let result = check_health(1).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            HealthError::ConnectionRefused => {},
+            HealthError::ConnectionRefused => {}
             other => panic!("Expected ConnectionRefused, got: {:?}", other),
         }
     }
