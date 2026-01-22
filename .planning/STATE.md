@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 7 - Update and Maintenance (Next)
+**Current focus:** Phase 8 - Polish and Documentation
 
 ## Current Position
 
-Phase: 7 of 18 (Update and Maintenance)
-Plan: 2 of 2 in current phase
+Phase: 8 of 18 (Polish and Documentation)
+Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-01-22 - Completed 07-02-PLAN.md (Health Check and Config Validation)
+Last activity: 2026-01-22 - Completed 08-01-PLAN.md (Uninstall UX Improvements)
 
-Progress: [#############░░░] 51%
+Progress: [##############░░] 53%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
+- Total plans completed: 23
 - Average duration: 6 min
-- Total execution time: 2.20 hours
+- Total execution time: 2.23 hours
 
 **By Phase:**
 
@@ -34,10 +34,11 @@ Progress: [#############░░░] 51%
 | 05 | 3 | 19 min | 6 min |
 | 06 | 5 | 33 min | 7 min |
 | 07 | 2 | 11 min | 6 min |
+| 08 | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 9 min, 9 min, 5 min, 6 min
-- Trend: Stable (~7 min average)
+- Last 5 plans: 9 min, 9 min, 5 min, 6 min, 2 min
+- Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
 
@@ -123,6 +124,8 @@ Recent decisions affecting current work:
 - [07-02]: Validation stops at first error, returns all warnings
 - [07-02]: ValidationError includes field, message, and fix_command
 - [07-02]: Health states: Healthy (green), Service starting (yellow), Unhealthy (red), Check failed (yellow)
+- [08-01]: Default confirmation to 'n' for uninstall safety
+- [08-01]: Show actual resolved paths using get_config_dir/get_data_dir
 
 ### Pending Todos
 
@@ -149,5 +152,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 07-02-PLAN.md (Health Check and Config Validation) - Phase 7 complete
+Stopped at: Completed 08-01-PLAN.md (Uninstall UX Improvements) - Phase 8 complete
 Resume file: None
