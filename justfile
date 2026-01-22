@@ -58,6 +58,10 @@ lint-node:
 lint-shell:
     shellcheck scripts/*.sh
 
+# Check for Dockerfile tool version updates
+check-updates:
+    ./scripts/check-dockerfile-updates.sh
+
 # Pre-commit checks
 pre-commit: fmt lint build test
 
