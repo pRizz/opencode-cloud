@@ -107,6 +107,22 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         }
         println!();
         println!("Service will no longer start automatically.");
+
+        // 10. Show remaining files for manual cleanup
+        let config_dir = get_config_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.config/opencode-cloud".to_string());
+        let data_dir = get_data_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.local/share/opencode-cloud".to_string());
+
+        println!();
+        println!("Files retained (for reinstall):");
+        println!("  Config: {}", style(&config_dir).dim());
+        println!("  Data:   {}", style(&data_dir).dim());
+        println!();
+        println!("To completely remove all files:");
+        println!("  rm -rf {} {}", config_dir, data_dir);
     }
 
     Ok(())
