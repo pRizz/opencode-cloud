@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 10 - Remote Administration via Cockpit (Next)
+**Current focus:** Phase 10 - Remote Administration via Cockpit (In Progress)
 
 ## Current Position
 
-Phase: 9 of 18 (Dockerfile Version Pinning)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-01-22 - Completed 09-02-PLAN.md (Update Tooling)
+Phase: 10 of 18 (Remote Administration via Cockpit)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-22 - Completed 10-01-PLAN.md (Dockerfile Cockpit Integration)
 
-Progress: [################] 58%
+Progress: [#################] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25
+- Total plans completed: 26
 - Average duration: 6 min
-- Total execution time: 2.44 hours
+- Total execution time: 2.51 hours
 
 **By Phase:**
 
@@ -36,9 +36,10 @@ Progress: [################] 58%
 | 07 | 2 | 11 min | 6 min |
 | 08 | 1 | 2 min | 2 min |
 | 09 | 2 | 13 min | 7 min |
+| 10 | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 6 min, 2 min, 5 min, 8 min
+- Last 5 plans: 6 min, 2 min, 5 min, 8 min, 4 min
 - Trend: Stable (~5 min average)
 
 *Updated after each plan completion*
@@ -133,6 +134,11 @@ Recent decisions affecting current work:
 - [09-01]: Go runtime pinned to minor: go@1.24 instead of @latest
 - [09-02]: POSIX-compatible patterns: Use sed with | delimiter and grep -- for cross-platform compatibility
 - [09-02]: Weekly schedule: Monday 9am UTC for version checks via CI workflow
+- [10-01]: systemd as PID 1: Required for Cockpit socket activation
+- [10-01]: Minimal Cockpit packages: cockpit-ws, cockpit-system, cockpit-bridge
+- [10-01]: AllowUnencrypted=true: TLS terminated externally like opencode
+- [10-01]: Keep tini in image: Backward compatibility, though systemd now default
+- [10-01]: STOPSIGNAL SIGRTMIN+3: Proper systemd shutdown signal
 
 ### Pending Todos
 
@@ -159,5 +165,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 09-02-PLAN.md (Update Tooling) - Phase 9 complete
+Stopped at: Completed 10-01-PLAN.md (Dockerfile Cockpit Integration)
 Resume file: None
