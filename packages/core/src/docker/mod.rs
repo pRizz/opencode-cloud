@@ -74,11 +74,15 @@ pub use container::{
 /// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
+/// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
+/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
 pub async fn setup_and_start(
     client: &DockerClient,
     opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
     bind_address: Option<&str>,
+    cockpit_port: Option<u16>,
+    cockpit_enabled: Option<bool>,
 ) -> Result<String, DockerError> {
     // Ensure volumes exist first
     volume::ensure_volumes_exist(client).await?;
@@ -104,6 +108,8 @@ pub async fn setup_and_start(
             opencode_web_port,
             env_vars,
             bind_address,
+            cockpit_port,
+            cockpit_enabled,
         )
         .await?
     };

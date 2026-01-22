@@ -53,7 +53,16 @@ pub async fn cmd_restart(_args: &RestartArgs, quiet: bool, verbose: u8) -> Resul
 
     // Start
     spinner.update("Starting service...");
-    match setup_and_start(&client, Some(port), None, Some(bind_addr)).await {
+    match setup_and_start(
+        &client,
+        Some(port),
+        None,
+        Some(bind_addr),
+        Some(config.cockpit_port),
+        Some(config.cockpit_enabled),
+    )
+    .await
+    {
         Ok(container_id) => {
             spinner.success("Service restarted");
 

@@ -147,7 +147,15 @@ pub async fn cmd_start(args: &StartArgs, quiet: bool, verbose: u8) -> Result<()>
 
     // Start container
     let spinner = CommandSpinner::new_maybe("Starting container...", quiet);
-    let container_id = match start_container(&client, port, bind_addr).await {
+    let container_id = match start_container(
+        &client,
+        port,
+        bind_addr,
+        config.cockpit_port,
+        config.cockpit_enabled,
+    )
+    .await
+    {
         Ok(id) => id,
         Err(e) => {
             spinner.fail("Failed to start container");
@@ -271,8 +279,18 @@ async fn start_container(
     client: &DockerClient,
     port: u16,
     bind_address: &str,
+    cockpit_port: u16,
+    cockpit_enabled: bool,
 ) -> Result<String, DockerError> {
-    setup_and_start(client, Some(port), None, Some(bind_address)).await
+    setup_and_start(
+        client,
+        Some(port),
+        None,
+        Some(bind_address),
+        Some(cockpit_port),
+        Some(cockpit_enabled),
+    )
+    .await
 }
 
 /// Show recent logs if the container exists (for debugging failures)

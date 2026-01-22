@@ -127,7 +127,16 @@ async fn handle_update(
         eprintln!("{} Recreating container...", style("[3/5]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Recreating container...", quiet);
-    if let Err(e) = setup_and_start(client, Some(port), None, Some(bind_addr)).await {
+    if let Err(e) = setup_and_start(
+        client,
+        Some(port),
+        None,
+        Some(bind_addr),
+        Some(config.cockpit_port),
+        Some(config.cockpit_enabled),
+    )
+    .await
+    {
         spinner.fail("Failed to recreate container");
         return Err(anyhow!("Failed to recreate container: {}", e));
     }
@@ -242,7 +251,16 @@ async fn handle_rollback(
         eprintln!("{} Recreating container...", style("[3/4]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Recreating container...", quiet);
-    if let Err(e) = setup_and_start(client, Some(port), None, Some(bind_addr)).await {
+    if let Err(e) = setup_and_start(
+        client,
+        Some(port),
+        None,
+        Some(bind_addr),
+        Some(config.cockpit_port),
+        Some(config.cockpit_enabled),
+    )
+    .await
+    {
         spinner.fail("Failed to recreate container");
         return Err(anyhow!("Failed to recreate container: {}", e));
     }

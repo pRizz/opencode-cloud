@@ -34,6 +34,9 @@ pub const OPENCODE_WEB_PORT: u16 = 3000;
 /// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
+/// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
+/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
+#[allow(clippy::too_many_arguments)]
 pub async fn create_container(
     client: &DockerClient,
     name: Option<&str>,
@@ -41,15 +44,19 @@ pub async fn create_container(
     opencode_web_port: Option<u16>,
     env_vars: Option<Vec<String>>,
     bind_address: Option<&str>,
+    cockpit_port: Option<u16>,
+    cockpit_enabled: Option<bool>,
 ) -> Result<String, DockerError> {
     let container_name = name.unwrap_or(CONTAINER_NAME);
     let default_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
     let image_name = image.unwrap_or(&default_image);
     let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
+    let cockpit_port_val = cockpit_port.unwrap_or(9090);
+    let cockpit_enabled_val = cockpit_enabled.unwrap_or(true);
 
     debug!(
-        "Creating container {} from image {} with port {}",
-        container_name, image_name, port
+        "Creating container {} from image {} with port {} and cockpit_port {} (enabled: {})",
+        container_name, image_name, port, cockpit_port_val, cockpit_enabled_val
     );
 
     // Check if container already exists
@@ -103,6 +110,8 @@ pub async fn create_container(
     // Create port bindings (default to localhost for security)
     let bind_addr = bind_address.unwrap_or("127.0.0.1");
     let mut port_bindings: PortMap = HashMap::new();
+
+    // opencode web port
     port_bindings.insert(
         "3000/tcp".to_string(),
         Some(vec![PortBinding {
@@ -111,15 +120,39 @@ pub async fn create_container(
         }]),
     );
 
+    // Cockpit port (if enabled)
+    // Container always listens on 9090, map to host's configured port
+    if cockpit_enabled_val {
+        port_bindings.insert(
+            "9090/tcp".to_string(),
+            Some(vec![PortBinding {
+                host_ip: Some(bind_addr.to_string()),
+                host_port: Some(cockpit_port_val.to_string()),
+            }]),
+        );
+    }
+
     // Create exposed ports map
     let mut exposed_ports = HashMap::new();
     exposed_ports.insert("3000/tcp".to_string(), HashMap::new());
+    if cockpit_enabled_val {
+        exposed_ports.insert("9090/tcp".to_string(), HashMap::new());
+    }
 
-    // Create host config
+    // Create host config with systemd support
     let host_config = HostConfig {
         mounts: Some(mounts),
         port_bindings: Some(port_bindings),
         auto_remove: Some(false),
+        // CAP_SYS_ADMIN required for systemd cgroup access
+        cap_add: Some(vec!["SYS_ADMIN".to_string()]),
+        // tmpfs for /run and /tmp (required for systemd)
+        tmpfs: Some(HashMap::from([
+            ("/run".to_string(), String::new()),
+            ("/tmp".to_string(), String::new()),
+        ])),
+        // cgroup mount (read-only for security)
+        binds: Some(vec!["/sys/fs/cgroup:/sys/fs/cgroup:ro".to_string()]),
         ..Default::default()
     };
 
