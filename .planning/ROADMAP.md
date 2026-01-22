@@ -189,16 +189,18 @@ Plans:
 **Goal**: Integrate and expose remote administration of the Docker container via Cockpit running in the container
 **Depends on**: Phase 9
 **Requirements**: None (enhancement)
-**Note**: Provides a web-based admin interface for managing the containerized environment, complementing the CLI for users who prefer GUI access.
+**Note**: Provides a web-based admin interface for managing the containerized environment, complementing the CLI for users who prefer GUI access. Requires switching from tini to systemd as container init.
 **Success Criteria** (what must be TRUE):
   1. Cockpit is installed and running in the Docker container
   2. Cockpit web interface is accessible via a dedicated port
   3. Authentication is integrated with existing opencode-cloud credentials
   4. User can manage container services and view system status via Cockpit
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 10-01: TBD (Cockpit installation and configuration)
+- [ ] 10-01-PLAN.md — Transform Dockerfile from tini to systemd with Cockpit packages
+- [ ] 10-02-PLAN.md — Config schema (cockpit_port, cockpit_enabled) and container creation for systemd
+- [ ] 10-03-PLAN.md — CLI commands (occ cockpit) and status/start output updates
 
 ### Phase 11: Remote Host Management
 **Goal**: Allow occ command to remotely install and interact with Docker containers running on different hosts
@@ -354,7 +356,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 7. Update and Maintenance | 2/2 | ✓ Complete | 2026-01-22 |
 | 8. Polish and Documentation | 1/1 | ✓ Complete | 2026-01-22 |
 | 9. Dockerfile Version Pinning | 2/2 | ✓ Complete | 2026-01-22 |
-| 10. Remote Administration via Cockpit | 0/1 | Not started | - |
+| 10. Remote Administration via Cockpit | 0/3 | Not started | - |
 | 11. Remote Host Management | 0/1 | Not started | - |
 | 12. Web Desktop UI Investigation | 0/1 | Not started | - |
 | 13. Container Security Tools | 0/1 | Not started | - |
@@ -366,4 +368,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-22 (Phase 9 complete)*
+*Last updated: 2026-01-22 (Phase 10 planned)*
