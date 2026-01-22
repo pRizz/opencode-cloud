@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 9 - Dockerfile Version Pinning (Next)
+**Current focus:** Phase 10 - Remote Administration via Cockpit (Next)
 
 ## Current Position
 
-Phase: 8 of 18 (Polish and Documentation)
+Phase: 9 of 18 (Dockerfile Version Pinning)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-01-22 - Completed 08-01-PLAN.md (Uninstall UX Improvements)
+Last activity: 2026-01-22 - Completed 09-01-PLAN.md (Dockerfile Version Pinning)
 
-Progress: [##############░░] 53%
+Progress: [###############░] 56%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 23
+- Total plans completed: 24
 - Average duration: 6 min
-- Total execution time: 2.23 hours
+- Total execution time: 2.31 hours
 
 **By Phase:**
 
@@ -35,10 +35,11 @@ Progress: [##############░░] 53%
 | 06 | 5 | 33 min | 7 min |
 | 07 | 2 | 11 min | 6 min |
 | 08 | 1 | 2 min | 2 min |
+| 09 | 1 | 5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 9 min, 9 min, 5 min, 6 min, 2 min
-- Trend: Stable (~6 min average)
+- Last 5 plans: 9 min, 5 min, 6 min, 2 min, 5 min
+- Trend: Stable (~5 min average)
 
 *Updated after each plan completion*
 
@@ -126,6 +127,10 @@ Recent decisions affecting current work:
 - [07-02]: Health states: Healthy (green), Service starting (yellow), Unhealthy (red), Check failed (yellow)
 - [08-01]: Default confirmation to 'n' for uninstall safety
 - [08-01]: Show actual resolved paths using get_config_dir/get_data_dir
+- [09-01]: APT wildcards allow patch updates: Use pkg=X.Y.* pattern for security patches
+- [09-01]: Security exceptions: ca-certificates, gnupg, openssh-client marked UNPINNED
+- [09-01]: Self-managing installers trusted: mise, rustup, starship, oh-my-zsh, uv, opencode
+- [09-01]: Go runtime pinned to minor: go@1.24 instead of @latest
 
 ### Pending Todos
 
@@ -152,5 +157,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 08-01-PLAN.md (Uninstall UX Improvements) - Phase 8 complete
+Stopped at: Completed 09-01-PLAN.md (Dockerfile Version Pinning) - Phase 9 complete
 Resume file: None
