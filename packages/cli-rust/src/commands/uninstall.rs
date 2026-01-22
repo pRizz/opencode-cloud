@@ -7,6 +7,8 @@ use crate::output::CommandSpinner;
 use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
+use dialoguer::Confirm;
+use opencode_cloud_core::config::paths::{get_config_dir, get_data_dir};
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, DockerError, container_is_running, remove_all_volumes,
     stop_container,
@@ -61,26 +63,42 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         return Ok(()); // Exit 0 - idempotent
     }
 
-    // 5. Stop container if running (using existing stop logic)
+    // 5. Confirm uninstallation (unless --force)
+    if !args.force {
+        let confirm = Confirm::new()
+            .with_prompt("This will remove the service registration. Continue?")
+            .default(false)
+            .interact()
+            .unwrap_or(false);
+
+        if !confirm {
+            if !quiet {
+                println!("Cancelled.");
+            }
+            return Ok(());
+        }
+    }
+
+    // 6. Stop container if running (using existing stop logic)
     let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
     // Try to stop - ignore errors if not running
     let _ = stop_container_if_running().await;
     spinner.success("Service stopped");
 
-    // 6. Uninstall service registration
+    // 7. Uninstall service registration
     let spinner = CommandSpinner::new_maybe("Removing service registration...", quiet);
     let service_file = manager.service_file_path();
     manager.uninstall()?;
     spinner.success("Service registration removed");
 
-    // 7. Optionally remove volumes
+    // 8. Optionally remove volumes
     if args.volumes {
         let spinner = CommandSpinner::new_maybe("Removing Docker volumes...", quiet);
         remove_volumes().await?;
         spinner.success("Docker volumes removed");
     }
 
-    // 8. Print what was removed
+    // 9. Print what was removed
     if !quiet {
         println!();
         println!("Removed: {}", style(service_file.display()).dim());
