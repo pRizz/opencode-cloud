@@ -5,6 +5,7 @@
 
 pub mod paths;
 pub mod schema;
+pub mod validation;
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -15,6 +16,10 @@ use jsonc_parser::parse_to_serde_value;
 
 pub use paths::{get_config_dir, get_config_path, get_data_dir, get_pid_path};
 pub use schema::{Config, validate_bind_address};
+pub use validation::{
+    ValidationError, ValidationWarning, display_validation_error, display_validation_warning,
+    validate_config,
+};
 
 /// Ensure the config directory exists
 ///
