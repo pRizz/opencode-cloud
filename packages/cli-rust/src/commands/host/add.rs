@@ -131,6 +131,13 @@ pub async fn cmd_host_add(args: &HostAddArgs, quiet: bool, _verbose: u8) -> Resu
     let mut verification_succeeded = false;
     if !args.no_verify {
         if !quiet {
+            // Show the effective SSH command being used
+            println!(
+                "{} {}",
+                style("SSH Command:").cyan(),
+                style(format_ssh_command(&config)).dim()
+            );
+
             let spinner = ProgressBar::new_spinner();
             spinner.set_style(
                 ProgressStyle::default_spinner()
@@ -448,6 +455,36 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     } else {
         format!("{}...", &s[..max_len.saturating_sub(3)])
     }
+}
+
+/// Format the effective SSH command for display
+///
+/// Shows the user exactly what SSH command will be used to connect,
+/// including all options derived from their input and SSH config.
+fn format_ssh_command(config: &HostConfig) -> String {
+    let mut parts = vec!["ssh".to_string()];
+
+    // Port (if non-default)
+    if let Some(port) = config.port {
+        if port != 22 {
+            parts.push(format!("-p {}", port));
+        }
+    }
+
+    // Identity file
+    if let Some(key) = &config.identity_file {
+        parts.push(format!("-i {}", key));
+    }
+
+    // Jump host
+    if let Some(jump) = &config.jump_host {
+        parts.push(format!("-J {}", jump));
+    }
+
+    // Target: user@hostname
+    parts.push(format!("{}@{}", config.user, config.hostname));
+
+    parts.join(" ")
 }
 
 /// Print helpful tips when connection verification fails
