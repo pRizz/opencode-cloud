@@ -10,8 +10,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::style;
 use opencode_cloud_core::{
-    InstanceLock, SingletonError, config, get_version, load_config, save_config,
-    load_hosts, DockerClient,
+    DockerClient, InstanceLock, SingletonError, config, get_version, load_config, load_hosts,
+    save_config,
 };
 
 /// Manage your opencode cloud service
@@ -222,7 +222,12 @@ pub fn run() -> Result<()> {
     match cli.command {
         Some(Commands::Start(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_start(&args, target_host.as_deref(), cli.quiet, cli.verbose))
+            rt.block_on(commands::cmd_start(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
         Some(Commands::Stop(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
@@ -230,11 +235,21 @@ pub fn run() -> Result<()> {
         }
         Some(Commands::Restart(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_restart(&args, target_host.as_deref(), cli.quiet, cli.verbose))
+            rt.block_on(commands::cmd_restart(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
         Some(Commands::Status(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_status(&args, target_host.as_deref(), cli.quiet, cli.verbose))
+            rt.block_on(commands::cmd_status(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
         Some(Commands::Logs(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
@@ -255,15 +270,29 @@ pub fn run() -> Result<()> {
         }
         Some(Commands::User(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_user(&args, target_host.as_deref(), cli.quiet, cli.verbose))
+            rt.block_on(commands::cmd_user(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
         Some(Commands::Update(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_update(&args, target_host.as_deref(), cli.quiet, cli.verbose))
+            rt.block_on(commands::cmd_update(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
         Some(Commands::Cockpit(args)) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(commands::cmd_cockpit(&args, target_host.as_deref(), cli.quiet))
+            rt.block_on(commands::cmd_cockpit(
+                &args,
+                target_host.as_deref(),
+                cli.quiet,
+            ))
         }
         Some(Commands::Host(args)) => {
             let rt = tokio::runtime::Runtime::new()?;

@@ -17,9 +17,7 @@ pub enum HostError {
 
     /// SSH authentication failed (key not in agent, passphrase needed)
     #[error("SSH authentication failed. Ensure your key is loaded: ssh-add {}", .key_hint.as_deref().unwrap_or("~/.ssh/id_rsa"))]
-    AuthFailed {
-        key_hint: Option<String>,
-    },
+    AuthFailed { key_hint: Option<String> },
 
     /// Host not found in hosts.json
     #[error("Host not found: {0}")]

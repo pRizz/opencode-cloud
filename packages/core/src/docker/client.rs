@@ -64,7 +64,9 @@ impl DockerClient {
             .map_err(|e| DockerError::Connection(format!("SSH tunnel failed: {}", e)))?;
 
         // Wait for tunnel to be ready with exponential backoff
-        tunnel.wait_ready().await
+        tunnel
+            .wait_ready()
+            .await
             .map_err(|e| DockerError::Connection(format!("SSH tunnel not ready: {}", e)))?;
 
         // Connect Bollard to the tunnel's local port
@@ -87,10 +89,7 @@ impl DockerClient {
                     // Verify connection works
                     match docker.ping().await {
                         Ok(_) => {
-                            tracing::info!(
-                                "Connected to Docker on {} via SSH tunnel",
-                                host_name
-                            );
+                            tracing::info!("Connected to Docker on {} via SSH tunnel", host_name);
                             return Ok(Self {
                                 inner: docker,
                                 _tunnel: Some(tunnel),
@@ -126,13 +125,16 @@ impl DockerClient {
         let tunnel = SshTunnel::new(host, host_name)
             .map_err(|e| DockerError::Connection(format!("SSH tunnel failed: {}", e)))?;
 
-        tunnel.wait_ready().await
+        tunnel
+            .wait_ready()
+            .await
             .map_err(|e| DockerError::Connection(format!("SSH tunnel not ready: {}", e)))?;
 
         let docker_url = tunnel.docker_url();
 
-        let docker = Docker::connect_with_http(&docker_url, timeout_secs, bollard::API_DEFAULT_VERSION)
-            .map_err(|e| DockerError::Connection(e.to_string()))?;
+        let docker =
+            Docker::connect_with_http(&docker_url, timeout_secs, bollard::API_DEFAULT_VERSION)
+                .map_err(|e| DockerError::Connection(e.to_string()))?;
 
         // Verify connection
         docker.ping().await.map_err(DockerError::from)?;

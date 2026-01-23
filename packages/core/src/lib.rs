@@ -29,7 +29,9 @@ pub use platform::{
 };
 
 // Re-export host types
-pub use host::{HostConfig, HostError, HostsFile, SshTunnel, load_hosts, save_hosts, test_connection};
+pub use host::{
+    HostConfig, HostError, HostsFile, SshTunnel, load_hosts, save_hosts, test_connection,
+};
 
 // Re-export bollard to ensure all crates use the same version
 pub use bollard;

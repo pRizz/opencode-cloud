@@ -51,25 +51,36 @@ pub async fn cmd_host_test(args: &HostTestArgs, quiet: bool, _verbose: u8) -> Re
             ));
             println!();
             println!("  {:<15} {}", style("Host:").dim(), args.name);
-            println!("  {:<15} {}@{}", style("SSH:").dim(), config.user, config.hostname);
+            println!(
+                "  {:<15} {}@{}",
+                style("SSH:").dim(),
+                config.user,
+                config.hostname
+            );
             println!("  {:<15} {}", style("Docker:").dim(), docker_version);
             Ok(())
         }
         Err(e) => {
-            spinner.finish_with_message(format!(
-                "{} Connection failed",
-                style("✗").red().bold()
-            ));
+            spinner.finish_with_message(format!("{} Connection failed", style("✗").red().bold()));
             println!();
             println!("  {}", e);
             println!();
 
             // Provide troubleshooting hints
             println!("{}", style("Troubleshooting:").yellow());
-            println!("  1. Verify SSH access: ssh {}@{}", config.user, config.hostname);
-            println!("  2. Check Docker is running: ssh {}@{} docker info", config.user, config.hostname);
+            println!(
+                "  1. Verify SSH access: ssh {}@{}",
+                config.user, config.hostname
+            );
+            println!(
+                "  2. Check Docker is running: ssh {}@{} docker info",
+                config.user, config.hostname
+            );
             if config.identity_file.is_some() {
-                println!("  3. Ensure key is loaded: ssh-add {}", config.identity_file.as_ref().unwrap());
+                println!(
+                    "  3. Ensure key is loaded: ssh-add {}",
+                    config.identity_file.as_ref().unwrap()
+                );
             } else {
                 println!("  3. Ensure key is loaded: ssh-add");
             }

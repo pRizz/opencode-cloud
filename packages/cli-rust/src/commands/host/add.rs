@@ -4,9 +4,7 @@ use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
-use opencode_cloud_core::{
-    HostConfig, load_hosts, save_hosts, test_connection,
-};
+use opencode_cloud_core::{HostConfig, load_hosts, save_hosts, test_connection};
 
 /// Arguments for host add command
 #[derive(Args)]

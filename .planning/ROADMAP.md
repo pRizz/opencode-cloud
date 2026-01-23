@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Polish and Documentation** - Help docs, error messages, uninstall cleanup
 - [x] **Phase 9: Dockerfile Version Pinning** - Pin explicit versions for GitHub-installed tools
 - [x] **Phase 10: Remote Administration via Cockpit** - Integrate and expose remote admin of Docker container via Cockpit
-- [ ] **Phase 11: Remote Host Management** - Allow occ to remotely install and interact with Docker containers on different hosts
+- [x] **Phase 11: Remote Host Management** - Allow occ to remotely install and interact with Docker containers on different hosts
 - [ ] **Phase 12: Web Desktop UI Investigation** - Investigate integrating secure web-exposed desktop UI (Friend OS, WDE, etc.)
 - [ ] **Phase 13: Container Security Tools** - Add trivy, gitleaks, hadolint, age, sops, mkcert to container
 - [ ] **Phase 14: Auto-rebuild Detection** - Detect CLI/image version mismatch and prompt for rebuild
@@ -217,9 +217,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — Core host module (schema, storage, SSH tunnel, error types)
-- [ ] 11-02-PLAN.md — Host CLI commands (add, remove, list, show, edit, test, default)
-- [ ] 11-03-PLAN.md — Command routing (--host flag, DockerClient remote, output prefixing)
+- [x] 11-01-PLAN.md — Core host module (schema, storage, SSH tunnel, error types)
+- [x] 11-02-PLAN.md — Host CLI commands (add, remove, list, show, edit, test, default)
+- [x] 11-03-PLAN.md — Command routing (--host flag, DockerClient remote, output prefixing)
 
 ### Phase 12: Web Desktop UI Investigation
 **Goal**: Investigate integrating a secure web-exposed full custom browser desktop UI such as Friend OS, WDE, or similar
@@ -380,7 +380,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 8. Polish and Documentation | 1/1 | ✓ Complete | 2026-01-22 |
 | 9. Dockerfile Version Pinning | 2/2 | ✓ Complete | 2026-01-22 |
 | 10. Remote Administration via Cockpit | 3/3 | ✓ Complete | 2026-01-22 |
-| 11. Remote Host Management | 0/3 | Not started | - |
+| 11. Remote Host Management | 3/3 | ✓ Complete | 2026-01-23 |
 | 12. Web Desktop UI Investigation | 0/1 | Not started | - |
 | 13. Container Security Tools | 0/1 | Not started | - |
 | 14. Auto-rebuild Detection | 0/1 | Not started | - |
@@ -392,4 +392,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-23 (Phase 11 planned)*
+*Last updated: 2026-01-23 (Phase 11 complete)*

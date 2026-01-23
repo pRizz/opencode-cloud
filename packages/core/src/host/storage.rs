@@ -5,9 +5,9 @@
 use std::fs::{self, File};
 use std::io::{Read, Write};
 
-use crate::config::paths::get_hosts_path;
 use super::error::HostError;
 use super::schema::HostsFile;
+use crate::config::paths::get_hosts_path;
 
 /// Load hosts configuration from hosts.json
 ///
@@ -17,21 +17,31 @@ pub fn load_hosts() -> Result<HostsFile, HostError> {
         .ok_or_else(|| HostError::LoadFailed("Could not determine hosts file path".to_string()))?;
 
     if !hosts_path.exists() {
-        tracing::debug!("Hosts file not found, returning empty: {}", hosts_path.display());
+        tracing::debug!(
+            "Hosts file not found, returning empty: {}",
+            hosts_path.display()
+        );
         return Ok(HostsFile::new());
     }
 
-    let mut file = File::open(&hosts_path)
-        .map_err(|e| HostError::LoadFailed(format!("Failed to open {}: {}", hosts_path.display(), e)))?;
+    let mut file = File::open(&hosts_path).map_err(|e| {
+        HostError::LoadFailed(format!("Failed to open {}: {}", hosts_path.display(), e))
+    })?;
 
     let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .map_err(|e| HostError::LoadFailed(format!("Failed to read {}: {}", hosts_path.display(), e)))?;
+    file.read_to_string(&mut contents).map_err(|e| {
+        HostError::LoadFailed(format!("Failed to read {}: {}", hosts_path.display(), e))
+    })?;
 
-    let hosts: HostsFile = serde_json::from_str(&contents)
-        .map_err(|e| HostError::LoadFailed(format!("Invalid JSON in {}: {}", hosts_path.display(), e)))?;
+    let hosts: HostsFile = serde_json::from_str(&contents).map_err(|e| {
+        HostError::LoadFailed(format!("Invalid JSON in {}: {}", hosts_path.display(), e))
+    })?;
 
-    tracing::debug!("Loaded {} hosts from {}", hosts.hosts.len(), hosts_path.display());
+    tracing::debug!(
+        "Loaded {} hosts from {}",
+        hosts.hosts.len(),
+        hosts_path.display()
+    );
     Ok(hosts)
 }
 
@@ -64,13 +74,19 @@ pub fn save_hosts(hosts: &HostsFile) -> Result<(), HostError> {
         .map_err(|e| HostError::SaveFailed(format!("Failed to serialize: {}", e)))?;
 
     // Write to file
-    let mut file = File::create(&hosts_path)
-        .map_err(|e| HostError::SaveFailed(format!("Failed to create {}: {}", hosts_path.display(), e)))?;
+    let mut file = File::create(&hosts_path).map_err(|e| {
+        HostError::SaveFailed(format!("Failed to create {}: {}", hosts_path.display(), e))
+    })?;
 
-    file.write_all(json.as_bytes())
-        .map_err(|e| HostError::SaveFailed(format!("Failed to write {}: {}", hosts_path.display(), e)))?;
+    file.write_all(json.as_bytes()).map_err(|e| {
+        HostError::SaveFailed(format!("Failed to write {}: {}", hosts_path.display(), e))
+    })?;
 
-    tracing::debug!("Saved {} hosts to {}", hosts.hosts.len(), hosts_path.display());
+    tracing::debug!(
+        "Saved {} hosts to {}",
+        hosts.hosts.len(),
+        hosts_path.display()
+    );
     Ok(())
 }
 

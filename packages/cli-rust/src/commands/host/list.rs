@@ -66,7 +66,9 @@ pub async fn cmd_host_list(args: &HostListArgs, quiet: bool, _verbose: u8) -> Re
 
     // Build table
     let mut table = Table::new();
-    table.set_header(vec!["Name", "Hostname", "User", "Port", "Groups", "Default"]);
+    table.set_header(vec![
+        "Name", "Hostname", "User", "Port", "Groups", "Default",
+    ]);
 
     for (name, config) in filtered {
         let is_default = hosts.default_host.as_deref() == Some(name.as_str());
@@ -77,7 +79,10 @@ pub async fn cmd_host_list(args: &HostListArgs, quiet: bool, _verbose: u8) -> Re
             Cell::new(name)
         };
 
-        let port_str = config.port.map(|p| p.to_string()).unwrap_or_else(|| "22".to_string());
+        let port_str = config
+            .port
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "22".to_string());
         let groups_str = if config.groups.is_empty() {
             "-".to_string()
         } else {
@@ -99,7 +104,11 @@ pub async fn cmd_host_list(args: &HostListArgs, quiet: bool, _verbose: u8) -> Re
 
     if let Some(default) = &hosts.default_host {
         println!();
-        println!("  {} {}", style("Default host:").dim(), style(default).cyan());
+        println!(
+            "  {} {}",
+            style("Default host:").dim(),
+            style(default).cyan()
+        );
     }
 
     Ok(())
