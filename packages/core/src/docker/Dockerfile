@@ -329,18 +329,18 @@ RUN mkdir -p /etc/systemd/system/sockets.target.wants \
 
 # Configure Cockpit for HTTP (TLS terminated externally) and proxy headers
 RUN mkdir -p /etc/cockpit && \
-    cat > /etc/cockpit/cockpit.conf << 'COCKPIT_CONF'
-[WebService]
-# Allow HTTP connections (TLS terminated externally like opencode)
-AllowUnencrypted = true
-
-# Trust proxy headers for X-Forwarded-For, X-Forwarded-Proto
-ProtocolHeader = X-Forwarded-Proto
-ForwardedForHeader = X-Forwarded-For
-
-# Limit concurrent login attempts
-MaxStartups = 10
-COCKPIT_CONF
+    printf '%s\n' \
+    '[WebService]' \
+    '# Allow HTTP connections (TLS terminated externally like opencode)' \
+    'AllowUnencrypted = true' \
+    '' \
+    '# Trust proxy headers for X-Forwarded-For, X-Forwarded-Proto' \
+    'ProtocolHeader = X-Forwarded-Proto' \
+    'ForwardedForHeader = X-Forwarded-For' \
+    '' \
+    '# Limit concurrent login attempts' \
+    'MaxStartups = 10' \
+    > /etc/cockpit/cockpit.conf
 
 USER opencode
 
@@ -459,57 +459,57 @@ RUN git config --global init.defaultBranch main \
 
 # Starship configuration (minimal, fast prompt)
 RUN mkdir -p /home/opencode/.config \
-    && cat > /home/opencode/.config/starship.toml << 'STARSHIP'
-# Minimal starship config for fast prompt
-format = """
-$directory\
-$git_branch\
-$git_status\
-$character"""
-
-[directory]
-truncation_length = 3
-truncate_to_repo = true
-
-[git_branch]
-format = "[$branch]($style) "
-style = "bold purple"
-
-[git_status]
-format = '([$all_status$ahead_behind]($style) )'
-
-[character]
-success_symbol = "[>](bold green)"
-error_symbol = "[>](bold red)"
-STARSHIP
+    && printf '%s\n' \
+    '# Minimal starship config for fast prompt' \
+    'format = """' \
+    '$directory\' \
+    '$git_branch\' \
+    '$git_status\' \
+    '$character"""' \
+    '' \
+    '[directory]' \
+    'truncation_length = 3' \
+    'truncate_to_repo = true' \
+    '' \
+    '[git_branch]' \
+    'format = "[$branch]($style) "' \
+    'style = "bold purple"' \
+    '' \
+    '[git_status]' \
+    'format = '"'"'([$all_status$ahead_behind]($style) )'"'"'' \
+    '' \
+    '[character]' \
+    'success_symbol = "[>](bold green)"' \
+    'error_symbol = "[>](bold red)"' \
+    > /home/opencode/.config/starship.toml
 
 # Shell aliases
-RUN cat >> /home/opencode/.zshrc << 'ALIASES'
-
-# Modern CLI aliases
-alias ls="eza --icons"
-alias ll="eza -l --icons"
-alias la="eza -la --icons"
-alias lt="eza --tree --icons"
-alias grep="rg"
-alias top="btop"
-
-# Git aliases
-alias g="git"
-alias gs="git status"
-alias gd="git diff"
-alias gc="git commit"
-alias gp="git push"
-alias gl="git pull"
-alias gco="git checkout"
-alias gb="git branch"
-alias lg="lazygit"
-
-# Docker aliases (for Docker-in-Docker)
-alias d="docker"
-alias dc="docker compose"
-
-ALIASES
+RUN printf '%s\n' \
+    '' \
+    '# Modern CLI aliases' \
+    'alias ls="eza --icons"' \
+    'alias ll="eza -l --icons"' \
+    'alias la="eza -la --icons"' \
+    'alias lt="eza --tree --icons"' \
+    'alias grep="rg"' \
+    'alias top="btop"' \
+    '' \
+    '# Git aliases' \
+    'alias g="git"' \
+    'alias gs="git status"' \
+    'alias gd="git diff"' \
+    'alias gc="git commit"' \
+    'alias gp="git push"' \
+    'alias gl="git pull"' \
+    'alias gco="git checkout"' \
+    'alias gb="git branch"' \
+    'alias lg="lazygit"' \
+    '' \
+    '# Docker aliases (for Docker-in-Docker)' \
+    'alias d="docker"' \
+    'alias dc="docker compose"' \
+    '' \
+    >> /home/opencode/.zshrc
 
 # Set up pipx path
 RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
