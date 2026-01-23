@@ -31,6 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
 - [ ] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync
 - [ ] **Phase 19: CI/CD Automation** - Automated Docker image uploads and version management via GitHub Actions
+- [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
 
 ## Phase Details
 
@@ -363,10 +364,31 @@ Plans:
 - [ ] 19-01: TBD (Docker image build and push workflow)
 - [ ] 19-02: TBD (Version bump workflow with user input)
 
+### Phase 20: One-Click Cloud Deploy
+**Goal**: Provide "Deploy to Cloud" buttons in README that let users spin up a fully-configured opencode-cloud instance on major cloud providers with minimal configuration
+**Depends on**: Phase 15 (Prebuilt Image Option), Phase 19 (CI/CD Automation)
+**Requirements**: None (enhancement)
+**Note**: Uses cloud-init, Terraform templates, or provider-specific launch configurations (AWS CloudFormation, GCP Deployment Manager, Azure ARM templates) to provision a VM with Docker and opencode-cloud pre-installed. Users click a button, configure basics (region, instance size, SSH key), and get a running instance.
+**Success Criteria** (what must be TRUE):
+  1. README contains "Deploy to AWS" button that launches CloudFormation stack
+  2. README contains "Deploy to GCP" button that launches Deployment Manager
+  3. README contains "Deploy to Azure" button (optional, based on complexity)
+  4. README contains "Deploy to DigitalOcean" button (1-click app or similar)
+  5. Deployed instances have opencode-cloud running and accessible
+  6. Users only need to provide: region, instance size, SSH key, and credentials
+  7. Infrastructure templates are maintained in repository
+  8. Documentation explains what resources are created and estimated costs
+**Plans**: TBD
+
+Plans:
+- [ ] 20-01: TBD (cloud-init script and base configuration)
+- [ ] 20-02: TBD (AWS CloudFormation template and deploy button)
+- [ ] 20-03: TBD (GCP/Azure/DigitalOcean templates)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -389,7 +411,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 17. Custom Bind Mounts | 0/3 | Not started | - |
 | 18. CLI Sync Strategy | 0/3 | Not started | - |
 | 19. CI/CD Automation | 0/2 | Not started | - |
+| 20. One-Click Cloud Deploy | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-23 (Phase 11 complete)*
+*Last updated: 2026-01-23 (Phase 20 added)*

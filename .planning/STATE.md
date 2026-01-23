@@ -182,6 +182,7 @@ Recent decisions affecting current work:
 - Phase 17 added: Custom Bind Mounts (mount local directories into container)
 - Phase 18 added: CLI Sync Strategy (keep Rust and Node CLIs in sync)
 - Phase 19 added: CI/CD Automation (automated Docker image uploads and version bumps via GitHub Actions)
+- Phase 20 added: One-Click Cloud Deploy (deploy buttons for AWS, GCP, Azure, DigitalOcean)
 
 ### Blockers/Concerns
 
