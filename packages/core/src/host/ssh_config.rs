@@ -157,9 +157,7 @@ pub fn write_ssh_config_entry(
 
     // Build the config entry
     let mut entry = String::new();
-    entry.push_str(&format!(
-        "\n# Added by opencode-cloud for host '{alias}'\n"
-    ));
+    entry.push_str(&format!("\n# Added by opencode-cloud for host '{alias}'\n"));
     entry.push_str(&format!("Host {alias}\n"));
     entry.push_str(&format!("    HostName {hostname}\n"));
 
@@ -191,9 +189,9 @@ pub fn write_ssh_config_entry(
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = file.metadata().map_err(|e| {
-            HostError::SshConfigWrite(format!("Failed to get file metadata: {e}"))
-        })?;
+        let metadata = file
+            .metadata()
+            .map_err(|e| HostError::SshConfigWrite(format!("Failed to get file metadata: {e}")))?;
         if metadata.len() == 0 {
             let perms = fs::Permissions::from_mode(0o600);
             fs::set_permissions(&config_path, perms).map_err(|e| {

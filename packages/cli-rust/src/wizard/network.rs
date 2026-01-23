@@ -70,10 +70,7 @@ pub fn prompt_port(step: usize, total: usize, default_port: u16) -> Result<u16> 
 
         // Check port availability
         if !check_port_available(port) {
-            println!(
-                "{}",
-                style(format!("Port {port} is already in use")).red()
-            );
+            println!("{}", style(format!("Port {port} is already in use")).red());
 
             if let Some(next_port) = find_next_available_port(port) {
                 let use_next = Confirm::new()

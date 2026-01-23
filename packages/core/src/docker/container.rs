@@ -155,8 +155,8 @@ pub async fn create_container(
             ])),
             // cgroup mount (read-write for systemd)
             binds: Some(vec!["/sys/fs/cgroup:/sys/fs/cgroup:rw".to_string()]),
-            // Use private cgroup namespace for systemd
-            cgroupns_mode: Some(bollard::models::HostConfigCgroupnsModeEnum::PRIVATE),
+            // Use host cgroup namespace for systemd (required on cgroups v2 hosts like Amazon Linux 2023)
+            cgroupns_mode: Some(bollard::models::HostConfigCgroupnsModeEnum::HOST),
             // Privileged mode often needed for systemd on Docker Desktop
             privileged: Some(true),
             ..Default::default()
@@ -225,9 +225,7 @@ pub async fn start_container(client: &DockerClient, name: &str) -> Result<(), Do
         .inner()
         .start_container(name, None::<StartContainerOptions<String>>)
         .await
-        .map_err(|e| {
-            DockerError::Container(format!("Failed to start container {name}: {e}"))
-        })?;
+        .map_err(|e| DockerError::Container(format!("Failed to start container {name}: {e}")))?;
 
     debug!("Container {} started", name);
     Ok(())
@@ -290,9 +288,7 @@ pub async fn remove_container(
         .inner()
         .remove_container(name, Some(options))
         .await
-        .map_err(|e| {
-            DockerError::Container(format!("Failed to remove container {name}: {e}"))
-        })?;
+        .map_err(|e| DockerError::Container(format!("Failed to remove container {name}: {e}")))?;
 
     debug!("Container {} removed", name);
     Ok(())

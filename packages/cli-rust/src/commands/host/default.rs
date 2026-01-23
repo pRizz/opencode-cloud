@@ -59,9 +59,7 @@ pub async fn cmd_host_default(args: &HostDefaultArgs, quiet: bool, _verbose: u8)
         Some(name) => {
             // Set default
             if !hosts.has_host(name) {
-                bail!(
-                    "Host '{name}' not found. Add it first with: occ host add {name} <hostname>"
-                );
+                bail!("Host '{name}' not found. Add it first with: occ host add {name} <hostname>");
             }
 
             hosts.set_default(Some(name.clone()));

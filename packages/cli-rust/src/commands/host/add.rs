@@ -499,10 +499,7 @@ fn print_connection_failure_tips(
             );
             for key in keys.iter().take(5) {
                 // Show up to 5 keys
-                println!(
-                    "     {}",
-                    style(format!("--identity-file {key}")).yellow()
-                );
+                println!("     {}", style(format!("--identity-file {key}")).yellow());
             }
             if keys.len() > 5 {
                 println!(
