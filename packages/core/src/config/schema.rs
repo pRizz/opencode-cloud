@@ -100,6 +100,14 @@ pub struct Config {
     /// - No Cockpit web UI
     #[serde(default = "default_cockpit_enabled")]
     pub cockpit_enabled: bool,
+
+    /// Source of Docker image: 'prebuilt' (pull from registry) or 'build' (compile locally)
+    #[serde(default = "default_image_source")]
+    pub image_source: String,
+
+    /// When to check for updates: 'always' (every start), 'once' (once per version), 'never'
+    #[serde(default = "default_update_check")]
+    pub update_check: String,
 }
 
 fn default_opencode_web_port() -> u16 {
@@ -144,6 +152,14 @@ fn default_cockpit_port() -> u16 {
 
 fn default_cockpit_enabled() -> bool {
     false
+}
+
+fn default_image_source() -> String {
+    "prebuilt".to_string()
+}
+
+fn default_update_check() -> String {
+    "always".to_string()
 }
 
 /// Validate and parse a bind address string
@@ -196,6 +212,8 @@ impl Default for Config {
             users: Vec::new(),
             cockpit_port: default_cockpit_port(),
             cockpit_enabled: default_cockpit_enabled(),
+            image_source: default_image_source(),
+            update_check: default_update_check(),
         }
     }
 }
@@ -330,6 +348,8 @@ mod tests {
             users: vec!["admin".to_string()],
             cockpit_port: 9090,
             cockpit_enabled: true,
+            image_source: default_image_source(),
+            update_check: default_update_check(),
         };
         let json = serde_json::to_string(&config).unwrap();
         let parsed: Config = serde_json::from_str(&json).unwrap();
@@ -618,5 +638,36 @@ mod tests {
         assert_eq!(config.cockpit_port, 9090);
         // cockpit_enabled defaults to false (requires Linux host)
         assert!(!config.cockpit_enabled);
+    }
+
+    // Tests for image_source and update_check fields
+
+    #[test]
+    fn test_default_config_image_fields() {
+        let config = Config::default();
+        assert_eq!(config.image_source, "prebuilt");
+        assert_eq!(config.update_check, "always");
+    }
+
+    #[test]
+    fn test_serialize_deserialize_with_image_fields() {
+        let config = Config {
+            image_source: "build".to_string(),
+            update_check: "never".to_string(),
+            ..Config::default()
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: Config = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.image_source, "build");
+        assert_eq!(parsed.update_check, "never");
+    }
+
+    #[test]
+    fn test_image_fields_default_on_missing() {
+        // Old configs without image fields should get defaults
+        let json = r#"{"version": 1}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.image_source, "prebuilt");
+        assert_eq!(config.update_check, "always");
     }
 }
