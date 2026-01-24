@@ -11,7 +11,7 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerError, HealthError, OPENCODE_WEB_PORT, check_health, get_cli_version,
-    get_image_version,
+    get_image_version, load_state,
 };
 use opencode_cloud_core::load_hosts;
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
@@ -206,6 +206,20 @@ pub async fn cmd_status(
                 );
             }
         }
+    }
+
+    // Show image provenance from state file
+    if let Some(state) = load_state() {
+        let source_info = if state.source == "prebuilt" {
+            if let Some(ref registry) = state.registry {
+                format!("prebuilt from {registry}")
+            } else {
+                "prebuilt".to_string()
+            }
+        } else {
+            "built from source".to_string()
+        };
+        println!("Image src:   {}", style(&source_info).dim());
     }
 
     // Load config early for reuse in multiple sections
