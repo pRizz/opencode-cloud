@@ -411,7 +411,11 @@ RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
 # -----------------------------------------------------------------------------
 # opencode - self-managing installer, trusted to handle versions
 # The script installs to ~/.opencode/bin/
-RUN curl -fsSL https://opencode.ai/install | bash \
+# Retry logic added because opencode.ai API can be flaky during parallel builds
+RUN for i in 1 2 3 4 5; do \
+        curl -fsSL https://opencode.ai/install | bash && break || \
+        echo "Attempt $i failed, retrying in 10s..." && sleep 10; \
+    done \
     && ls -la /home/opencode/.opencode/bin/opencode \
     && /home/opencode/.opencode/bin/opencode --version
 
