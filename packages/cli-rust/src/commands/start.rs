@@ -8,10 +8,12 @@ use clap::Args;
 use console::style;
 use futures_util::stream::StreamExt;
 use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
+use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
     ProgressReporter, build_image, container_exists, container_is_running, get_cli_version,
-    get_image_version, image_exists, setup_and_start, stop_service, versions_compatible,
+    get_image_version, image_exists, pull_image, save_state, setup_and_start, stop_service,
+    versions_compatible,
 };
 use opencode_cloud_core::load_hosts;
 use std::net::{TcpListener, TcpStream};
@@ -144,7 +146,7 @@ pub async fn cmd_start(
     let mut any_rebuild = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
 
     // Determine image source: flag > config default
-    let _use_prebuilt = if args.pull_sandbox_image {
+    let mut use_prebuilt = if args.pull_sandbox_image {
         true
     } else if any_rebuild {
         false
@@ -253,13 +255,65 @@ pub async fn cmd_start(
         return Err(port_in_use_error(port));
     }
 
-    // Build image if needed (first run or rebuild)
-    let needs_build =
-        any_rebuild || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+    // First-run image source prompt (if no image and no flag specified)
+    let image_already_exists = image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+    if !image_already_exists && !has_image_flag && !quiet {
+        let (new_use_prebuilt, updated_config) = prompt_image_source_choice(&config)?;
+        // Save config with new image_source
+        if updated_config.image_source != config.image_source {
+            save_config(&updated_config)?;
+        }
+        // Use the choice for this run
+        use_prebuilt = new_use_prebuilt;
+    }
 
-    if needs_build {
-        // full_rebuild_sandbox_image uses no_cache, cached_rebuild_sandbox_image uses cache
-        build_docker_image(&client, args.full_rebuild_sandbox_image, verbose).await?;
+    // Acquire image if needed (first run, rebuild, or forced pull)
+    let needs_image = any_rebuild
+        || args.pull_sandbox_image
+        || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+
+    if needs_image {
+        if any_rebuild {
+            // Build from source
+            build_docker_image(&client, args.full_rebuild_sandbox_image, verbose).await?;
+            save_state(&ImageState::built(get_cli_version())).ok();
+        } else if use_prebuilt {
+            // Pull prebuilt image
+            match pull_docker_image(&client, verbose).await {
+                Ok(registry) => {
+                    save_state(&ImageState::prebuilt(get_cli_version(), &registry)).ok();
+                }
+                Err(e) => {
+                    // Pull failed - offer to build instead
+                    if !quiet {
+                        eprintln!();
+                        eprintln!(
+                            "{} Failed to pull prebuilt image: {e}",
+                            style("Error:").red().bold()
+                        );
+                        eprintln!();
+                        let build_instead = dialoguer::Confirm::new()
+                            .with_prompt("Build from source instead? (This takes 30-60 minutes)")
+                            .default(true)
+                            .interact()?;
+                        if build_instead {
+                            build_docker_image(&client, false, verbose).await?;
+                            save_state(&ImageState::built(get_cli_version())).ok();
+                        } else {
+                            return Err(anyhow!(
+                                "Cannot proceed without image. Run 'occ start --full-rebuild-sandbox-image' to build from source."
+                            ));
+                        }
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        } else {
+            // Build from source (config.image_source == "build")
+            build_docker_image(&client, false, verbose).await?;
+            save_state(&ImageState::built(get_cli_version())).ok();
+        }
     }
 
     // Start container
@@ -443,6 +497,90 @@ async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) 
     let mut progress = ProgressReporter::with_context(context);
     build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, no_cache).await?;
     Ok(())
+}
+
+/// Pull the Docker image with progress reporting
+/// Returns the registry name on success (for provenance tracking)
+async fn pull_docker_image(client: &DockerClient, verbose: u8) -> Result<String> {
+    if verbose > 0 {
+        eprintln!(
+            "{} Pulling prebuilt Docker image from registry...",
+            style("[info]").cyan()
+        );
+    }
+
+    let mut progress = ProgressReporter::with_context("Pulling prebuilt image");
+    let full_image = pull_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress).await?;
+
+    // Extract registry from full image name
+    let registry = if full_image.starts_with("ghcr.io") {
+        "ghcr.io"
+    } else if full_image.starts_with("docker.io") || full_image.starts_with("prizz/") {
+        "docker.io"
+    } else {
+        "unknown"
+    };
+
+    Ok(registry.to_string())
+}
+
+/// Prompt user to choose between prebuilt and build from source
+fn prompt_image_source_choice(
+    config: &opencode_cloud_core::Config,
+) -> Result<(bool, opencode_cloud_core::Config)> {
+    println!();
+    println!("{}", style("Docker Image Setup").cyan().bold());
+    println!("{}", style("=".repeat(20)).dim());
+    println!();
+    println!("Choose how to get the opencode-cloud Docker image:");
+    println!();
+    println!("  {} Pull prebuilt image (~2 min)", style("[1]").bold());
+    println!("      Fast download from GitHub Container Registry");
+    println!("      Published automatically, verified builds");
+    println!();
+    println!("  {} Build from source (30-60 min)", style("[2]").bold());
+    println!("      Compile locally for customization/auditing");
+    println!("      Full transparency, modify Dockerfile if needed");
+    println!();
+    println!(
+        "{}",
+        style("Transparency: https://github.com/pRizz/opencode-cloud/actions/workflows/version-bump.yml").dim()
+    );
+    println!();
+
+    let options = vec![
+        "Pull prebuilt image (recommended, ~2 min)",
+        "Build from source (30-60 min)",
+    ];
+
+    let selection = dialoguer::Select::new()
+        .with_prompt("Select image source")
+        .items(&options)
+        .default(0)
+        .interact()
+        .map_err(|_| anyhow!("Setup cancelled"))?;
+
+    let use_prebuilt = selection == 0;
+    let mut new_config = config.clone();
+    new_config.image_source = if use_prebuilt { "prebuilt" } else { "build" }.to_string();
+
+    println!();
+    if use_prebuilt {
+        println!(
+            "{}",
+            style("Using prebuilt image. You can change this later with:").dim()
+        );
+        println!("  {}", style("occ config set image_source build").cyan());
+    } else {
+        println!(
+            "{}",
+            style("Building from source. You can change this later with:").dim()
+        );
+        println!("  {}", style("occ config set image_source prebuilt").cyan());
+    }
+    println!();
+
+    Ok((use_prebuilt, new_config))
 }
 
 /// Start the container, returning the container ID or error
