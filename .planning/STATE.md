@@ -5,25 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 14 - Versioning and Release Automation (Complete)
+**Current focus:** Phase 15 - Prebuilt Image Option (In Progress)
 
 ## Current Position
 
-Phase: 14 of 21 (Versioning and Release Automation)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-23 - Completed Phase 14 (all 3 plans executed)
+Phase: 15 of 21 (Prebuilt Image Option)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-24 - Completed 15-01-PLAN.md
 
-Progress: [#####################] 75%
+Progress: [######################] 77%
 
 Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14.
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34
+- Total plans completed: 35
 - Average duration: 6 min
-- Total execution time: 3.1 hours
+- Total execution time: 3.2 hours
 
 **By Phase:**
 
@@ -41,9 +41,10 @@ Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED.
 | 10 | 3 | 15 min | 5 min |
 | 11 | 3 | 19 min | 6 min |
 | 14 | 3 | 15 min | 5 min |
+| 15 | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 4 min, 7 min, 5 min, 4 min, 10 min
+- Last 5 plans: 7 min, 5 min, 4 min, 10 min, 3 min
 - Trend: Stable (~6 min average)
 
 *Updated after each plan completion*
@@ -175,6 +176,10 @@ Recent decisions affecting current work:
 - [14-02]: Prompt offers rebuild (not pull): Pull option deferred to Phase 15 (Prebuilt Image)
 - [14-03]: Two-tag strategy: Both v* and release/v* for backward compatibility
 - [14-03]: GitHub Actions bot for commits: Clear audit trail, avoids CI loops
+- [15-01]: Image source defaults to "prebuilt": Most users want fast setup; pull from GHCR is faster than local build
+- [15-01]: Update check defaults to "always": Security patches should be discovered automatically
+- [15-01]: State file location in data directory: Image state is operational/ephemeral (which image is current)
+- [15-01]: ISO8601 timestamps via chrono::Utc: Standardized format, timezone-aware, sortable
 
 ### Pending Todos
 
@@ -209,7 +214,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-23
-Stopped at: Completed Phase 14 (Versioning and Release Automation)
+Last session: 2026-01-24
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
-Next step: Plan Phase 15 (Prebuilt Image Option)
+Next step: Execute 15-02-PLAN.md (Pull Prebuilt Images)
