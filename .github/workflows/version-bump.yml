@@ -116,14 +116,13 @@ jobs:
             ## Installation
 
             ```bash
-            # Via cargo
+            # Via cargo (recommended)
             cargo install opencode-cloud
 
-            # Via npm
-            npx opencode-cloud --version
-
-            # Via Docker
-            docker pull ghcr.io/prizz/opencode-cloud:${{ steps.new.outputs.version }}
+            # Via Docker (sandbox image)
+            docker pull ghcr.io/prizz/opencode-cloud-sandbox:${{ steps.new.outputs.version }}
+            # Or from Docker Hub:
+            docker pull prizz/opencode-cloud-sandbox:${{ steps.new.outputs.version }}
             ```
           draft: false
           prerelease: false

@@ -369,6 +369,6 @@ mod tests {
     #[test]
     fn default_image_format() {
         let expected = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
-        assert_eq!(expected, "ghcr.io/prizz/opencode-cloud:latest");
+        assert_eq!(expected, "ghcr.io/prizz/opencode-cloud-sandbox:latest");
     }
 }
