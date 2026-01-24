@@ -8,9 +8,11 @@ use clap::Args;
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, ProgressReporter, create_user, has_previous_image,
-    rollback_image, setup_and_start, stop_service, update_image,
+    CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
+    create_user, get_cli_version, has_previous_image, pull_image, rollback_image, save_state,
+    setup_and_start, stop_service,
 };
 
 /// Arguments for the update command
@@ -140,19 +142,83 @@ async fn handle_update(
     }
     spinner.success("Service stopped");
 
-    // Step 2: Update image (includes backing up current image)
+    // Step 2: Get new image based on config.image_source
     if verbose > 0 {
-        eprintln!("{} Updating image...", style("[2/5]").cyan());
+        eprintln!("{} Getting new image...", style("[2/5]").cyan());
     }
-    let mut progress = if quiet {
-        ProgressReporter::new()
-    } else {
-        ProgressReporter::with_context("Updating image")
-    };
 
-    update_image(client, &mut progress)
-        .await
-        .map_err(|e| anyhow!("Failed to update image: {e}"))?;
+    if config.image_source == "build" {
+        // Building from source
+        if !quiet {
+            println!();
+            println!(
+                "{} Rebuilding image from source (per config.image_source=build)",
+                style("Info:").cyan()
+            );
+            println!(
+                "{}",
+                style("To use prebuilt images: occ config set image_source prebuilt").dim()
+            );
+            println!();
+        }
+
+        // First, tag current as previous for rollback (same as update_image does)
+        tag_current_as_previous(client)
+            .await
+            .map_err(|e| anyhow!("Failed to backup current image: {e}"))?;
+
+        // Then build new image
+        let mut progress = if quiet {
+            ProgressReporter::new()
+        } else {
+            ProgressReporter::with_context("Building image")
+        };
+
+        build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, false)
+            .await
+            .map_err(|e| anyhow!("Failed to build image: {e}"))?;
+
+        // Save provenance
+        save_state(&ImageState::built(get_cli_version())).ok();
+    } else {
+        // Pulling prebuilt (default)
+        if !quiet {
+            println!();
+            println!(
+                "{} Pulling prebuilt image (per config.image_source=prebuilt)",
+                style("Info:").cyan()
+            );
+            println!(
+                "{}",
+                style("To build from source: occ config set image_source build").dim()
+            );
+            println!();
+        }
+
+        // First, tag current as previous for rollback
+        tag_current_as_previous(client)
+            .await
+            .map_err(|e| anyhow!("Failed to backup current image: {e}"))?;
+
+        // Then pull new image
+        let mut progress = if quiet {
+            ProgressReporter::new()
+        } else {
+            ProgressReporter::with_context("Updating image")
+        };
+
+        let full_image = pull_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress)
+            .await
+            .map_err(|e| anyhow!("Failed to pull image: {e}"))?;
+
+        // Determine registry and save provenance
+        let registry = if full_image.starts_with("ghcr.io") {
+            "ghcr.io"
+        } else {
+            "docker.io"
+        };
+        save_state(&ImageState::prebuilt(get_cli_version(), registry)).ok();
+    }
 
     // Step 3: Recreate container
     if verbose > 0 {

@@ -106,10 +106,60 @@ pub async fn cmd_start(
         }
     }
 
+    // Check mutual exclusivity of image flags
+    let image_flags = [
+        args.pull_sandbox_image,
+        args.cached_rebuild_sandbox_image,
+        args.full_rebuild_sandbox_image,
+    ];
+    let flag_count = image_flags.iter().filter(|&&f| f).count();
+    if flag_count > 1 {
+        return Err(anyhow!(
+            "Only one of --pull-sandbox-image, --cached-rebuild-sandbox-image, or --full-rebuild-sandbox-image can be specified"
+        ));
+    }
+
+    let has_image_flag = args.pull_sandbox_image
+        || args.cached_rebuild_sandbox_image
+        || args.full_rebuild_sandbox_image;
+
+    // If any image flag is used while container is running, prompt to stop
+    if has_image_flag && container_is_running(&client, CONTAINER_NAME).await? {
+        if quiet {
+            return Err(anyhow!(
+                "Container is running. Stop it first with: occ stop"
+            ));
+        }
+        let confirm = dialoguer::Confirm::new()
+            .with_prompt("Container is running. Stop and apply image change?")
+            .default(false)
+            .interact()?;
+        if !confirm {
+            return Err(anyhow!("Aborted. Stop container first with: occ stop"));
+        }
+        // Stop the container
+        stop_service(&client, true).await.ok();
+    }
+
     let mut any_rebuild = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
 
-    // Version compatibility check (skip if rebuilding or --ignore-version)
-    if !args.ignore_version && !any_rebuild && !quiet {
+    // Determine image source: flag > config default
+    let _use_prebuilt = if args.pull_sandbox_image {
+        true
+    } else if any_rebuild {
+        false
+    } else {
+        config.image_source == "prebuilt"
+    };
+
+    // Version compatibility check (skip if rebuilding, --ignore-version, or --no-update-check)
+    let should_check_version = !args.ignore_version
+        && !any_rebuild
+        && !args.no_update_check
+        && config.update_check != "never"
+        && !quiet;
+
+    if should_check_version {
         let cli_version = get_cli_version();
         let image_tag = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
 
