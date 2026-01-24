@@ -432,7 +432,9 @@ ENV PATH="/home/opencode/.opencode/bin:${PATH}"
 # GSD Plugin Installation
 # -----------------------------------------------------------------------------
 # Install the GSD (Get Shit Done) plugin for opencode
-RUN git clone https://github.com/rokicool/gsd-opencode.git /home/opencode/.config/opencode/plugins/gsd-opencode
+# Note: If this fails in container builds due to "~" path resolution, retry with
+# OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
+RUN npx --yes get-shit-done-cc --opencode --global
 
 # -----------------------------------------------------------------------------
 # opencode systemd Service (2026-01-22)
