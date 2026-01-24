@@ -53,15 +53,15 @@ impl SystemdManager {
 
         // Quote path if it contains spaces
         let exec_start = if executable_path.contains(' ') {
-            format!("\"{}\" start --no-daemon", executable_path)
+            format!("\"{executable_path}\" start --no-daemon")
         } else {
-            format!("{} start --no-daemon", executable_path)
+            format!("{executable_path} start --no-daemon")
         };
 
         let exec_stop = if executable_path.contains(' ') {
-            format!("\"{}\" stop", executable_path)
+            format!("\"{executable_path}\" stop")
         } else {
-            format!("{} stop", executable_path)
+            format!("{executable_path} stop")
         };
 
         // Calculate StartLimitIntervalSec: restart_delay * restart_retries * 2
@@ -103,7 +103,7 @@ WantedBy=default.target
         }
         cmd.args(args)
             .output()
-            .map_err(|e| anyhow!("Failed to run systemctl: {}", e))
+            .map_err(|e| anyhow!("Failed to run systemctl: {e}"))
     }
 
     /// Run systemctl and check for success
@@ -214,7 +214,7 @@ impl ServiceManager for SystemdManager {
     }
 
     fn service_file_path(&self) -> PathBuf {
-        self.service_dir().join(format!("{}.service", SERVICE_NAME))
+        self.service_dir().join(format!("{SERVICE_NAME}.service"))
     }
 
     fn service_name(&self) -> &str {

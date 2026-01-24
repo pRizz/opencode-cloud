@@ -50,6 +50,17 @@ lint-rust:
     cargo fmt --all -- --check
     cargo clippy --all-targets --all-features -- -D warnings
 
+# Lint Rust code in Linux container (catches platform-gated code issues)
+# Use this before pushing to catch CI failures on Linux
+# Requires: Docker running
+lint-rust-linux:
+    docker run --rm -v "{{justfile_directory()}}":/workspace -w /workspace rust:1.88 \
+        cargo clippy --all-targets --all-features -- -D warnings
+
+# Lint Rust code for all platforms (local + Linux via Docker)
+# Use this before pushing to catch CI failures early
+lint-rust-cross: lint-rust lint-rust-linux
+
 # Lint Node code
 lint-node:
     pnpm -r lint
