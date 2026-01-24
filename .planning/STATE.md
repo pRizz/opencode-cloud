@@ -196,6 +196,7 @@ Recent decisions affecting current work:
 - Phase 19 MERGED: CI/CD Automation merged into Phase 14
 - Phase 20: One-Click Cloud Deploy (deploy buttons for AWS, GCP, Azure, DigitalOcean)
 - Phase 21: Use opencode Fork with PAM Authentication (switch to pRizz/opencode fork)
+- Phase 22: Dedupe CLI Logic (Rust CLI as single source of truth, Node delegates)
 
 ### Blockers/Concerns
 

@@ -33,6 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [~] **Phase 19: CI/CD Automation** - ~~Automated Docker image uploads~~ (MERGED into Phase 14)
 - [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
 - [ ] **Phase 21: Use opencode Fork with PAM Authentication** - Switch to pRizz/opencode fork for proper PAM-based web authentication
+- [ ] **Phase 22: Dedupe CLI Logic** - Consolidate CLI so Rust is single source of truth, Node delegates
 
 ## Phase Details
 
@@ -408,10 +409,27 @@ Plans:
 Plans:
 - [ ] 21-01: TBD (Dockerfile update and PAM integration)
 
+### Phase 22: Dedupe CLI Logic
+**Goal**: Consolidate CLI logic so the Rust CLI is the single source of truth and the Node CLI delegates to it
+**Depends on**: Phase 18 (CLI Sync Strategy)
+**Requirements**: None (architecture/maintenance)
+**Note**: Currently both CLIs have separate implementations. This phase makes the Rust CLI the authoritative implementation, with the Node CLI either wrapping the Rust binary or using NAPI bindings that delegate all logic to the Rust core.
+**Success Criteria** (what must be TRUE):
+  1. Rust CLI contains all command logic
+  2. Node CLI delegates to Rust (via NAPI bindings or subprocess)
+  3. No duplicated business logic between CLIs
+  4. Both CLIs produce identical output for all commands
+  5. Adding new commands only requires changes to Rust CLI
+**Plans**: TBD
+
+Plans:
+- [ ] 22-01: TBD (audit current duplication, design consolidation strategy)
+- [ ] 22-02: TBD (implement consolidation)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -436,7 +454,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 19. CI/CD Automation | 0/2 | Not started | - |
 | 20. One-Click Cloud Deploy | 0/3 | Not started | - |
 | 21. Use opencode Fork with PAM Auth | 0/1 | Not started | - |
+| 22. Dedupe CLI Logic | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-23 (Phase 21 added)*
+*Last updated: 2026-01-23 (Phase 22 added)*
