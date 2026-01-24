@@ -2,54 +2,25 @@
 /**
  * opencode-cloud Node.js CLI
  *
- * This is a thin wrapper that calls into the Rust core library via NAPI bindings.
- * The heavy lifting is done in Rust - this just provides npm/npx distribution.
+ * DEPRECATED: This package is deprecated. Please install via cargo instead.
  */
 
-import { getVersionJs } from "@opencode-cloud/core";
+const RED = "\x1b[31m";
+const YELLOW = "\x1b[33m";
+const CYAN = "\x1b[36m";
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
 
-const args = process.argv.slice(2);
+console.error(`
+${YELLOW}${BOLD}Notice:${RESET} The npm package for opencode-cloud is deprecated.
 
-function printHelp(): void {
-  console.log(`
-opencode-cloud - Manage your opencode cloud service
+Please install via cargo instead:
 
-USAGE:
-    opencode-cloud [OPTIONS] [COMMAND]
+  ${CYAN}cargo install opencode-cloud${RESET}
 
-OPTIONS:
-    -V, --version    Print version information
-    -h, --help       Print help information
+This provides a native binary with better performance and full feature support.
 
-COMMANDS:
-    (none yet - real commands coming in future phases)
-
-For more information, see: https://github.com/pRizz/opencode-cloud
+${RED}Requires:${RESET} Rust 1.85+ (install from https://rustup.rs)
 `);
-}
 
-function printVersion(): void {
-  const version = getVersionJs();
-  console.log(version);
-}
-
-function main(): void {
-  // Handle --version / -V
-  if (args.includes("--version") || args.includes("-V")) {
-    printVersion();
-    process.exit(0);
-  }
-
-  // Handle --help / -h
-  if (args.includes("--help") || args.includes("-h") || args.length === 0) {
-    printHelp();
-    process.exit(0);
-  }
-
-  // Unknown command
-  console.error(`Unknown command: ${args.join(" ")}`);
-  console.error('Run "opencode-cloud --help" for usage information.');
-  process.exit(1);
-}
-
-main();
+process.exit(1);
