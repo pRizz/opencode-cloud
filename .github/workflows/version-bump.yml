@@ -16,7 +16,7 @@ on:
 permissions:
   contents: write    # Required for pushing commits and tags
   packages: write    # Required for GHCR push (docker-publish)
-  id-token: write    # Required for npm provenance (publish)
+  id-token: write    # Required for npm provenance (publish-npm)
 
 jobs:
   bump-version:
@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.new.outputs.version }}
+      previous_version: ${{ steps.current.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -134,25 +135,37 @@ jobs:
           echo "- **Previous:** ${{ steps.current.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **New:** ${{ steps.new.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Bump type:** ${{ inputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Triggered Workflows" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Publish:** Publishes to crates.io and npm" >> $GITHUB_STEP_SUMMARY
-          echo "- **Docker Publish:** Builds and pushes Docker image to GHCR" >> $GITHUB_STEP_SUMMARY
 
-  # Call publish workflow after version bump
-  publish:
-    name: Publish to crates.io and npm
+  # Run CI checks before publishing
+  ci-pre-publish:
+    name: Pre-publish Checks
     needs: bump-version
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/ci-pre-publish.yml
+    with:
+      version: ${{ needs.bump-version.outputs.version }}
+
+  # Publish to crates.io (after checks pass)
+  publish-crates:
+    name: Publish to crates.io
+    needs: [bump-version, ci-pre-publish]
+    uses: ./.github/workflows/publish-crates.yml
     with:
       version: ${{ needs.bump-version.outputs.version }}
     secrets: inherit
 
-  # Call docker-publish workflow after version bump
+  # Publish to npm (after checks pass)
+  publish-npm:
+    name: Publish to npm
+    needs: [bump-version, ci-pre-publish]
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      version: ${{ needs.bump-version.outputs.version }}
+    secrets: inherit
+
+  # Publish Docker image (after checks pass)
   docker-publish:
-    name: Publish Docker image to GHCR
-    needs: bump-version
+    name: Publish Docker image
+    needs: [bump-version, ci-pre-publish]
     uses: ./.github/workflows/docker-publish.yml
     with:
       version: ${{ needs.bump-version.outputs.version }}

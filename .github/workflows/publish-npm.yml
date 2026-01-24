@@ -1,0 +1,63 @@
+name: Publish to npm
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version being published'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for OIDC authentication and npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'  # Recommended for OIDC authentication
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Build Node packages
+        run: |
+          pnpm -C packages/core build
+          pnpm -C packages/cli-node build
+
+      # Use pnpm publish to convert workspace:* references to actual versions
+      - name: Publish @opencode-cloud/core
+        run: pnpm --filter @opencode-cloud/core publish --access public --provenance --no-git-checks
+
+      - name: Wait for npm to index
+        run: sleep 10
+
+      - name: Publish opencode-cloud
+        run: pnpm --filter opencode-cloud publish --access public --provenance --no-git-checks
+
+      - name: Summary
+        run: |
+          echo "## 📦 Published to npm" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/core](https://www.npmjs.com/package/@opencode-cloud/core)" >> $GITHUB_STEP_SUMMARY
+          echo "- [opencode-cloud](https://www.npmjs.com/package/opencode-cloud)" >> $GITHUB_STEP_SUMMARY

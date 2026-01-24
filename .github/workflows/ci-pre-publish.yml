@@ -1,0 +1,69 @@
+name: CI Pre-publish Checks
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version being released (for logging)'
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: Pre-publish Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log version
+        if: inputs.version != ''
+        run: echo "Running checks for version ${{ inputs.version }}"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build Rust
+        run: cargo build --workspace
+
+      - name: Test Rust
+        run: cargo test --workspace
+
+      - name: Build Node packages
+        run: |
+          pnpm -C packages/core build
+          pnpm -C packages/cli-node build
+
+      - name: Verify CLI works
+        run: |
+          cargo run -p opencode-cloud -- --version
+          node packages/cli-node/dist/index.js --version

@@ -1,0 +1,45 @@
+name: Publish to crates.io
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version being published'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Publish opencode-cloud-core
+        run: cargo publish -p opencode-cloud-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io to index
+        run: sleep 30
+
+      - name: Publish opencode-cloud
+        run: cargo publish -p opencode-cloud
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## 📦 Published to crates.io" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "- [opencode-cloud-core](https://crates.io/crates/opencode-cloud-core)" >> $GITHUB_STEP_SUMMARY
+          echo "- [opencode-cloud](https://crates.io/crates/opencode-cloud)" >> $GITHUB_STEP_SUMMARY
