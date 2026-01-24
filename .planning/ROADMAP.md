@@ -34,6 +34,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
 - [ ] **Phase 21: Use opencode Fork with PAM Authentication** - Switch to pRizz/opencode fork for proper PAM-based web authentication
 - [ ] **Phase 22: Dedupe CLI Logic** - Consolidate CLI so Rust is single source of truth, Node delegates
+- [ ] **Phase 23: Container Shell Access** - `occ shell` command for quick terminal access to running container
+- [ ] **Phase 24: IDE Integration** - VS Code and JetBrains extensions to connect to container
+- [ ] **Phase 25: Container Templates** - Pre-configured environment templates (Python ML, Node.js, Rust, etc.)
+- [ ] **Phase 26: Secrets Management** - Secure injection of API keys and credentials into container
+- [ ] **Phase 27: Windows Support** - Full Windows compatibility for the CLI and Docker integration
 
 ## Phase Details
 
@@ -426,10 +431,96 @@ Plans:
 - [ ] 22-01: TBD (audit current duplication, design consolidation strategy)
 - [ ] 22-02: TBD (implement consolidation)
 
+### Phase 23: Container Shell Access
+**Goal**: Provide quick terminal access to the running container via `occ shell` command
+**Depends on**: Phase 3 (Service Lifecycle Commands)
+**Requirements**: None (enhancement)
+**Note**: Users often need quick shell access without going through Cockpit. This command provides `docker exec -it` functionality with a simpler interface.
+**Success Criteria** (what must be TRUE):
+  1. `occ shell` opens interactive bash session in running container
+  2. `occ shell <command>` executes single command and returns output
+  3. Works with remote hosts via `--host` flag
+  4. Proper TTY handling for interactive sessions
+  5. Exit code propagation from container commands
+**Plans**: TBD
+
+Plans:
+- [ ] 23-01: TBD (shell command implementation)
+
+### Phase 24: IDE Integration
+**Goal**: Create extensions for popular IDEs to connect to and work with opencode containers
+**Depends on**: Phase 11 (Remote Host Management)
+**Requirements**: None (enhancement)
+**Note**: IDE integration allows developers to use their preferred editor while leveraging the sandboxed container environment. Focus on VS Code first (largest market share), then JetBrains.
+**Success Criteria** (what must be TRUE):
+  1. VS Code extension can list running opencode containers
+  2. VS Code extension can connect to container for remote development
+  3. Extension respects existing SSH config for remote hosts
+  4. File editing, terminal, and debugging work through extension
+  5. Extension available on VS Code marketplace
+**Plans**: TBD
+
+Plans:
+- [ ] 24-01: TBD (VS Code extension)
+- [ ] 24-02: TBD (JetBrains plugin - optional)
+
+### Phase 25: Container Templates
+**Goal**: Provide pre-configured environment templates optimized for different development stacks
+**Depends on**: Phase 2 (Docker Integration)
+**Requirements**: None (enhancement)
+**Note**: Different projects need different tools. Templates provide optimized Dockerfiles for specific stacks (Python ML with CUDA, Node.js with common tools, Rust development, etc.) without bloating the default image.
+**Success Criteria** (what must be TRUE):
+  1. `occ start --template python-ml` uses Python/ML-optimized image
+  2. At least 3 templates available: python-ml, nodejs, rust
+  3. Templates can be listed via `occ templates list`
+  4. Custom templates can be added via config
+  5. Template selection persisted in config for container
+**Plans**: TBD
+
+Plans:
+- [ ] 25-01: TBD (template system architecture)
+- [ ] 25-02: TBD (built-in templates)
+
+### Phase 26: Secrets Management
+**Goal**: Securely inject API keys and credentials into the container without exposing them in config files
+**Depends on**: Phase 5 (Interactive Setup Wizard)
+**Requirements**: None (enhancement)
+**Note**: Users need to provide API keys (OpenAI, Anthropic, etc.) to opencode. Currently these may end up in config files or shell history. This phase provides secure secret injection using Docker secrets or environment variable management.
+**Success Criteria** (what must be TRUE):
+  1. `occ secret set OPENAI_API_KEY` securely stores secret
+  2. Secrets injected into container as environment variables
+  3. Secrets never written to plain-text config files
+  4. `occ secret list` shows secret names (not values)
+  5. `occ secret remove <name>` removes a secret
+  6. Secrets persist across container restarts
+**Plans**: TBD
+
+Plans:
+- [ ] 26-01: TBD (secure secret storage)
+- [ ] 26-02: TBD (CLI commands and container injection)
+
+### Phase 27: Windows Support
+**Goal**: Full Windows compatibility for the CLI and Docker integration
+**Depends on**: Phase 4 (Platform Service Installation)
+**Requirements**: None (enhancement)
+**Note**: Windows support was deferred from v1. This phase adds Windows service integration, path handling, and testing. Requires Docker Desktop or WSL2 with Docker.
+**Success Criteria** (what must be TRUE):
+  1. CLI compiles and runs on Windows
+  2. Windows service registration (similar to systemd/launchd)
+  3. Config paths follow Windows conventions (%APPDATA%)
+  4. All existing commands work on Windows
+  5. CI includes Windows build and test
+**Plans**: TBD
+
+Plans:
+- [ ] 27-01: TBD (Windows compilation and path handling)
+- [ ] 27-02: TBD (Windows service integration)
+- [ ] 27-03: TBD (CI and testing)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22
+Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 26 -> 27
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -455,7 +546,12 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 20. One-Click Cloud Deploy | 0/3 | Not started | - |
 | 21. Use opencode Fork with PAM Auth | 0/1 | Not started | - |
 | 22. Dedupe CLI Logic | 0/2 | Not started | - |
+| 23. Container Shell Access | 0/1 | Not started | - |
+| 24. IDE Integration | 0/2 | Not started | - |
+| 25. Container Templates | 0/2 | Not started | - |
+| 26. Secrets Management | 0/2 | Not started | - |
+| 27. Windows Support | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-23 (Phase 22 added)*
+*Last updated: 2026-01-24 (Phases 23-27 added)*

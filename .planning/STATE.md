@@ -197,6 +197,11 @@ Recent decisions affecting current work:
 - Phase 20: One-Click Cloud Deploy (deploy buttons for AWS, GCP, Azure, DigitalOcean)
 - Phase 21: Use opencode Fork with PAM Authentication (switch to pRizz/opencode fork)
 - Phase 22: Dedupe CLI Logic (Rust CLI as single source of truth, Node delegates)
+- Phase 23: Container Shell Access (`occ shell` for quick terminal access)
+- Phase 24: IDE Integration (VS Code and JetBrains extensions)
+- Phase 25: Container Templates (pre-configured stacks: Python ML, Node.js, Rust)
+- Phase 26: Secrets Management (secure API key injection)
+- Phase 27: Windows Support (full Windows compatibility)
 
 ### Blockers/Concerns
 
