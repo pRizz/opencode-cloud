@@ -12,6 +12,7 @@ use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerError, HealthError, OPENCODE_WEB_PORT, check_health,
 };
+use opencode_cloud_core::load_hosts;
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::time::Duration;
 
@@ -130,30 +131,52 @@ pub async fn cmd_status(
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
+    // Get remote host address if using --host
+    let maybe_remote_addr = if let Some(ref name) = host_name {
+        let hosts = load_hosts().ok();
+        hosts.and_then(|h| h.get_host(name).map(|cfg| cfg.hostname.clone()))
+    } else {
+        None
+    };
+
     // Normal mode: print formatted status
     println!("State:       {}", state_style(&status));
 
     if running {
-        let url = format!("http://127.0.0.1:{host_port}");
-        println!("URL:         {}", style(&url).cyan());
+        // For remote hosts, show both container-local and remote-accessible URLs
+        if let Some(ref remote_addr) = maybe_remote_addr {
+            let remote_url = format!("http://{remote_addr}:{host_port}");
+            println!("Remote URL:  {}", style(&remote_url).cyan());
+            let local_url = format!("http://127.0.0.1:{host_port}");
+            println!(
+                "Local URL:   {} {}",
+                style(&local_url).dim(),
+                style("(on remote host)").dim()
+            );
+        } else {
+            let url = format!("http://127.0.0.1:{host_port}");
+            println!("URL:         {}", style(&url).cyan());
+        }
 
-        // Show health check status
-        match check_health(host_port).await {
-            Ok(response) => {
-                println!(
-                    "Health:      {} (v{})",
-                    style("Healthy").green(),
-                    response.version
-                );
-            }
-            Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-                println!("Health:      {}", style("Service starting...").yellow());
-            }
-            Err(HealthError::Unhealthy(code)) => {
-                println!("Health:      {} (HTTP {})", style("Unhealthy").red(), code);
-            }
-            Err(_) => {
-                println!("Health:      {}", style("Check failed").yellow());
+        // Show health check status (only for local connections - can't check remote health directly)
+        if host_name.is_none() {
+            match check_health(host_port).await {
+                Ok(response) => {
+                    println!(
+                        "Health:      {} (v{})",
+                        style("Healthy").green(),
+                        response.version
+                    );
+                }
+                Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
+                    println!("Health:      {}", style("Service starting...").yellow());
+                }
+                Err(HealthError::Unhealthy(code)) => {
+                    println!("Health:      {} (HTTP {})", style("Unhealthy").red(), code);
+                }
+                Err(_) => {
+                    println!("Health:      {}", style("Check failed").yellow());
+                }
             }
         }
     }
@@ -185,16 +208,41 @@ pub async fn cmd_status(
         // Show Cockpit info if enabled
         if let Some(ref cfg) = config {
             if cfg.cockpit_enabled {
-                // For 0.0.0.0 or :: bind addresses, use localhost for display
-                let cockpit_addr = if cfg.bind_address == "0.0.0.0" || cfg.bind_address == "::" {
-                    "127.0.0.1"
+                if let Some(ref remote_addr) = maybe_remote_addr {
+                    // Remote host - show remote URL
+                    let remote_cockpit_url = format!("http://{}:{}", remote_addr, cfg.cockpit_port);
+                    println!(
+                        "Cockpit:     {} -> container:9090",
+                        style(&remote_cockpit_url).cyan()
+                    );
                 } else {
-                    &cfg.bind_address
+                    // Local - use configured bind address
+                    let cockpit_addr = if cfg.bind_address == "0.0.0.0" || cfg.bind_address == "::"
+                    {
+                        "127.0.0.1"
+                    } else {
+                        &cfg.bind_address
+                    };
+                    let cockpit_url = format!("http://{}:{}", cockpit_addr, cfg.cockpit_port);
+                    println!(
+                        "Cockpit:     {} -> container:9090",
+                        style(&cockpit_url).cyan()
+                    );
+                }
+                // Show tip about creating users for Cockpit login
+                let user_cmd = if let Some(ref name) = host_name {
+                    format!("occ user add <username> --host {name}")
+                } else {
+                    "occ user add <username>".to_string()
                 };
-                let cockpit_url = format!("http://{}:{}", cockpit_addr, cfg.cockpit_port);
                 println!(
-                    "Cockpit:     {} -> container:9090",
-                    style(&cockpit_url).cyan()
+                    "             {}",
+                    style("Cockpit authenticates against container system users.").dim()
+                );
+                println!(
+                    "             {} {}",
+                    style("Create a container user with:").dim(),
+                    style(&user_cmd).cyan()
                 );
             }
         }
@@ -211,7 +259,12 @@ pub async fn cmd_status(
         println!("Health:      {health_styled}");
     }
 
-    println!("Config:      {}", style(&config_path).dim());
+    // Label config path - clarify it's local config when using remote host
+    if host_name.is_some() {
+        println!("Local Config: {}", style(&config_path).dim());
+    } else {
+        println!("Config:      {}", style(&config_path).dim());
+    }
 
     // Show installation status
     if is_service_registration_supported() {

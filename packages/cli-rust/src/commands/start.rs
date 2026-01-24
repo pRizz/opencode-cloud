@@ -13,6 +13,7 @@ use opencode_cloud_core::docker::{
     ProgressReporter, build_image, container_exists, container_is_running, image_exists,
     setup_and_start, stop_service,
 };
+use opencode_cloud_core::load_hosts;
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
@@ -254,24 +255,45 @@ fn show_already_running(
         return Ok(());
     }
 
-    let url = format!("http://{bind_addr}:{port}");
+    // Get remote host address if using --host
+    let maybe_remote_addr = host_name.and_then(|name| {
+        load_hosts()
+            .ok()
+            .and_then(|h| h.get_host(name).map(|cfg| cfg.hostname.clone()))
+    });
+
     let msg = crate::format_host_message(host_name, "Service is already running");
     println!("{}", style(msg).dim());
     println!();
-    println!("URL:        {}", style(&url).cyan());
+
+    // Show URL - use remote address if available
+    if let Some(ref remote_addr) = maybe_remote_addr {
+        let remote_url = format!("http://{remote_addr}:{port}");
+        println!("Remote URL: {}", style(&remote_url).cyan());
+    } else {
+        let url = format!("http://{bind_addr}:{port}");
+        println!("URL:        {}", style(&url).cyan());
+    }
 
     // Show Cockpit URL if enabled
     if let Ok(config) = opencode_cloud_core::config::load_config() {
         if config.cockpit_enabled {
-            let cockpit_addr = if bind_addr == "0.0.0.0" || bind_addr == "::" {
-                "127.0.0.1"
+            if let Some(ref remote_addr) = maybe_remote_addr {
+                println!(
+                    "Cockpit:    http://{}:{} (web admin)",
+                    remote_addr, config.cockpit_port
+                );
             } else {
-                bind_addr
-            };
-            println!(
-                "Cockpit:    http://{}:{} (web admin)",
-                cockpit_addr, config.cockpit_port
-            );
+                let cockpit_addr = if bind_addr == "0.0.0.0" || bind_addr == "::" {
+                    "127.0.0.1"
+                } else {
+                    bind_addr
+                };
+                println!(
+                    "Cockpit:    http://{}:{} (web admin)",
+                    cockpit_addr, config.cockpit_port
+                );
+            }
         }
     }
 
@@ -367,17 +389,35 @@ fn show_start_result(
     bind_addr: &str,
     is_exposed: bool,
     quiet: bool,
-    _host_name: Option<&str>,
+    host_name: Option<&str>,
 ) {
-    let url = format!("http://{bind_addr}:{port}");
+    // Get remote host address if using --host
+    let maybe_remote_addr = host_name.and_then(|name| {
+        load_hosts()
+            .ok()
+            .and_then(|h| h.get_host(name).map(|cfg| cfg.hostname.clone()))
+    });
 
     if quiet {
-        println!("{url}");
+        if let Some(ref remote_addr) = maybe_remote_addr {
+            println!("http://{remote_addr}:{port}");
+        } else {
+            println!("http://{bind_addr}:{port}");
+        }
         return;
     }
 
     println!();
-    println!("URL:        {}", style(&url).cyan());
+
+    // Show URL - use remote address if available
+    if let Some(ref remote_addr) = maybe_remote_addr {
+        let remote_url = format!("http://{remote_addr}:{port}");
+        println!("Remote URL: {}", style(&remote_url).cyan());
+    } else {
+        let url = format!("http://{bind_addr}:{port}");
+        println!("URL:        {}", style(&url).cyan());
+    }
+
     println!(
         "Container:  {}",
         style(&container_id[..12.min(container_id.len())]).dim()
@@ -387,15 +427,22 @@ fn show_start_result(
     // Show Cockpit availability if enabled
     if let Ok(config) = opencode_cloud_core::config::load_config() {
         if config.cockpit_enabled {
-            let cockpit_addr = if bind_addr == "0.0.0.0" || bind_addr == "::" {
-                "127.0.0.1"
+            if let Some(ref remote_addr) = maybe_remote_addr {
+                println!(
+                    "Cockpit:    http://{}:{} (web admin)",
+                    remote_addr, config.cockpit_port
+                );
             } else {
-                bind_addr
-            };
-            println!(
-                "Cockpit:    http://{}:{} (web admin)",
-                cockpit_addr, config.cockpit_port
-            );
+                let cockpit_addr = if bind_addr == "0.0.0.0" || bind_addr == "::" {
+                    "127.0.0.1"
+                } else {
+                    bind_addr
+                };
+                println!(
+                    "Cockpit:    http://{}:{} (web admin)",
+                    cockpit_addr, config.cockpit_port
+                );
+            }
         }
     }
 
@@ -411,7 +458,9 @@ fn show_start_result(
     }
 
     println!();
-    println!("{}", style("Open in browser: occ start --open").dim());
+    if host_name.is_none() {
+        println!("{}", style("Open in browser: occ start --open").dim());
+    }
 }
 
 /// Open browser if requested

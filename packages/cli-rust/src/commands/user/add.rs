@@ -81,6 +81,25 @@ pub async fn cmd_user_add(
     let password = if args.generate {
         generate_random_password()
     } else {
+        // Explain what password is being requested to avoid confusion with sudo
+        if !quiet {
+            println!();
+            println!(
+                "{}",
+                style("Set a password for the new container user.").dim()
+            );
+            println!(
+                "{}",
+                style("This will be used for Cockpit and opencode web login.").dim()
+            );
+            println!(
+                "{}",
+                style(
+                    "Authentication is handled by the system via PAM - we don't store passwords."
+                )
+                .dim()
+            );
+        }
         let pwd = Password::new()
             .with_prompt("Password")
             .with_confirmation("Confirm password", "Passwords do not match")
