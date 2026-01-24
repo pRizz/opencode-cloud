@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
-[![npm](https://img.shields.io/npm/v/opencode-cloud.svg)](https://www.npmjs.com/package/opencode-cloud)
 [![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -27,36 +26,16 @@ opencode-cloud --version
 
 ## Requirements
 
-### For npm installation
-
-- **Node.js 20+**
-- **Rust 1.82+** (for compiling native bindings)
-  - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-
-### For cargo installation
-
-- **Rust 1.82+**
+- **Rust 1.85+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Docker** - For running the opencode container
 
 ## Installation
 
-### Via npm (compiles from source)
-
-```bash
-npx opencode-cloud --version
-```
-
-Or install globally:
-
-```bash
-npm install -g opencode-cloud
-occ --version
-```
-
-### Via cargo
+### Via cargo (recommended)
 
 ```bash
 cargo install opencode-cloud
-opencode-cloud --version
+occ --version
 ```
 
 ### From source
@@ -172,15 +151,13 @@ just lint
 ## Architecture
 
 This is a monorepo with:
-- `packages/core` - Rust core library with NAPI-RS bindings
-- `packages/cli-rust` - Rust CLI binary
-- `packages/cli-node` - Node.js CLI wrapper (calls into core via NAPI)
-
-The npm package compiles the Rust core on install (no prebuilt binaries).
+- `packages/core` - Rust core library
+- `packages/cli-rust` - Rust CLI binary (recommended)
+- `packages/cli-node` - Node.js CLI (deprecated, directs users to cargo install)
 
 ### Cargo.toml Sync Requirement
 
-The `packages/core/Cargo.toml` file must use **explicit values** rather than `workspace = true` references. This is because when users install the npm package, they only get `packages/core/` without the workspace root `Cargo.toml`, so workspace inheritance would fail.
+The `packages/core/Cargo.toml` file must use **explicit values** rather than `workspace = true` references.
 
 When updating package metadata (version, edition, rust-version, etc.), keep both files in sync:
 - `Cargo.toml` (workspace root)
