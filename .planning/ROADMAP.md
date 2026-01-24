@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [~] **Phase 12: Web Desktop UI Investigation** - ~~Investigate integrating secure web-exposed desktop UI~~ (DEFERRED)
 - [~] **Phase 13: Container Security Tools** - ~~Add trivy, gitleaks, hadolint, age, sops, mkcert to container~~ (DEFERRED)
 - [x] **Phase 14: Versioning and Release Automation** - CI/CD for Docker images, version detection, auto-rebuild prompts
-- [ ] **Phase 15: Prebuilt Image Option** - Option to pull prebuilt images vs building from scratch
+- [x] **Phase 15: Prebuilt Image Option** - Option to pull prebuilt images vs building from scratch
 - [ ] **Phase 16: Code Quality Audit** - Reduce nesting, eliminate duplication, improve readability
 - [ ] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
 - [ ] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync
@@ -301,9 +301,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Config schema extension (image_source, update_check) and image state module for provenance
-- [ ] 15-02-PLAN.md — Start command enhancement (renamed flags, pull-or-build logic, first-run prompt)
-- [ ] 15-03-PLAN.md — Wizard integration, update command respects config, status shows provenance
+- [x] 15-01-PLAN.md — Config schema extension (image_source, update_check) and image state module for provenance
+- [x] 15-02-PLAN.md — Start command enhancement (renamed flags, pull-or-build logic, first-run prompt)
+- [x] 15-03-PLAN.md — Wizard integration, update command respects config, status shows provenance
 
 ### Phase 16: Code Quality Audit
 **Goal**: Improve code maintainability by reducing nesting, eliminating duplication, and applying consistent patterns
@@ -541,7 +541,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 | 12. Web Desktop UI Investigation | - | Deferred | - |
 | 13. Container Security Tools | - | Deferred | - |
 | 14. Versioning and Release Automation | 3/3 | ✓ Complete | 2026-01-23 |
-| 15. Prebuilt Image Option | 0/3 | Not started | - |
+| 15. Prebuilt Image Option | 3/3 | ✓ Complete | 2026-01-24 |
 | 16. Code Quality Audit | 0/3 | Not started | - |
 | 17. Custom Bind Mounts | 0/3 | Not started | - |
 | 18. CLI Sync Strategy | 0/3 | Not started | - |
@@ -557,4 +557,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-24 (Phase 15 planned with 3 plans)*
+*Last updated: 2026-01-24 (Phase 15 complete)*
