@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 14: Versioning and Release Automation** - CI/CD for Docker images, version detection, auto-rebuild prompts
 - [x] **Phase 15: Prebuilt Image Option** - Option to pull prebuilt images vs building from scratch
 - [x] **Phase 16: Code Quality Audit** - Reduce nesting, eliminate duplication, improve readability
-- [ ] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
+- [x] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
 - [ ] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync
 - [~] **Phase 19: CI/CD Automation** - ~~Automated Docker image uploads~~ (MERGED into Phase 14)
 - [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
@@ -340,9 +340,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 17-01-PLAN.md — Core mount module (parsing, validation, error types) and config schema extension
-- [ ] 17-02-PLAN.md — CLI mount subcommand (add/remove/list) and start command flags (--mount, --no-mounts)
-- [ ] 17-03-PLAN.md — Container creation with bind mounts and status display of active mounts
+- [x] 17-01-PLAN.md — Core mount module (parsing, validation, error types) and config schema extension
+- [x] 17-02-PLAN.md — CLI mount subcommand (add/remove/list) and start command flags (--mount, --no-mounts)
+- [x] 17-03-PLAN.md — Container creation with bind mounts and status display of active mounts
 
 ### Phase 18: CLI Sync Strategy
 **Goal**: Develop and implement a strategy to ensure the Rust CLI and Node CLI remain feature-complete and behavior-consistent
@@ -577,7 +577,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 | 14. Versioning and Release Automation | 3/3 | ✓ Complete | 2026-01-23 |
 | 15. Prebuilt Image Option | 3/3 | ✓ Complete | 2026-01-24 |
 | 16. Code Quality Audit | 2/2 | ✓ Complete | 2026-01-25 |
-| 17. Custom Bind Mounts | 0/3 | Planned | - |
+| 17. Custom Bind Mounts | 3/3 | ✓ Complete | 2026-01-25 |
 | 18. CLI Sync Strategy | 0/3 | Not started | - |
 | 19. CI/CD Automation | - | MERGED | - |
 | 20. One-Click Cloud Deploy | 0/3 | Not started | - |
@@ -593,4 +593,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-25 (Phase 17 planned)*
+*Last updated: 2026-01-25 (Phase 17 complete)*
