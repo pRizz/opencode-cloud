@@ -427,6 +427,18 @@ pub async fn cmd_start(
         let cockpit_mismatch = current_cockpit_port != config.cockpit_port;
 
         if port_mismatch || cockpit_mismatch {
+            // Check port availability BEFORE prompting - fail fast if new port isn't available
+            if port_mismatch && !check_port_available(port) {
+                return Err(anyhow!(
+                    "Port mismatch: container uses port {current_opencode_port} but requested port {port}.\n\
+                     Cannot switch to port {port} - it's already in use.\n\n\
+                     Options:\n  \
+                     1. Stop the process using port {port}\n  \
+                     2. Use a different port: occ start --port <available-port>\n  \
+                     3. Keep current port: occ start --port {current_opencode_port}"
+                ));
+            }
+
             if quiet {
                 // In quiet mode, fail with clear error
                 return Err(anyhow!(
