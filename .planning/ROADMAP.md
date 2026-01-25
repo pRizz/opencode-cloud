@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 15: Prebuilt Image Option** - Option to pull prebuilt images vs building from scratch
 - [x] **Phase 16: Code Quality Audit** - Reduce nesting, eliminate duplication, improve readability
 - [x] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
-- [x] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync
+- [ ] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync + prebuilt binary distribution
 - [~] **Phase 19: CI/CD Automation** - ~~Automated Docker image uploads~~ (MERGED into Phase 14)
 - [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
 - [ ] **Phase 21: Use opencode Fork with PAM Authentication** - Switch to pRizz/opencode fork for proper PAM-based web authentication
-- [ ] **Phase 22: Dedupe CLI Logic** - Consolidate CLI so Rust is single source of truth, Node delegates
+- [~] **Phase 22: Dedupe CLI Logic** - ~~Consolidate CLI so Rust is single source of truth, Node delegates~~ (MERGED into Phase 18)
 - [ ] **Phase 23: Container Shell Access** - `occ shell` command for quick terminal access to running container
 - [ ] **Phase 24: IDE Integration** - VS Code and JetBrains extensions to connect to container
 - [ ] **Phase 25: Container Templates** - Pre-configured environment templates (Python ML, Node.js, Rust, etc.)
@@ -346,45 +346,39 @@ Plans:
 - [x] 17-03-PLAN.md — Container creation with bind mounts and status display of active mounts
 
 ### Phase 18: CLI Sync Strategy
-**Goal**: Establish patterns to keep the Rust CLI and Node CLI in sync through automatic passthrough delegation
+**Goal**: Establish patterns to keep the Rust CLI and Node CLI in sync through automatic passthrough delegation, plus zero-friction npm installation via prebuilt binaries
 **Depends on**: Phase 8 (Polish and Documentation)
 **Requirements**: None (architecture/maintenance)
-**Note**: The Rust CLI is the single source of truth. The Node CLI becomes a thin wrapper that spawns the Rust binary and passes all arguments through transparently. This phase implements the passthrough, adds parity tests, and documents the process.
+**Note**: The Rust CLI is the single source of truth. The Node CLI becomes a thin wrapper that spawns the Rust binary and passes all arguments through transparently. This phase implements the passthrough, adds parity tests, documents the process, AND adds prebuilt binary distribution via optionalDependencies so `npm install` works without Rust toolchain.
 **Success Criteria** (what must be TRUE):
   1. Documented strategy for CLI parity (Rust is source of truth, Node delegates)
   2. Node CLI spawns Rust binary with stdio: inherit for transparent passthrough
   3. Test suite dynamically discovers commands from Rust CLI and verifies Node can invoke each
   4. CI fails if Node CLI cannot invoke a Rust CLI command
   5. Clear process for adding new commands (add to Rust only, no Node changes needed)
-**Plans**: 3 plans
+  6. npm install downloads correct prebuilt binary for user's platform (no Rust required)
+  7. Platform packages published for darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl
+  8. CI builds binaries for all platforms and publishes to npm on release
+**Plans**: 6 plans
 
 Plans:
 - [x] 18-01-PLAN.md — Node CLI passthrough implementation (spawn wrapper, binary resolution, error handling)
 - [x] 18-02-PLAN.md — Parity test suite with dynamic command discovery and CI integration
 - [x] 18-03-PLAN.md — Documentation (CONTRIBUTING.md CLI architecture, command addition guide)
+- [ ] 18-04-PLAN.md — Platform-specific npm package scaffolds (darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl)
+- [ ] 18-05-PLAN.md — Update cli-node for optionalDependencies binary resolution
+- [ ] 18-06-PLAN.md — CI workflow for cross-platform binary builds and npm publish
 
 ### Phase 19: CI/CD Automation
 **Goal**: Automate Docker image builds/uploads and version management via GitHub Actions with user-triggered workflows
 **Depends on**: Phase 15 (Prebuilt Image Option)
 **Requirements**: None (enhancement)
-**Note**: Builds on Phase 15's prebuilt image infrastructure. Adds automated CI/CD workflows for building and pushing Docker images to GHCR, plus interactive version bump workflows that prompt for version type (major/minor/patch) and create git tags.
-**Success Criteria** (what must be TRUE):
-  1. GitHub Action workflow builds and pushes Docker images to GHCR on release
-  2. Multi-arch images (amd64, arm64) built via buildx
-  3. Workflow for version bumps with user input (major/minor/patch selection)
-  4. Automatic git tag creation after version bump
-  5. Version bump updates all relevant files (Cargo.toml, package.json, etc.)
-  6. Release workflow triggered by tag push or manual dispatch
-  7. Images tagged with version and :latest
-**Plans**: TBD
-
-Plans:
-- [ ] 19-01: TBD (Docker image build and push workflow)
-- [ ] 19-02: TBD (Version bump workflow with user input)
+**Note**: MERGED into Phase 14 (Versioning and Release Automation).
+**Plans**: MERGED
 
 ### Phase 20: One-Click Cloud Deploy
 **Goal**: Provide "Deploy to Cloud" buttons in README that let users spin up a fully-configured opencode-cloud instance on major cloud providers with minimal configuration
-**Depends on**: Phase 15 (Prebuilt Image Option), Phase 19 (CI/CD Automation)
+**Depends on**: Phase 15 (Prebuilt Image Option), Phase 14 (Versioning and Release Automation)
 **Requirements**: None (enhancement)
 **Note**: Uses cloud-init, Terraform templates, or provider-specific launch configurations (AWS CloudFormation, GCP Deployment Manager, Azure ARM templates) to provision a VM with Docker and opencode-cloud pre-installed. Users click a button, configure basics (region, instance size, SSH key), and get a running instance.
 **Success Criteria** (what must be TRUE):
@@ -423,18 +417,8 @@ Plans:
 **Goal**: Consolidate CLI logic so the Rust CLI is the single source of truth and the Node CLI delegates to it
 **Depends on**: Phase 18 (CLI Sync Strategy)
 **Requirements**: None (architecture/maintenance)
-**Note**: Currently both CLIs have separate implementations. This phase makes the Rust CLI the authoritative implementation, with the Node CLI either wrapping the Rust binary or using NAPI bindings that delegate all logic to the Rust core.
-**Success Criteria** (what must be TRUE):
-  1. Rust CLI contains all command logic
-  2. Node CLI delegates to Rust (via NAPI bindings or subprocess)
-  3. No duplicated business logic between CLIs
-  4. Both CLIs produce identical output for all commands
-  5. Adding new commands only requires changes to Rust CLI
-**Plans**: TBD
-
-Plans:
-- [ ] 22-01: TBD (audit current duplication, design consolidation strategy)
-- [ ] 22-02: TBD (implement consolidation)
+**Note**: MERGED into Phase 18. The passthrough implementation (18-01) and prebuilt binary distribution (18-04, 18-05, 18-06) achieve this goal.
+**Plans**: MERGED
 
 ### Phase 23: Container Shell Access
 **Goal**: Provide quick terminal access to the running container via `occ shell` command
@@ -575,32 +559,32 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 26 -> 27
+Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Foundation | 2/2 | ✓ Complete | 2026-01-18 |
-| 2. Docker Integration | 3/3 | ✓ Complete | 2026-01-19 |
-| 3. Service Lifecycle Commands | 2/2 | ✓ Complete | 2026-01-19 |
-| 4. Platform Service Installation | 4/4 | ✓ Complete | 2026-01-19 |
-| 5. Interactive Setup Wizard | 3/3 | ✓ Complete | 2026-01-20 |
-| 6. Security and Authentication | 5/5 | ✓ Complete | 2026-01-20 |
-| 7. Update and Maintenance | 2/2 | ✓ Complete | 2026-01-22 |
-| 8. Polish and Documentation | 1/1 | ✓ Complete | 2026-01-22 |
-| 9. Dockerfile Version Pinning | 2/2 | ✓ Complete | 2026-01-22 |
-| 10. Remote Administration via Cockpit | 3/3 | ✓ Complete | 2026-01-22 |
-| 11. Remote Host Management | 3/3 | ✓ Complete | 2026-01-23 |
+| 1. Project Foundation | 2/2 | Complete | 2026-01-18 |
+| 2. Docker Integration | 3/3 | Complete | 2026-01-19 |
+| 3. Service Lifecycle Commands | 2/2 | Complete | 2026-01-19 |
+| 4. Platform Service Installation | 4/4 | Complete | 2026-01-19 |
+| 5. Interactive Setup Wizard | 3/3 | Complete | 2026-01-20 |
+| 6. Security and Authentication | 5/5 | Complete | 2026-01-20 |
+| 7. Update and Maintenance | 2/2 | Complete | 2026-01-22 |
+| 8. Polish and Documentation | 1/1 | Complete | 2026-01-22 |
+| 9. Dockerfile Version Pinning | 2/2 | Complete | 2026-01-22 |
+| 10. Remote Administration via Cockpit | 3/3 | Complete | 2026-01-22 |
+| 11. Remote Host Management | 3/3 | Complete | 2026-01-23 |
 | 12. Web Desktop UI Investigation | - | Deferred | - |
 | 13. Container Security Tools | - | Deferred | - |
-| 14. Versioning and Release Automation | 3/3 | ✓ Complete | 2026-01-23 |
-| 15. Prebuilt Image Option | 3/3 | ✓ Complete | 2026-01-24 |
-| 16. Code Quality Audit | 2/2 | ✓ Complete | 2026-01-25 |
-| 17. Custom Bind Mounts | 3/3 | ✓ Complete | 2026-01-25 |
-| 18. CLI Sync Strategy | 3/3 | ✓ Complete | 2026-01-25 |
+| 14. Versioning and Release Automation | 3/3 | Complete | 2026-01-23 |
+| 15. Prebuilt Image Option | 3/3 | Complete | 2026-01-24 |
+| 16. Code Quality Audit | 2/2 | Complete | 2026-01-25 |
+| 17. Custom Bind Mounts | 3/3 | Complete | 2026-01-25 |
+| 18. CLI Sync Strategy | 3/6 | In Progress | - |
 | 19. CI/CD Automation | - | MERGED | - |
 | 20. One-Click Cloud Deploy | 0/3 | Not started | - |
 | 21. Use opencode Fork with PAM Auth | 0/1 | Not started | - |
-| 22. Dedupe CLI Logic | 0/2 | Not started | - |
+| 22. Dedupe CLI Logic | - | MERGED | - |
 | 23. Container Shell Access | 0/1 | Not started | - |
 | 24. IDE Integration | 0/2 | Not started | - |
 | 25. Container Templates | 0/2 | Not started | - |
@@ -612,4 +596,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-25 (Phase 18 complete)*
+*Last updated: 2026-01-25 (Phase 18 expanded with prebuilt binary distribution)*

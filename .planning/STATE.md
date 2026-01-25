@@ -5,18 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 18 - CLI Sync Strategy (In progress)
+**Current focus:** Phase 18 - CLI Sync Strategy + Prebuilt Binary Distribution (In progress)
 
 ## Current Position
 
 Phase: 18 of 21 (CLI Sync Strategy)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-25 - Completed 18-03-PLAN.md
+Plan: 4 of 6 in current phase (plans 04-06 added for prebuilt binary distribution)
+Status: Phase in progress - executing prebuilt binary plans
+Last activity: 2026-01-25 - Created plans 18-04, 18-05, 18-06 for prebuilt binary distribution
 
 Progress: [#############################] 94%
 
-Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14.
+Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14. Phase 22 (Dedupe CLI Logic) merged into Phase 18.
 
 ## Performance Metrics
 
@@ -198,6 +198,8 @@ Recent decisions affecting current work:
 - [17-03]: Status displays bind mounts with source indicator (config vs cli)
 - [18-01]: stdio: inherit for passthrough: Preserves TTY detection, colors, interactive prompts
 - [18-01]: Git hook excludes cli-node README: Allow package-specific wrapper documentation
+- [18-04]: optionalDependencies pattern: Follow esbuild/swc model for platform-specific binary distribution
+- [18-04]: Six platform packages: darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl
 
 ### Pending Todos
 
@@ -215,11 +217,11 @@ Recent decisions affecting current work:
 - Phase 15: Prebuilt Image Option (pull vs build from source)
 - Phase 16: Code Quality Audit (reduce nesting, eliminate duplication)
 - Phase 17: Custom Bind Mounts (mount local directories into container)
-- Phase 18: CLI Sync Strategy (keep Rust and Node CLIs in sync)
+- Phase 18 EXPANDED: CLI Sync Strategy + Prebuilt Binary Distribution (merged Phase 22)
 - Phase 19 MERGED: CI/CD Automation merged into Phase 14
 - Phase 20: One-Click Cloud Deploy (deploy buttons for AWS, GCP, Azure, DigitalOcean)
 - Phase 21: Use opencode Fork with PAM Authentication (switch to pRizz/opencode fork)
-- Phase 22: Dedupe CLI Logic (Rust CLI as single source of truth, Node delegates)
+- Phase 22 MERGED: Dedupe CLI Logic merged into Phase 18
 - Phase 23: Container Shell Access (`occ shell` for quick terminal access)
 - Phase 24: IDE Integration (VS Code and JetBrains extensions)
 - Phase 25: Container Templates (pre-configured stacks: Python ML, Node.js, Rust)
@@ -236,6 +238,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-25
-Stopped at: Completed 18-03-PLAN.md (Phase 18 complete)
+Stopped at: Created 18-04, 18-05, 18-06 plans for prebuilt binary distribution
 Resume file: None
-Next step: Phase 20 (One-Click Cloud Deploy) or Phase 21 (opencode Fork with PAM)
+Next step: Execute /gsd:execute-phase 18 to run plans 18-04 through 18-06
