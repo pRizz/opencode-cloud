@@ -438,14 +438,10 @@ fn display_mounts_section(
     println!("{}", style("Mounts").bold());
     println!("{}", style("------").dim());
 
-    // Create a set of config mount sources for source detection
-    let config_sources: std::collections::HashSet<String> = config_mounts
+    // Parse config mounts for source detection
+    let config_parsed: Vec<ParsedMount> = config_mounts
         .iter()
-        .filter_map(|m| {
-            ParsedMount::parse(m)
-                .ok()
-                .map(|p| p.host_path.to_string_lossy().to_string())
-        })
+        .filter_map(|m| ParsedMount::parse(m).ok())
         .collect();
 
     for mount in bind_mounts {
@@ -458,7 +454,13 @@ fn display_mounts_section(
         };
 
         // Determine if this mount came from config or CLI
-        let source_tag = if config_sources.contains(source) {
+        // Needs path matching to handle macOS translation (/tmp -> /host_mnt/private/tmp)
+        // Must match both source AND target paths to be considered from config
+        let is_from_config = config_parsed.iter().any(|conf| {
+            let conf_host = conf.host_path.to_string_lossy();
+            host_paths_match(source, &conf_host) && target == conf.container_path
+        });
+        let source_tag = if is_from_config {
             style("(config)").dim()
         } else {
             style("(cli)").cyan()
@@ -472,6 +474,38 @@ fn display_mounts_section(
             source_tag
         );
     }
+}
+
+/// Check if two host paths match, accounting for macOS path translation
+///
+/// Docker on macOS translates paths: /tmp -> /private/tmp -> /host_mnt/private/tmp
+fn host_paths_match(container_path: &str, configured_path: &str) -> bool {
+    // Direct match
+    if container_path == configured_path {
+        return true;
+    }
+
+    // Handle /host_mnt prefix from Docker Desktop
+    if let Some(stripped) = container_path.strip_prefix("/host_mnt") {
+        if stripped == configured_path {
+            return true;
+        }
+        // /host_mnt/private/tmp matches /tmp
+        if let Some(private_stripped) = stripped.strip_prefix("/private") {
+            if private_stripped == configured_path {
+                return true;
+            }
+        }
+    }
+
+    // Handle /private prefix (macOS symlink: /tmp -> /private/tmp)
+    if let Some(private_path) = configured_path.strip_prefix("/private") {
+        if container_path.ends_with(private_path) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Display the Security section of status output
