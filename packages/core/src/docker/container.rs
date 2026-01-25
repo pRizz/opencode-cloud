@@ -13,7 +13,9 @@ use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
     StopContainerOptions,
 };
-use bollard::service::{HostConfig, Mount, MountTypeEnum, PortBinding, PortMap};
+use bollard::service::{
+    HostConfig, Mount, MountPointTypeEnum, MountTypeEnum, PortBinding, PortMap,
+};
 use std::collections::HashMap;
 use tracing::debug;
 
@@ -375,6 +377,17 @@ pub struct ContainerPorts {
     pub cockpit_port: Option<u16>,
 }
 
+/// A bind mount from an existing container
+#[derive(Debug, Clone)]
+pub struct ContainerBindMount {
+    /// Source path on host
+    pub source: String,
+    /// Target path in container
+    pub target: String,
+    /// Read-only flag
+    pub read_only: bool,
+}
+
 /// Get the port bindings from an existing container
 ///
 /// Returns the host ports that the container's internal ports are mapped to.
@@ -416,6 +429,42 @@ pub async fn get_container_ports(
         opencode_port,
         cockpit_port,
     })
+}
+
+/// Get bind mounts from an existing container
+///
+/// Returns only user-defined bind mounts (excludes system mounts like cgroup).
+pub async fn get_container_bind_mounts(
+    client: &DockerClient,
+    name: &str,
+) -> Result<Vec<ContainerBindMount>, DockerError> {
+    debug!("Getting container bind mounts: {}", name);
+
+    let info = client
+        .inner()
+        .inspect_container(name, None)
+        .await
+        .map_err(|e| DockerError::Container(format!("Failed to inspect container {name}: {e}")))?;
+
+    let mounts = info.mounts.unwrap_or_default();
+
+    // Filter to only bind mounts, excluding system paths
+    let bind_mounts: Vec<ContainerBindMount> = mounts
+        .iter()
+        .filter(|m| m.typ == Some(MountPointTypeEnum::BIND))
+        .filter(|m| {
+            // Exclude system mounts (cgroup, etc.)
+            let target = m.destination.as_deref().unwrap_or("");
+            !target.starts_with("/sys/")
+        })
+        .map(|m| ContainerBindMount {
+            source: m.source.clone().unwrap_or_default(),
+            target: m.destination.clone().unwrap_or_default(),
+            read_only: m.rw.map(|rw| !rw).unwrap_or(false),
+        })
+        .collect();
+
+    Ok(bind_mounts)
 }
 
 #[cfg(test)]
