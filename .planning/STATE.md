@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 ## Current Position
 
 Phase: 17 of 21 (Custom Bind Mounts)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-25 - Completed 17-01-PLAN.md
+Last activity: 2026-01-25 - Completed 17-02-PLAN.md
 
-Progress: [##########################] 87%
+Progress: [###########################] 89%
 
 Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14.
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 40
+- Total plans completed: 41
 - Average duration: 6 min
-- Total execution time: 3.8 hours
+- Total execution time: 3.9 hours
 
 **By Phase:**
 
@@ -43,10 +43,10 @@ Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED.
 | 14 | 3 | 15 min | 5 min |
 | 15 | 3 | 19 min | 6 min |
 | 16 | 2 | 12 min | 6 min |
-| 17 | 1 | 3 min | 3 min |
+| 17 | 2 | 6 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min, 6 min, 6 min, 6 min, 3 min
+- Last 5 plans: 6 min, 6 min, 6 min, 3 min, 3 min
 - Trend: Stable (~5 min average)
 
 *Updated after each plan completion*
@@ -190,6 +190,9 @@ Recent decisions affecting current work:
 - [17-01]: Mount format: /host:/container[:ro|rw] with rw as default
 - [17-01]: System paths warning: /etc, /usr, /bin, /sbin, /lib, /var
 - [17-01]: Validation uses canonicalize() to resolve symlinks and verify existence
+- [17-02]: Mount group follows user/ pattern: Subcommand group with MountArgs, MountCommands enum
+- [17-02]: Duplicate detection by host path: Adding same host path twice is idempotent, not an error
+- [17-02]: Restart note in output: CLI reminds users to restart container for changes to take effect
 
 ### Pending Todos
 
@@ -227,6 +230,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-25
-Stopped at: Completed 17-01-PLAN.md
+Stopped at: Completed 17-02-PLAN.md
 Resume file: None
-Next step: Execute 17-02-PLAN.md (Container Integration)
+Next step: Execute 17-03-PLAN.md (Container Integration)
