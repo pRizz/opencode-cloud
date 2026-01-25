@@ -81,4 +81,40 @@ jobs:
 
       - name: Verify CLI works
         run: cargo run -p opencode-cloud -- --version
-        # Node CLI is deprecated and exits with error, so we don't verify it
+
+  # CLI Parity - ensures Node CLI can invoke all Rust CLI commands
+  cli-parity:
+    name: CLI Parity Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Build Rust CLI
+        run: cargo build -p opencode-cloud
+
+      - name: Build Node CLI
+        run: pnpm -C packages/cli-node build
+
+      - name: Run CLI parity tests
+        run: pnpm -C packages/cli-node test
