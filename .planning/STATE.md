@@ -224,6 +224,7 @@ Recent decisions affecting current work:
 - Phase 27: Windows Support (full Windows compatibility)
 - Phase 28: Remote Host Setup Wizard (run setup wizard for remote hosts)
 - Phase 29 added: DockerHub README Elaboration (improve README.dockerhub.md for discoverability)
+- Phase 30 added: Deep Nesting Refactor (early returns, guard clauses, let-else, helper functions)
 
 ### Blockers/Concerns
 

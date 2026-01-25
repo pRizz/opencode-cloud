@@ -41,6 +41,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 27: Windows Support** - Full Windows compatibility for the CLI and Docker integration
 - [ ] **Phase 28: Remote Host Setup Wizard** - Run setup wizard for remote hosts via --host flag
 - [ ] **Phase 29: DockerHub README Elaboration** - Elaborate README.dockerhub.md for better discoverability
+- [ ] **Phase 30: Deep Nesting Refactor** - Replace deep nesting with early returns, guard clauses, let-else, and helper functions
 
 ## Phase Details
 
@@ -554,6 +555,23 @@ Plans:
 Plans:
 - [ ] 29-01: TBD (README.dockerhub.md content elaboration)
 
+### Phase 30: Deep Nesting Refactor
+**Goal**: Audit codebase for deeply nested code and refactor using early returns, guard clauses, let-else patterns, and helper functions to improve readability and maintainability
+**Depends on**: Phase 16 (Code Quality Audit)
+**Requirements**: None (maintenance/refactoring)
+**Note**: Systematic review of all Rust code for functions with excessive nesting depth. Apply consistent patterns: early returns for error conditions, let-else for Option/Result handling, extract complex closures to named functions. This builds on Phase 16's foundation.
+**Success Criteria** (what must be TRUE):
+  1. No function exceeds 3 levels of nesting (excluding match arms)
+  2. Guard clauses used for all precondition checks
+  3. let-else pattern used where applicable for Option/Result unwrapping
+  4. Complex closures extracted to named helper functions
+  5. All files pass `cargo clippy` with no warnings
+  6. No regression in test coverage or functionality
+**Plans**: TBD
+
+Plans:
+- [ ] 30-01: TBD (audit and refactor)
+
 ## Progress
 
 **Execution Order:**
@@ -590,6 +608,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 | 27. Windows Support | 0/3 | Not started | - |
 | 28. Remote Host Setup Wizard | 0/1 | Not started | - |
 | 29. DockerHub README Elaboration | 0/1 | Not started | - |
+| 30. Deep Nesting Refactor | 0/1 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*
