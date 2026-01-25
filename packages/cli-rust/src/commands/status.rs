@@ -11,8 +11,9 @@ use clap::Args;
 use console::style;
 use opencode_cloud_core::Config;
 use opencode_cloud_core::config;
+use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, HealthError, OPENCODE_WEB_PORT, check_health, get_cli_version,
+    CONTAINER_NAME, HealthError, OPENCODE_WEB_PORT, ParsedMount, check_health, get_cli_version,
     get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
@@ -118,6 +119,13 @@ pub async fn cmd_status(
         .and_then(|binding| binding.host_port.as_ref())
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(OPENCODE_WEB_PORT);
+
+    // Extract bind mounts from container
+    let container_mounts = info
+        .host_config
+        .as_ref()
+        .and_then(|hc| hc.mounts.clone())
+        .unwrap_or_default();
 
     // Quiet mode: just exit with appropriate code
     if quiet {
@@ -306,6 +314,15 @@ pub async fn cmd_status(
         }
     }
 
+    // Show Mounts section if container is running and has bind mounts
+    if running {
+        let config_mounts = config
+            .as_ref()
+            .map(|c| c.mounts.clone())
+            .unwrap_or_default();
+        display_mounts_section(&container_mounts, &config_mounts);
+    }
+
     // Show Security section (container exists, whether running or stopped)
     if let Some(ref cfg) = config {
         display_security_section(cfg);
@@ -400,6 +417,61 @@ fn format_duration(duration: Duration) -> String {
         return format!("{days}d {remaining_hours}h");
     }
     format!("{days}d")
+}
+
+/// Display the Mounts section of status output
+fn display_mounts_section(
+    mounts: &[opencode_cloud_core::bollard::service::Mount],
+    config_mounts: &[String],
+) {
+    // Filter to only bind mounts (not volumes)
+    let bind_mounts: Vec<_> = mounts
+        .iter()
+        .filter(|m| m.typ == Some(MountTypeEnum::BIND))
+        .collect();
+
+    if bind_mounts.is_empty() {
+        return;
+    }
+
+    println!();
+    println!("{}", style("Mounts").bold());
+    println!("{}", style("------").dim());
+
+    // Create a set of config mount sources for source detection
+    let config_sources: std::collections::HashSet<String> = config_mounts
+        .iter()
+        .filter_map(|m| {
+            ParsedMount::parse(m)
+                .ok()
+                .map(|p| p.host_path.to_string_lossy().to_string())
+        })
+        .collect();
+
+    for mount in bind_mounts {
+        let source = mount.source.as_deref().unwrap_or("unknown");
+        let target = mount.target.as_deref().unwrap_or("unknown");
+        let mode = if mount.read_only.unwrap_or(false) {
+            "ro"
+        } else {
+            "rw"
+        };
+
+        // Determine if this mount came from config or CLI
+        let source_tag = if config_sources.contains(source) {
+            style("(config)").dim()
+        } else {
+            style("(cli)").cyan()
+        };
+
+        println!(
+            "  {} -> {} {} {}",
+            style(source).cyan(),
+            target,
+            style(mode).dim(),
+            source_tag
+        );
+    }
 }
 
 /// Display the Security section of status output

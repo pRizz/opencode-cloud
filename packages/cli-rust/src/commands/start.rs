@@ -80,7 +80,7 @@ fn collect_bind_mounts(
     if !no_mounts {
         for mount_str in &config.mounts {
             let parsed = ParsedMount::parse(mount_str)
-                .map_err(|e| anyhow!("Invalid config mount '{}': {}", mount_str, e))?;
+                .map_err(|e| anyhow!("Invalid config mount '{mount_str}': {e}"))?;
             all_mounts.push(parsed);
         }
     }
@@ -88,7 +88,7 @@ fn collect_bind_mounts(
     // Add CLI mounts (always, even with --no-mounts)
     for mount_str in cli_mounts {
         let parsed = ParsedMount::parse(mount_str)
-            .map_err(|e| anyhow!("Invalid mount '{}': {}", mount_str, e))?;
+            .map_err(|e| anyhow!("Invalid mount '{mount_str}': {e}"))?;
         all_mounts.push(parsed);
     }
 
