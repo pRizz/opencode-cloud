@@ -5,25 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 17 - Custom Bind Mounts (In Progress)
+**Current focus:** Phase 17 - Custom Bind Mounts (Complete)
 
 ## Current Position
 
 Phase: 17 of 21 (Custom Bind Mounts)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-01-25 - Completed 17-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-01-25 - Completed 17-03-PLAN.md
 
-Progress: [###########################] 89%
+Progress: [############################] 91%
 
 Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14.
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41
+- Total plans completed: 42
 - Average duration: 6 min
-- Total execution time: 3.9 hours
+- Total execution time: 4.0 hours
 
 **By Phase:**
 
@@ -43,10 +43,10 @@ Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED.
 | 14 | 3 | 15 min | 5 min |
 | 15 | 3 | 19 min | 6 min |
 | 16 | 2 | 12 min | 6 min |
-| 17 | 2 | 6 min | 3 min |
+| 17 | 3 | 11 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 6 min, 6 min, 6 min, 3 min, 3 min
+- Last 5 plans: 6 min, 6 min, 3 min, 3 min, 5 min
 - Trend: Stable (~5 min average)
 
 *Updated after each plan completion*
@@ -193,6 +193,8 @@ Recent decisions affecting current work:
 - [17-02]: Mount group follows user/ pattern: Subcommand group with MountArgs, MountCommands enum
 - [17-02]: Duplicate detection by host path: Adding same host path twice is idempotent, not an error
 - [17-02]: Restart note in output: CLI reminds users to restart container for changes to take effect
+- [17-03]: Restart/update commands pass None for bind_mounts: User can restart with mounts after if needed
+- [17-03]: Status displays bind mounts with source indicator (config vs cli)
 
 ### Pending Todos
 
@@ -230,6 +232,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-25
-Stopped at: Completed 17-02-PLAN.md
+Stopped at: Completed 17-03-PLAN.md (Phase 17 complete)
 Resume file: None
-Next step: Execute 17-03-PLAN.md (Container Integration)
+Next step: Phase 18 - CLI Sync Strategy
