@@ -1,7 +1,7 @@
 {
   "name": "opencode-cloud",
   "version": "3.0.0",
-  "description": "CLI for managing opencode as a persistent cloud service",
+  "description": "Node.js wrapper for opencode-cloud CLI (delegates to Rust binary)",
   "type": "module",
   "license": "MIT",
   "author": "pRizz",
@@ -19,6 +19,10 @@
     "opencode-cloud": "./dist/index.js",
     "occ": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "bin"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
@@ -27,9 +31,6 @@
   "scripts": {
     "build": "tsc || (echo \"Error: TypeScript compiler (tsc) not found. Install dev dependencies or run npm i -D typescript before building.\" && exit 1)",
     "start": "node dist/index.js"
-  },
-  "dependencies": {
-    "@opencode-cloud/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
