@@ -105,29 +105,212 @@ docs(readme): add installation instructions for Windows
 opencode-cloud/
 ├── packages/
 │   ├── core/           # Rust core library + NAPI bindings
-│   ├── cli-rust/       # Rust CLI binary
-│   └── cli-node/       # Node.js CLI wrapper
+│   ├── cli-rust/       # Rust CLI binary (source of truth)
+│   └── cli-node/       # Node.js CLI wrapper (passthrough)
 ├── Cargo.toml          # Rust workspace root
 ├── package.json        # Node.js workspace root
 ├── pnpm-workspace.yaml # pnpm workspace config
 └── justfile            # Task orchestration
 ```
 
+## CLI Architecture
+
+opencode-cloud has two CLI entry points that work together:
+
+### Two Entry Points
+
+1. **Rust CLI** (`packages/cli-rust`) - **Source of truth**
+   - Standalone binary: `occ`
+   - Contains all command logic
+   - Can be installed via `cargo install opencode-cloud`
+
+2. **Node CLI** (`packages/cli-node`) - **Transparent passthrough**
+   - Wrapper that spawns the Rust binary
+   - Published to npm as `opencode-cloud`
+   - Zero logic - just `spawn(rustBinary, args, { stdio: 'inherit' })`
+
+### How It Works
+
+When a user runs `npx opencode-cloud start`:
+
+1. Node CLI (`packages/cli-node/src/index.ts`) receives the command
+2. It spawns the Rust binary with all arguments passed through
+3. Rust CLI (`packages/cli-rust`) handles the command
+4. Output flows back through unchanged
+
+This means:
+- **TTY detection works** - Colors and interactive prompts preserve their behavior
+- **Exit codes propagate** - Scripts can rely on proper exit codes
+- **No duplication** - Command logic lives in one place
+- **Node changes rarely needed** - Adding commands only requires Rust updates
+
+### Adding New Commands
+
+To add a new command (e.g., `occ shell`):
+
+#### 1. Define the command struct
+
+Create `packages/cli-rust/src/commands/shell.rs`:
+
+```rust
+use clap::Args;
+use anyhow::Result;
+
+#[derive(Args)]
+pub struct ShellArgs {
+    /// Shell to use (default: bash)
+    #[arg(short, long, default_value = "bash")]
+    shell: String,
+}
+
+pub async fn cmd_shell(args: &ShellArgs, quiet: bool) -> Result<()> {
+    // Implementation here
+    todo!()
+}
+```
+
+#### 2. Register in commands/mod.rs
+
+Add to `packages/cli-rust/src/commands/mod.rs`:
+
+```rust
+mod shell;
+pub use shell::{ShellArgs, cmd_shell};
+```
+
+#### 3. Add to CLI enum
+
+Update `packages/cli-rust/src/lib.rs`:
+
+```rust
+#[derive(Subcommand)]
+enum Commands {
+    // ... existing commands
+
+    /// Open a shell in the container
+    Shell(commands::ShellArgs),
+}
+```
+
+#### 4. Add command handler
+
+In the `match cli.command` block in `lib.rs`:
+
+```rust
+Some(Commands::Shell(args)) => {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(commands::cmd_shell(&args, cli.quiet))
+}
+```
+
+#### 5. Build and test
+
+```bash
+# Build both CLIs
+just build
+
+# Test Rust CLI directly
+./target/release/occ shell --help
+
+# Test Node CLI (uses Rust binary)
+./packages/cli-node/bin/occ shell --help
+```
+
+**That's it!** No changes needed in `packages/cli-node` - it automatically passes through the new command.
+
+### Testing CLI Commands
+
+```bash
+# Test specific command
+cargo test -p cli-rust cmd_shell
+
+# Integration test
+./target/release/occ shell --shell zsh
+
+# Verify Node wrapper works
+node packages/cli-node/dist/index.js shell --shell zsh
+```
+
+### Example: Adding a "shell" Command
+
+Let's walk through a complete example of adding `occ shell` to access the container terminal.
+
+**Step 1: Create the command module**
+
+```bash
+touch packages/cli-rust/src/commands/shell.rs
+```
+
+**Step 2: Implement the command**
+
+```rust
+use anyhow::Result;
+use clap::Args;
+use opencode_cloud_core::DockerClient;
+
+#[derive(Args)]
+pub struct ShellArgs {
+    /// Shell to use (default: bash)
+    #[arg(short, long, default_value = "bash")]
+    shell: String,
+
+    /// User to run shell as
+    #[arg(short, long)]
+    user: Option<String>,
+}
+
+pub async fn cmd_shell(args: &ShellArgs, quiet: bool) -> Result<()> {
+    let client = DockerClient::new()?;
+
+    if !client.is_container_running().await? {
+        anyhow::bail!("Container is not running. Start it with: occ start");
+    }
+
+    // Exec into container with the specified shell
+    client.exec_interactive(&args.shell, args.user.as_deref()).await?;
+
+    Ok(())
+}
+```
+
+**Step 3-5: Register and build** (as shown above)
+
+Now users can run:
+```bash
+occ shell                    # Default bash
+occ shell --shell zsh        # Custom shell
+npx opencode-cloud shell     # Works via Node wrapper too!
+```
+
+## Pre-Commit Checklist
+
+Before submitting a PR, ensure:
+
+- [ ] `just fmt` - Code is formatted
+- [ ] `just lint` - No linting errors
+- [ ] `just test` - All tests pass
+- [ ] `just build` - Release build succeeds
+- [ ] New commands documented in code with `///` doc comments
+- [ ] Breaking changes noted in PR description
+
 ## Code Style
 
-### Rust
+For detailed code style guidelines, see [CLAUDE.md](./CLAUDE.md).
+
+### Rust Quick Reference
 
 - Follow standard Rust conventions
 - Use `cargo fmt` for formatting
 - Use `cargo clippy` for linting
 - Prefer `?` for error propagation over `unwrap()`
-- Document public APIs
+- Document public APIs with `///` comments
 
-### TypeScript
+### TypeScript Quick Reference
 
 - Use strict mode
 - Follow ESM conventions
-- Keep the Node CLI thin - logic belongs in Rust core
+- Keep the Node CLI thin - it should only spawn the Rust binary
+- Logic belongs in Rust core, not Node wrapper
 
 ## Questions?
 
