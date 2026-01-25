@@ -119,6 +119,8 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
         full_rebuild_sandbox_image: false,
         ignore_version: false,
         no_update_check: false,
+        mounts: Vec::new(),
+        no_mounts: false,
     };
     cmd_start(&start_args, args.host.as_deref(), quiet, 0).await?;
 

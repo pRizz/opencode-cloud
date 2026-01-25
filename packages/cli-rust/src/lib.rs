@@ -63,6 +63,8 @@ enum Commands {
     Setup(commands::SetupArgs),
     /// Manage container users
     User(commands::UserArgs),
+    /// Manage bind mounts
+    Mount(commands::MountArgs),
     /// Update to the latest version or rollback
     Update(commands::UpdateArgs),
     /// Open Cockpit web console
@@ -275,6 +277,10 @@ pub fn run() -> Result<()> {
                 cli.quiet,
                 cli.verbose,
             ))
+        }
+        Some(Commands::Mount(args)) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(commands::cmd_mount(&args, cli.quiet, cli.verbose))
         }
         Some(Commands::Update(args)) => {
             let rt = tokio::runtime::Runtime::new()?;

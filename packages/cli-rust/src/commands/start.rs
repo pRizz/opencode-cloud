@@ -56,6 +56,15 @@ pub struct StartArgs {
     /// Skip checking for updates on start
     #[arg(long)]
     pub no_update_check: bool,
+
+    /// Add one-time bind mount (can be specified multiple times)
+    /// Format: /host/path:/container/path[:ro]
+    #[arg(long = "mount", action = clap::ArgAction::Append)]
+    pub mounts: Vec<String>,
+
+    /// Skip configured mounts (only use --mount flags if specified)
+    #[arg(long)]
+    pub no_mounts: bool,
 }
 
 /// Start the opencode service
