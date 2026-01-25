@@ -53,10 +53,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # -----------------------------------------------------------------------------
 FROM ubuntu:24.04 AS runtime
 
-# Version passed at build time (must be after FROM to be available in this stage)
-# Default "dev" for local builds; CI sets actual version via --build-arg
-ARG OPENCODE_CLOUD_VERSION=dev
-
 # OCI Labels for image metadata
 LABEL org.opencontainers.image.title="opencode-cloud"
 LABEL org.opencontainers.image.description="AI-assisted development environment with opencode"
@@ -65,8 +61,6 @@ LABEL org.opencontainers.image.source="https://github.com/pRizz/opencode-cloud"
 LABEL org.opencontainers.image.vendor="pRizz"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.base.name="ubuntu:24.04"
-# Version label for CLI compatibility checks (set via --build-arg OPENCODE_CLOUD_VERSION)
-LABEL org.opencode-cloud.version="${OPENCODE_CLOUD_VERSION}"
 
 # Environment configuration
 ENV DEBIAN_FRONTEND=noninteractive
@@ -576,6 +570,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 # Store version in file for runtime access (debugging, scripts)
 USER root
 ARG OPENCODE_CLOUD_VERSION=dev
+LABEL org.opencode-cloud.version="${OPENCODE_CLOUD_VERSION}"
 RUN echo "${OPENCODE_CLOUD_VERSION}" > /etc/opencode-cloud-version
 USER opencode
 
