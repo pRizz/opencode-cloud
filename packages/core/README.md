@@ -46,8 +46,20 @@ The image is published to both registries:
 
 | Registry | Image |
 |----------|-------|
-| GitHub Container Registry | `ghcr.io/prizz/opencode-cloud-sandbox` |
-| Docker Hub | `prizz/opencode-cloud-sandbox` |
+| GitHub Container Registry | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
+| Docker Hub | [`prizz/opencode-cloud-sandbox`](https://hub.docker.com/r/prizz/opencode-cloud-sandbox) |
+
+Pull commands:
+
+Docker Hub:
+```bash
+docker pull prizz/opencode-cloud-sandbox:latest
+```
+
+GitHub Container Registry:
+```bash
+docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
+```
 
 **For most users:** Just use the CLI - it handles image pulling/building automatically:
 ```bash
