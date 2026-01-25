@@ -25,6 +25,7 @@ jobs:
     outputs:
       version: ${{ steps.new.outputs.version }}
       previous_version: ${{ steps.current.outputs.version }}
+      ref: ${{ steps.tag.outputs.ref }}
 
     steps:
       - uses: actions/checkout@v4
@@ -95,8 +96,11 @@ jobs:
           git commit -m "chore(release): v${{ steps.new.outputs.version }}"
 
       - name: Create release tag
+        id: tag
         run: |
-          git tag "release/v${{ steps.new.outputs.version }}"
+          TAG="release/v${{ steps.new.outputs.version }}"
+          git tag "${TAG}"
+          echo "ref=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Push changes and tag
         run: |
@@ -142,6 +146,9 @@ jobs:
     uses: ./.github/workflows/ci-pre-publish.yml
     with:
       version: ${{ needs.bump-version.outputs.version }}
+      # Pass the release tag ref to ensure checkout uses the commit with the version bump,
+      # not the original commit that triggered the workflow
+      ref: ${{ needs.bump-version.outputs.ref }}
 
   # Publish to crates.io (after checks pass)
   publish-crates:
@@ -150,6 +157,9 @@ jobs:
     uses: ./.github/workflows/publish-crates.yml
     with:
       version: ${{ needs.bump-version.outputs.version }}
+      # Pass the release tag ref to ensure checkout uses the commit with the version bump,
+      # not the original commit that triggered the workflow
+      ref: ${{ needs.bump-version.outputs.ref }}
     secrets: inherit
 
   # Publish to npm (after checks pass)
@@ -169,4 +179,7 @@ jobs:
     uses: ./.github/workflows/docker-publish.yml
     with:
       version: ${{ needs.bump-version.outputs.version }}
+      # Pass the release tag ref to ensure checkout uses the commit with the version bump,
+      # not the original commit that triggered the workflow
+      ref: ${{ needs.bump-version.outputs.ref }}
     secrets: inherit

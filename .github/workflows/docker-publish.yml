@@ -10,6 +10,12 @@ on:
         description: 'Version to publish (without v prefix)'
         required: true
         type: string
+      ref:
+        description: 'Git ref (tag or branch) to checkout'
+        required: false
+        type: string
+        # If not provided: when triggered by tag push, uses the tag automatically;
+        # when called via workflow_call, defaults to the commit that triggered the workflow
 
 env:
   IMAGE_NAME_GHCR: ghcr.io/prizz/opencode-cloud-sandbox
@@ -25,6 +31,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # If ref is not provided: when triggered by tag push, checkout uses the tag automatically;
+          # when called via workflow_call, defaults to the commit that triggered the workflow
+          ref: ${{ inputs.ref }}
 
       - name: Extract version
         id: version

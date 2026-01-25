@@ -7,6 +7,11 @@ on:
         description: 'Version being published'
         required: true
         type: string
+      ref:
+        description: 'Git ref (tag or branch) to checkout'
+        required: false
+        type: string
+        # If not provided, defaults to the commit that triggered the workflow
 
 jobs:
   publish:
@@ -14,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # If ref is not provided, checkout defaults to the commit that triggered the workflow
+          ref: ${{ inputs.ref }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
