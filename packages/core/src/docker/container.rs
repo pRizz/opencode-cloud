@@ -4,6 +4,7 @@
 //! Docker containers for the opencode-cloud service.
 
 use super::dockerfile::{IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
+use super::mount::ParsedMount;
 use super::volume::{
     MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION,
 };
@@ -36,6 +37,7 @@ pub const OPENCODE_WEB_PORT: u16 = 3000;
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 /// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
 /// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
+/// * `bind_mounts` - User-defined bind mounts from config and CLI flags (optional)
 #[allow(clippy::too_many_arguments)]
 pub async fn create_container(
     client: &DockerClient,
@@ -46,6 +48,7 @@ pub async fn create_container(
     bind_address: Option<&str>,
     cockpit_port: Option<u16>,
     cockpit_enabled: Option<bool>,
+    bind_mounts: Option<Vec<ParsedMount>>,
 ) -> Result<String, DockerError> {
     let container_name = name.unwrap_or(CONTAINER_NAME);
     let default_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
@@ -81,7 +84,7 @@ pub async fn create_container(
     }
 
     // Create volume mounts
-    let mounts = vec![
+    let mut mounts = vec![
         Mount {
             target: Some(MOUNT_SESSION.to_string()),
             source: Some(VOLUME_SESSION.to_string()),
@@ -104,6 +107,13 @@ pub async fn create_container(
             ..Default::default()
         },
     ];
+
+    // Add user-defined bind mounts from config/CLI
+    if let Some(ref user_mounts) = bind_mounts {
+        for parsed in user_mounts {
+            mounts.push(parsed.to_bollard_mount());
+        }
+    }
 
     // Create port bindings (default to localhost for security)
     let bind_addr = bind_address.unwrap_or("127.0.0.1");

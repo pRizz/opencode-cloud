@@ -88,6 +88,7 @@ pub use state::{ImageState, clear_state, get_state_path, load_state, save_state}
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 /// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
 /// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
+/// * `bind_mounts` - User-defined bind mounts from config and CLI flags (optional)
 pub async fn setup_and_start(
     client: &DockerClient,
     opencode_web_port: Option<u16>,
@@ -95,6 +96,7 @@ pub async fn setup_and_start(
     bind_address: Option<&str>,
     cockpit_port: Option<u16>,
     cockpit_enabled: Option<bool>,
+    bind_mounts: Option<Vec<mount::ParsedMount>>,
 ) -> Result<String, DockerError> {
     // Ensure volumes exist first
     volume::ensure_volumes_exist(client).await?;
@@ -122,6 +124,7 @@ pub async fn setup_and_start(
             bind_address,
             cockpit_port,
             cockpit_enabled,
+            bind_mounts,
         )
         .await?
     };
