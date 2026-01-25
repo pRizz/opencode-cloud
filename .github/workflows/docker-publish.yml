@@ -80,6 +80,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox
+          readme-filepath: packages/core/src/docker/README.dockerhub.md
+
       - name: Summary
         run: |
           echo "## 🐳 Docker Images Published" >> $GITHUB_STEP_SUMMARY
@@ -87,10 +95,12 @@ jobs:
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**GHCR (GitHub Container Registry):**" >> $GITHUB_STEP_SUMMARY
+          echo "- https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_GHCR }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Docker Hub:**" >> $GITHUB_STEP_SUMMARY
+          echo "- https://hub.docker.com/r/${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
