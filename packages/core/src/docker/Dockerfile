@@ -574,7 +574,9 @@ USER root
 ARG OPENCODE_CLOUD_VERSION=dev
 LABEL org.opencode-cloud.version="${OPENCODE_CLOUD_VERSION}"
 RUN echo "${OPENCODE_CLOUD_VERSION}" > /etc/opencode-cloud-version
-USER opencode
+# Note: Stay as root - entrypoint.sh needs root to run either:
+# - /sbin/init (systemd mode)
+# - runuser (tini mode, which then drops privileges to opencode user)
 
 # -----------------------------------------------------------------------------
 # Final Configuration
