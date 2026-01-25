@@ -13,7 +13,7 @@ on:
 
 env:
   IMAGE_NAME_GHCR: ghcr.io/prizz/opencode-cloud-sandbox
-  IMAGE_NAME_DOCKERHUB: prizz/opencode-cloud-sandbox
+  IMAGE_NAME_DOCKERHUB: ${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox
 
 jobs:
   build-and-push:
@@ -56,7 +56,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Dockerfile from embedded location
