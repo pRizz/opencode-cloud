@@ -1,211 +1,108 @@
-# opencode-cloud
+# opencode-cloud Node.js CLI
 
-[![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
-[![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
-[![Docker Hub](https://img.shields.io/docker/v/prizz/opencode-cloud-sandbox?label=docker&sort=semver)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
-[![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A lightweight Node.js wrapper for the opencode-cloud CLI. This package delegates all operations to the Rust binary for optimal performance and feature parity.
 
-A production-ready toolkit for deploying and managing [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
+## How It Works
 
-## Quick install (cargo)
+The Node.js CLI is a transparent passthrough wrapper:
+
+1. **Spawns the Rust binary** (`occ`) with all provided arguments
+2. **Inherits stdio** - Colors, TTY detection, and interactive prompts work seamlessly
+3. **Propagates exit codes** - Exit codes from the Rust binary are passed through exactly
+4. **Zero parsing overhead** - No command interception or parsing in JavaScript
+
+This architecture ensures that the npm package always has 100% feature parity with the Rust CLI.
+
+## Binary Placement
+
+### Development
+
+When developing locally, copy the built Rust binary to the Node package:
+
+```bash
+# Build the Rust CLI
+cargo build --release
+
+# Copy to Node package bin directory
+cp target/release/occ packages/cli-node/bin/
+```
+
+### CI/CD
+
+GitHub Actions workflows copy built binaries to `packages/cli-node/bin/` before running integration tests.
+
+### End Users
+
+**Current (Phase 18):** Users need to install the Rust CLI separately:
 
 ```bash
 cargo install opencode-cloud
-opencode-cloud --version
 ```
 
-## Features
-
-- **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
-- **Persistent environment** - Your projects, settings, and shell history persist across restarts
-- **Cross-platform CLI** (`opencode-cloud` / `occ`) - Works on Linux and macOS
-- **Service lifecycle commands** - start, stop, restart, status, logs
-- **Platform service integration** - systemd (Linux) / launchd (macOS) for auto-start on boot
-- **Remote host management** - Manage opencode containers on remote servers via SSH
-- **Web-based admin** - Cockpit integration for container administration
-
-## How it works
-
-opencode-cloud runs opencode inside a Docker container, providing:
-
-- **Isolation** - opencode and its AI-generated code run in a sandbox, separate from your host system
-- **Reproducibility** - The container includes a full development environment (languages, tools, runtimes)
-- **Persistence** - Docker volumes preserve your work across container restarts and updates
-- **Security** - Network exposure is opt-in; by default, the service only binds to localhost
-
-The CLI manages the container lifecycle, so you don't need to interact with Docker directly.
-
-## Docker Images
-
-The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode-cloud`) to clearly distinguish it from the CLI tool. The CLI (`opencode-cloud` / `occ`) deploys and manages this sandbox container.
-
-The image is published to both registries:
-
-| Registry | Image |
-|----------|-------|
-| GitHub Container Registry | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
-| Docker Hub | [`prizz/opencode-cloud-sandbox`](https://hub.docker.com/r/prizz/opencode-cloud-sandbox) |
-
-Pull commands:
-
-Docker Hub:
-```bash
-docker pull prizz/opencode-cloud-sandbox:latest
-```
-
-GitHub Container Registry:
-```bash
-docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
-```
-
-**For most users:** Just use the CLI - it handles image pulling/building automatically:
-```bash
-occ start  # Pulls or builds the image as needed
-```
-
-## Requirements
-
-- **Rust 1.85+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Docker** - For running the opencode container
+**Future (Phase 22):** Prebuilt binaries will be distributed via npm using `optionalDependencies`. The wrapper will automatically select the correct platform binary at install time.
 
 ## Installation
 
-### Via cargo (recommended)
+### Via npm (requires Rust)
+
+```bash
+npm install -g opencode-cloud
+```
+
+**Note:** Currently requires `cargo install opencode-cloud` to be run separately to provide the binary.
+
+### Via Cargo (recommended)
 
 ```bash
 cargo install opencode-cloud
-occ --version
 ```
 
-### From source
-
-```bash
-git clone https://github.com/pRizz/opencode-cloud.git
-cd opencode-cloud
-just build
-cargo run -p opencode-cloud -- --version
-```
+This installs the native Rust binary directly without any Node.js wrapper.
 
 ## Usage
 
-```bash
-# Show version
-occ --version
+Both installation methods provide the same CLI:
 
-# Start the service (builds Docker container on first run, ~10-15 min)
+```bash
+# Start opencode instance
 occ start
 
-# Start on a custom port
-occ start --port 8080
-
-# Start and open browser
-occ start --open
-
-# Check service status
+# Check status
 occ status
 
-# View logs
-occ logs
-
-# Follow logs in real-time
-occ logs -f
-
-# Stop the service
+# Stop instance
 occ stop
-
-# Restart the service
-occ restart
-
-# Install as a system service (starts on login/boot)
-occ install
-
-# Uninstall the system service
-occ uninstall
-
-# View configuration
-occ config show
 ```
 
-### Rebuilding the Docker Image
-
-When developing locally or after updating opencode-cloud, you may need to rebuild the Docker image to pick up changes in the embedded Dockerfile:
-
-```bash
-# Rebuild using Docker cache (fast - only rebuilds changed layers)
-occ start --cached-rebuild
-
-# Rebuild from scratch without cache (slow - for troubleshooting)
-occ start --full-rebuild
-```
-
-**`--cached-rebuild`** (recommended for most cases):
-- Uses Docker layer cache for fast rebuilds
-- Only rebuilds layers that changed (e.g., if only the CMD changed, it's nearly instant)
-- Stops and removes any existing container before rebuilding
-
-**`--full-rebuild`** (for troubleshooting):
-- Ignores Docker cache and rebuilds everything from scratch
-- Takes 10-15 minutes but guarantees a completely fresh image
-- Use when cached rebuild doesn't fix issues
-
-**When to rebuild:**
-- After pulling updates to opencode-cloud → use `--cached-rebuild`
-- When modifying the Dockerfile during development → use `--cached-rebuild`
-- When the container fails to start due to image issues → try `--cached-rebuild` first, then `--full-rebuild`
-- When you want a completely fresh environment → use `--full-rebuild`
-
-## Configuration
-
-Configuration is stored at:
-- Linux/macOS: `~/.config/opencode-cloud/config.json`
-
-Data (PID files, etc.) is stored at:
-- Linux/macOS: `~/.local/share/opencode-cloud/`
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Configure git hooks (once after cloning)
-git config core.hooksPath .githooks
-
-# Build everything
-just build
-
-# Compile and run occ (arguments automatically get passed to the binary)
-just run --version
-
-# Run tests
-just test
-
-# Format and lint
-just fmt
-just lint
-```
-
-> **Note:** The git hooks automatically sync `README.md` to npm package directories on commit.
+All commands are identical between the npm and cargo installations.
 
 ## Architecture
 
-This is a monorepo with:
-- `packages/core` - Rust core library
-- `packages/cli-rust` - Rust CLI binary (recommended)
-- `packages/cli-node` - Node.js CLI (deprecated, directs users to cargo install)
+```
+┌─────────────────────────────────────┐
+│  packages/cli-node/dist/index.js    │
+│  (Node.js wrapper)                  │
+└─────────────┬───────────────────────┘
+              │ spawn()
+              │ stdio: 'inherit'
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  packages/cli-node/bin/occ          │
+│  (Rust binary)                      │
+│                                     │
+│  All CLI logic lives here           │
+└─────────────────────────────────────┘
+```
 
-### Cargo.toml Sync Requirement
+## Future: Prebuilt Binaries (Phase 22)
 
-The `packages/core/Cargo.toml` file must use **explicit values** rather than `workspace = true` references.
+Phase 22 will add automatic platform binary distribution:
 
-When updating package metadata (version, edition, rust-version, etc.), keep both files in sync:
-- `Cargo.toml` (workspace root)
-- `packages/core/Cargo.toml`
-
-Use `scripts/set-all-versions.sh <version>` to update versions across all files automatically.
+- Binaries built for `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`
+- Published as separate npm packages (e.g., `@opencode-cloud/darwin-arm64`)
+- Main package uses `optionalDependencies` to download correct binary
+- Install works without Rust toolchain
 
 ## License
 

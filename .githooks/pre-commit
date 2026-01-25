@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Sync README.md to npm package directories
 # This ensures npmjs.com displays the current README
+# Note: cli-node has package-specific README (passthrough wrapper docs)
 
 ROOT_README="README.md"
 
 if [[ -f "$ROOT_README" ]]; then
     cp "$ROOT_README" packages/core/README.md
-    cp "$ROOT_README" packages/cli-node/README.md
-    git add packages/core/README.md packages/cli-node/README.md
+    git add packages/core/README.md
 fi
