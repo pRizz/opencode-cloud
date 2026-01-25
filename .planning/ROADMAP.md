@@ -346,22 +346,22 @@ Plans:
 - [x] 17-03-PLAN.md — Container creation with bind mounts and status display of active mounts
 
 ### Phase 18: CLI Sync Strategy
-**Goal**: Develop and implement a strategy to ensure the Rust CLI and Node CLI remain feature-complete and behavior-consistent
+**Goal**: Establish patterns to keep the Rust CLI and Node CLI in sync through automatic passthrough delegation
 **Depends on**: Phase 8 (Polish and Documentation)
 **Requirements**: None (architecture/maintenance)
-**Note**: The project has two CLI entry points: packages/cli-rust (native Rust binary) and packages/cli-node (Node.js wrapper using NAPI bindings to core). Both should expose identical commands with identical behavior. This phase establishes patterns, testing, and automation to prevent drift.
+**Note**: The Rust CLI is the single source of truth. The Node CLI becomes a thin wrapper that spawns the Rust binary and passes all arguments through transparently. This phase implements the passthrough, adds parity tests, and documents the process.
 **Success Criteria** (what must be TRUE):
-  1. Documented strategy for CLI parity (which is source of truth, how to sync)
-  2. Shared command definitions or generated from single source
-  3. Test suite validates both CLIs produce identical output for all commands
-  4. CI fails if CLIs diverge in behavior or available commands
-  5. Clear process for adding new commands to both CLIs
-**Plans**: TBD
+  1. Documented strategy for CLI parity (Rust is source of truth, Node delegates)
+  2. Node CLI spawns Rust binary with stdio: inherit for transparent passthrough
+  3. Test suite dynamically discovers commands from Rust CLI and verifies Node can invoke each
+  4. CI fails if Node CLI cannot invoke a Rust CLI command
+  5. Clear process for adding new commands (add to Rust only, no Node changes needed)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 18-01: TBD (audit current state, document strategy)
-- [ ] 18-02: TBD (shared definitions or code generation)
-- [ ] 18-03: TBD (parity test suite and CI integration)
+- [ ] 18-01-PLAN.md — Node CLI passthrough implementation (spawn wrapper, binary resolution, error handling)
+- [ ] 18-02-PLAN.md — Parity test suite with dynamic command discovery and CI integration
+- [ ] 18-03-PLAN.md — Documentation (CONTRIBUTING.md CLI architecture, command addition guide)
 
 ### Phase 19: CI/CD Automation
 **Goal**: Automate Docker image builds/uploads and version management via GitHub Actions with user-triggered workflows
@@ -612,4 +612,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 22 -> 23 -> 24 -> 25 -> 2
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-25 (Phase 17 complete)*
+*Last updated: 2026-01-25 (Phase 18 planned)*
