@@ -16,7 +16,7 @@ on:
 permissions:
   contents: write    # Required for pushing commits and tags
   packages: write    # Required for GHCR push (docker-publish)
-  id-token: write    # Reserved for future npm provenance (publish-npm uses NPM_TOKEN for now)
+  id-token: write    # Required for npm provenance (publish-npm)
 
 jobs:
   bump-version:
