@@ -31,4 +31,23 @@ perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_v
 perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
   "${repo_root}/packages/core/package.json"
 
+# Update platform-specific package.json files
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-darwin-arm64/package.json"
+
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-darwin-x64/package.json"
+
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-linux-arm64/package.json"
+
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-linux-x64/package.json"
+
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-linux-arm64-musl/package.json"
+
+perl -0pi -e "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"${new_version}\"/" \
+  "${repo_root}/packages/cli-node-linux-x64-musl/package.json"
+
 echo "Updated versions to ${new_version}"
