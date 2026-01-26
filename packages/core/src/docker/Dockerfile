@@ -186,6 +186,31 @@ RUN mkdir -p \
     /home/opencode/.cache \
     /home/opencode/workspace
 
+# Create cache mount directories with correct permissions
+# BuildKit cache mounts preserve permissions of existing directories
+# NOTE: Requires root to set ownership, then switch back to opencode
+USER root
+RUN mkdir -p \
+    /home/opencode/.cache/pip \
+    /home/opencode/.local/share/pnpm/store \
+    /home/opencode/.cargo/registry \
+    /home/opencode/.cargo/git \
+    /home/opencode/.bun/install/cache \
+    /home/opencode/.npm \
+    && chown -R opencode:opencode \
+    /home/opencode/.cache \
+    /home/opencode/.local/share \
+    /home/opencode/.cargo \
+    /home/opencode/.bun \
+    /home/opencode/.npm \
+    && chmod -R 755 \
+    /home/opencode/.cache \
+    /home/opencode/.local/share \
+    /home/opencode/.cargo \
+    /home/opencode/.bun \
+    /home/opencode/.npm
+USER opencode
+
 # Add local bin to PATH
 ENV PATH="/home/opencode/.local/bin:${PATH}"
 
@@ -253,6 +278,7 @@ ENV PNPM_HOME="/home/opencode/.local/share/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
 RUN mkdir -p "${PNPM_HOME}"
 
+
 # uv - self-managing installer, trusted to handle versions (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -265,6 +291,7 @@ RUN --mount=type=cache,target=/home/opencode/.cache/pip \
 
 # Install global TypeScript compiler
 # Use BuildKit cache mount for pnpm store
+# Note: Cache mount inherits permissions from the existing directory
 RUN --mount=type=cache,target=/home/opencode/.local/share/pnpm/store \
     eval "$(/home/opencode/.local/bin/mise activate bash)" \
     && pnpm add -g typescript
