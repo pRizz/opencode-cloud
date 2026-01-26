@@ -54,7 +54,7 @@ plist = "1.8"
 
 # Host management
 whoami = "1.5"
-ssh2-config = "0.6"
+ssh2-config-rs = "0.7.1"
 dirs = "6"
 
 [build-dependencies]

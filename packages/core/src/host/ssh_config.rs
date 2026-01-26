@@ -6,7 +6,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, Write};
 use std::path::PathBuf;
 
-use ssh2_config::{ParseRule, SshConfig};
+use ssh2_config_rs::{ParseRule, SshConfig};
 
 use super::error::HostError;
 
