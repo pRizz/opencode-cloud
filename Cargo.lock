@@ -2753,7 +2753,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "opencode-cloud"
-version = "3.0.14"
+version = "3.0.15"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2777,7 +2777,7 @@ dependencies = [
 
 [[package]]
 name = "opencode-cloud-core"
-version = "3.0.14"
+version = "3.0.15"
 dependencies = [
  "anyhow",
  "bollard",
