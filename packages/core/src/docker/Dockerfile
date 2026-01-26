@@ -424,7 +424,7 @@ USER opencode
 RUN git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode \
     && cd /tmp/opencode \
     && git checkout 11277fd04fb7f6df4b6f188397dcb5275ef3a78f \
-    && curl -fsSL https://bun.sh/install | bash \
+    && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
     && bun run packages/opencode/script/build.ts --single \
