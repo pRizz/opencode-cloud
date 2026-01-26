@@ -44,7 +44,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev openssl-dev openssl
+          sudo apt-get install -y build-essential pkg-config libssl-dev openssl
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -65,6 +65,10 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build binary
+        env:
+          # Help pkg-config and openssl-sys find OpenSSL headers/libraries
+          PKG_CONFIG_PATH: ${{ matrix.os == 'ubuntu-latest' && '/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig' || '' }}
+          OPENSSL_DIR: ${{ matrix.os == 'ubuntu-latest' && '/usr' || '' }}
         run: |
           if [ "${{ matrix.use-cross }}" = "true" ]; then
             cross build --release --target ${{ matrix.target }} -p opencode-cloud --bin occ
