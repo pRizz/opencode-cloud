@@ -46,6 +46,67 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libssl-dev openssl
 
+      - name: Detect OpenSSL paths (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Detect OpenSSL paths using pkg-config if available
+          OPENSSL_PREFIX=""
+          if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openssl 2>/dev/null; then
+            OPENSSL_INCLUDE_DIR=$(pkg-config --variable=includedir openssl 2>/dev/null || echo "/usr/include")
+            OPENSSL_LIB_DIR=$(pkg-config --variable=libdir openssl 2>/dev/null || echo "/usr/lib")
+            OPENSSL_PREFIX=$(pkg-config --variable=prefix openssl 2>/dev/null || echo "/usr")
+            OPENSSL_DIR="$OPENSSL_PREFIX"
+          else
+            # Fallback: check common locations
+            if [ -d "/usr/include/openssl" ]; then
+              OPENSSL_INCLUDE_DIR="/usr/include"
+              OPENSSL_LIB_DIR="/usr/lib"
+              OPENSSL_DIR="/usr"
+              OPENSSL_PREFIX="/usr"
+            elif [ -d "/usr/local/include/openssl" ]; then
+              OPENSSL_INCLUDE_DIR="/usr/local/include"
+              OPENSSL_LIB_DIR="/usr/local/lib"
+              OPENSSL_DIR="/usr/local"
+              OPENSSL_PREFIX="/usr/local"
+            else
+              # Default fallback
+              OPENSSL_INCLUDE_DIR="/usr/include"
+              OPENSSL_LIB_DIR="/usr/lib"
+              OPENSSL_DIR="/usr"
+              OPENSSL_PREFIX="/usr"
+            fi
+          fi
+          
+          # Build PKG_CONFIG_PATH from detected paths and common multiarch locations
+          PKG_CONFIG_PATHS=()
+          # Standard location
+          [ -d "/usr/lib/pkgconfig" ] && PKG_CONFIG_PATHS+=("/usr/lib/pkgconfig")
+          # Architecture-specific paths (x86_64, aarch64, etc.)
+          for arch_dir in /usr/lib/*/pkgconfig; do
+            [ -d "$arch_dir" ] && PKG_CONFIG_PATHS+=("$arch_dir")
+          done
+          # Also check prefix-based paths if detected and different from /usr
+          if [ -n "$OPENSSL_PREFIX" ] && [ "$OPENSSL_PREFIX" != "/usr" ]; then
+            [ -d "$OPENSSL_PREFIX/lib/pkgconfig" ] && PKG_CONFIG_PATHS+=("$OPENSSL_PREFIX/lib/pkgconfig")
+            for arch_dir in "$OPENSSL_PREFIX"/lib/*/pkgconfig; do
+              [ -d "$arch_dir" ] && PKG_CONFIG_PATHS+=("$arch_dir")
+            done
+          fi
+          PKG_CONFIG_PATH=$(IFS=:; echo "${PKG_CONFIG_PATHS[*]}")
+          
+          # Export for subsequent steps
+          echo "OPENSSL_DIR=$OPENSSL_DIR" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$OPENSSL_INCLUDE_DIR" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          
+          # Debug output
+          echo "Detected OpenSSL paths:"
+          echo "  OPENSSL_DIR=$OPENSSL_DIR"
+          echo "  OPENSSL_INCLUDE_DIR=$OPENSSL_INCLUDE_DIR"
+          echo "  OPENSSL_LIB_DIR=$OPENSSL_LIB_DIR"
+          echo "  PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,9 +127,11 @@ jobs:
 
       - name: Build binary
         env:
-          # Help pkg-config and openssl-sys find OpenSSL headers/libraries
-          PKG_CONFIG_PATH: ${{ matrix.os == 'ubuntu-latest' && '/usr/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig' || '' }}
-          OPENSSL_DIR: ${{ matrix.os == 'ubuntu-latest' && '/usr' || '' }}
+          # Use detected paths (set in previous step for Ubuntu, empty for others)
+          PKG_CONFIG_PATH: ${{ env.PKG_CONFIG_PATH }}
+          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
+          OPENSSL_INCLUDE_DIR: ${{ env.OPENSSL_INCLUDE_DIR }}
+          OPENSSL_LIB_DIR: ${{ env.OPENSSL_LIB_DIR }}
         run: |
           if [ "${{ matrix.use-cross }}" = "true" ]; then
             cross build --release --target ${{ matrix.target }} -p opencode-cloud --bin occ
