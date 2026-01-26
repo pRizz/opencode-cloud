@@ -15,7 +15,38 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  packages/cli-darwin-arm64: {}
+
+  packages/cli-darwin-x64: {}
+
+  packages/cli-linux-arm64: {}
+
+  packages/cli-linux-arm64-musl: {}
+
+  packages/cli-linux-x64: {}
+
+  packages/cli-linux-x64-musl: {}
+
   packages/cli-node:
+    optionalDependencies:
+      '@opencode-cloud/cli-darwin-arm64':
+        specifier: workspace:*
+        version: link:../cli-darwin-arm64
+      '@opencode-cloud/cli-darwin-x64':
+        specifier: workspace:*
+        version: link:../cli-darwin-x64
+      '@opencode-cloud/cli-linux-arm64':
+        specifier: workspace:*
+        version: link:../cli-linux-arm64
+      '@opencode-cloud/cli-linux-arm64-musl':
+        specifier: workspace:*
+        version: link:../cli-linux-arm64-musl
+      '@opencode-cloud/cli-linux-x64':
+        specifier: workspace:*
+        version: link:../cli-linux-x64
+      '@opencode-cloud/cli-linux-x64-musl':
+        specifier: workspace:*
+        version: link:../cli-linux-x64-musl
     devDependencies:
       '@types/node':
         specifier: ^22.10.7

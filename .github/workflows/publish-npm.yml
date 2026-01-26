@@ -7,16 +7,27 @@ on:
         description: 'Version being published'
         required: true
         type: string
+      ref:
+        description: 'Git ref (tag or branch) to checkout'
+        required: false
+        type: string
 
 jobs:
+  build-binaries:
+    name: Build CLI Binaries
+    uses: ./.github/workflows/build-cli-binaries.yml
+
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
+    needs: [build-binaries]
     permissions:
       contents: read
-      id-token: write  # Required for OIDC authentication and npm provenance
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -30,19 +41,84 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'  # Recommended for OIDC authentication
+          node-version: '24'
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-darwin-arm64
+          path: packages/cli-darwin-arm64/bin
+
+      - name: Download darwin-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-darwin-x64
+          path: packages/cli-darwin-x64/bin
+
+      - name: Download linux-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x64
+          path: packages/cli-linux-x64/bin
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-arm64
+          path: packages/cli-linux-arm64/bin
+
+      - name: Download linux-x64-musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x64-musl
+          path: packages/cli-linux-x64-musl/bin
+
+      - name: Download linux-arm64-musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-arm64-musl
+          path: packages/cli-linux-arm64-musl/bin
+
+      - name: Make binaries executable
+        run: |
+          chmod +x packages/cli-darwin-arm64/bin/occ
+          chmod +x packages/cli-darwin-x64/bin/occ
+          chmod +x packages/cli-linux-x64/bin/occ
+          chmod +x packages/cli-linux-arm64/bin/occ
+          chmod +x packages/cli-linux-x64-musl/bin/occ
+          chmod +x packages/cli-linux-arm64-musl/bin/occ
+
       - name: Build Node packages
         run: |
           pnpm -C packages/core build
           pnpm -C packages/cli-node build
 
-      # Use pnpm publish to convert workspace:* references to actual versions
+      - name: Publish @opencode-cloud/cli-darwin-arm64
+        run: pnpm --filter @opencode-cloud/cli-darwin-arm64 publish --access public --provenance --no-git-checks
+
+      - name: Publish @opencode-cloud/cli-darwin-x64
+        run: pnpm --filter @opencode-cloud/cli-darwin-x64 publish --access public --provenance --no-git-checks
+
+      - name: Publish @opencode-cloud/cli-linux-x64
+        run: pnpm --filter @opencode-cloud/cli-linux-x64 publish --access public --provenance --no-git-checks
+
+      - name: Publish @opencode-cloud/cli-linux-arm64
+        run: pnpm --filter @opencode-cloud/cli-linux-arm64 publish --access public --provenance --no-git-checks
+
+      - name: Publish @opencode-cloud/cli-linux-x64-musl
+        run: pnpm --filter @opencode-cloud/cli-linux-x64-musl publish --access public --provenance --no-git-checks
+
+      - name: Publish @opencode-cloud/cli-linux-arm64-musl
+        run: pnpm --filter @opencode-cloud/cli-linux-arm64-musl publish --access public --provenance --no-git-checks
+
+      - name: Wait for npm to index platform packages
+        run: sleep 30
+
       - name: Publish @opencode-cloud/core
         run: pnpm --filter @opencode-cloud/core publish --access public --provenance --no-git-checks
 
@@ -54,10 +130,18 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## 📦 Published to npm" >> $GITHUB_STEP_SUMMARY
+          echo "## Published to npm" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Platform Packages:**" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-darwin-arm64](https://www.npmjs.com/package/@opencode-cloud/cli-darwin-arm64)" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-darwin-x64](https://www.npmjs.com/package/@opencode-cloud/cli-darwin-x64)" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-linux-x64](https://www.npmjs.com/package/@opencode-cloud/cli-linux-x64)" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-linux-arm64](https://www.npmjs.com/package/@opencode-cloud/cli-linux-arm64)" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-linux-x64-musl](https://www.npmjs.com/package/@opencode-cloud/cli-linux-x64-musl)" >> $GITHUB_STEP_SUMMARY
+          echo "- [@opencode-cloud/cli-linux-arm64-musl](https://www.npmjs.com/package/@opencode-cloud/cli-linux-arm64-musl)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Main Packages:**" >> $GITHUB_STEP_SUMMARY
           echo "- [@opencode-cloud/core](https://www.npmjs.com/package/@opencode-cloud/core)" >> $GITHUB_STEP_SUMMARY
           echo "- [opencode-cloud](https://www.npmjs.com/package/opencode-cloud)" >> $GITHUB_STEP_SUMMARY

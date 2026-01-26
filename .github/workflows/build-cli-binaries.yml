@@ -1,0 +1,79 @@
+name: Build CLI Binaries
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            package: cli-darwin-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            package: cli-darwin-x64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            package: cli-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            package: cli-linux-arm64
+            use-cross: true
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            package: cli-linux-x64-musl
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            package: cli-linux-arm64-musl
+            use-cross: true
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (for ARM targets)
+        if: matrix.use-cross == 'true'
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Install musl-tools (for musl x64)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build binary
+        run: |
+          if [ "${{ matrix.use-cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }} -p opencode-cloud --bin occ
+          else
+            cargo build --release --target ${{ matrix.target }} -p opencode-cloud --bin occ
+          fi
+
+      - name: Prepare binary
+        run: |
+          mkdir -p packages/${{ matrix.package }}/bin
+          cp target/${{ matrix.target }}/release/occ packages/${{ matrix.package }}/bin/occ
+          chmod +x packages/${{ matrix.package }}/bin/occ
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: packages/${{ matrix.package }}/bin/occ
+          retention-days: 1

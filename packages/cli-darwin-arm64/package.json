@@ -1,0 +1,17 @@
+{
+  "name": "@opencode-cloud/cli-darwin-arm64",
+  "version": "3.0.0",
+  "description": "opencode-cloud CLI binary for macOS ARM64 (Apple Silicon)",
+  "license": "MIT",
+  "author": "pRizz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pRizz/opencode-cloud.git",
+    "directory": "packages/cli-darwin-arm64"
+  },
+  "homepage": "https://github.com/pRizz/opencode-cloud",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin"],
+  "main": "index.js"
+}

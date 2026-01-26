@@ -1,2 +1,10 @@
 packages:
-  - 'packages/*'
+  - 'packages/core'
+  - 'packages/cli-node'
+  - 'packages/cli-rust'
+  - 'packages/cli-darwin-arm64'
+  - 'packages/cli-darwin-x64'
+  - 'packages/cli-linux-arm64'
+  - 'packages/cli-linux-x64'
+  - 'packages/cli-linux-arm64-musl'
+  - 'packages/cli-linux-x64-musl'

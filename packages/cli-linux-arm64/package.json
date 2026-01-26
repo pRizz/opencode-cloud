@@ -1,0 +1,18 @@
+{
+  "name": "@opencode-cloud/cli-linux-arm64",
+  "version": "3.0.0",
+  "description": "opencode-cloud CLI binary for Linux ARM64 (glibc)",
+  "license": "MIT",
+  "author": "pRizz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pRizz/opencode-cloud.git",
+    "directory": "packages/cli-linux-arm64"
+  },
+  "homepage": "https://github.com/pRizz/opencode-cloud",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "libc": ["glibc"],
+  "files": ["bin"],
+  "main": "index.js"
+}

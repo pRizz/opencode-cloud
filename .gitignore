@@ -30,3 +30,6 @@ Thumbs.db
 
 # Build artifacts
 *.log
+
+# Dev binary fallback (parity tests copy here; do not commit)
+packages/cli-node/bin/occ

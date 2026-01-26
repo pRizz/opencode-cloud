@@ -1,0 +1,18 @@
+{
+  "name": "@opencode-cloud/cli-linux-x64-musl",
+  "version": "3.0.0",
+  "description": "opencode-cloud CLI binary for Linux x64 (musl/Alpine)",
+  "license": "MIT",
+  "author": "pRizz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pRizz/opencode-cloud.git",
+    "directory": "packages/cli-linux-x64-musl"
+  },
+  "homepage": "https://github.com/pRizz/opencode-cloud",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "libc": ["musl"],
+  "files": ["bin"],
+  "main": "index.js"
+}

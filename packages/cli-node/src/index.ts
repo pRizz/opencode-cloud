@@ -2,39 +2,116 @@
 /**
  * opencode-cloud Node.js CLI
  *
- * This is a transparent wrapper that spawns the Rust binary.
- * All arguments are passed through directly.
+ * Resolves the platform-specific binary from optionalDependencies,
+ * with fallback to local bin/ for development.
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createRequire } from 'module';
 
-// Resolve binary path relative to this script
-// When running from dist/index.js, binary should be at ../bin/occ
+const require = createRequire(import.meta.url);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const binaryPath = join(scriptDir, '..', 'bin', 'occ');
 
-// Spawn the Rust binary with all arguments passed through
+/**
+ * Detect if running on musl libc (Alpine Linux)
+ */
+function isMusl(): boolean {
+  if (existsSync('/etc/alpine-release')) {
+    return true;
+  }
+  try {
+    const out = execSync('ldd --version 2>&1', { encoding: 'utf-8' });
+    return out.includes('musl');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the platform package name for the current environment
+ */
+function getPlatformPackage(): string | null {
+  const { platform, arch } = process;
+
+  if (platform === 'darwin') {
+    return arch === 'arm64'
+      ? '@opencode-cloud/cli-darwin-arm64'
+      : '@opencode-cloud/cli-darwin-x64';
+  }
+
+  if (platform === 'linux') {
+    const musl = isMusl();
+    if (arch === 'x64') {
+      return musl
+        ? '@opencode-cloud/cli-linux-x64-musl'
+        : '@opencode-cloud/cli-linux-x64';
+    }
+    if (arch === 'arm64') {
+      return musl
+        ? '@opencode-cloud/cli-linux-arm64-musl'
+        : '@opencode-cloud/cli-linux-arm64';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve path to the occ binary
+ */
+function resolveBinaryPath(): string | null {
+  const platformPkg = getPlatformPackage();
+  if (platformPkg) {
+    try {
+      const pkg = require(platformPkg);
+      if (pkg.binaryPath && existsSync(pkg.binaryPath)) {
+        return pkg.binaryPath;
+      }
+    } catch {
+      // Package not installed, try fallback
+    }
+  }
+
+  const localBinary = join(scriptDir, '..', 'bin', 'occ');
+  if (existsSync(localBinary)) {
+    return localBinary;
+  }
+
+  return null;
+}
+
+const binaryPath = resolveBinaryPath();
+
+if (!binaryPath) {
+  const platformPkg = getPlatformPackage();
+  console.error('Error: Could not find opencode-cloud binary\n');
+  console.error(`Platform: ${process.platform} (${process.arch})`);
+  if (platformPkg) {
+    console.error(`Expected package: ${platformPkg}\n`);
+    console.error('This may indicate a failed npm install. Try:');
+    console.error('  npm install opencode-cloud\n');
+  } else {
+    console.error('\nYour platform is not supported with prebuilt binaries.');
+    console.error('Install the Rust CLI directly:');
+    console.error('  cargo install opencode-cloud\n');
+  }
+  process.exit(1);
+}
+
 const child = spawn(binaryPath, process.argv.slice(2), {
-  stdio: 'inherit', // Pass through stdin/stdout/stderr for colors, TTY detection
+  stdio: 'inherit',
 });
 
-// Handle process exit
-child.on('close', (code) => {
+child.on('close', (code: number | null) => {
   process.exit(code ?? 1);
 });
 
-// Handle binary not found or other spawn errors
-child.on('error', (err) => {
-  console.error('Error: Failed to spawn opencode-cloud binary\n');
-  console.error(`Binary path: ${binaryPath}`);
+child.on('error', (err: Error) => {
+  console.error(`Error: Failed to spawn binary at ${binaryPath}`);
   console.error(`Error: ${err.message}\n`);
-  console.error('The Rust binary is not available. You have two options:\n');
-  console.error('1. Install the Rust CLI directly:');
-  console.error('   cargo install opencode-cloud\n');
-  console.error('2. For development, copy the binary to packages/cli-node/bin/:');
-  console.error('   cp target/release/occ packages/cli-node/bin/\n');
-  console.error(`Platform: ${process.platform} (${process.arch})`);
+  console.error('Try reinstalling: npm install opencode-cloud');
   process.exit(1);
 });

@@ -1,7 +1,7 @@
 {
   "name": "opencode-cloud",
   "version": "3.0.0",
-  "description": "Node.js wrapper for opencode-cloud CLI (delegates to Rust binary)",
+  "description": "Cross-platform CLI for opencode-cloud (includes prebuilt binaries)",
   "type": "module",
   "license": "MIT",
   "author": "pRizz",
@@ -28,6 +28,14 @@
   },
   "os": ["darwin", "linux"],
   "cpu": ["x64", "arm64"],
+  "optionalDependencies": {
+    "@opencode-cloud/cli-darwin-arm64": "workspace:*",
+    "@opencode-cloud/cli-darwin-x64": "workspace:*",
+    "@opencode-cloud/cli-linux-arm64": "workspace:*",
+    "@opencode-cloud/cli-linux-x64": "workspace:*",
+    "@opencode-cloud/cli-linux-arm64-musl": "workspace:*",
+    "@opencode-cloud/cli-linux-x64-musl": "workspace:*"
+  },
   "scripts": {
     "build": "tsc || (echo \"Error: TypeScript compiler (tsc) not found. Install dev dependencies or run npm i -D typescript before building.\" && exit 1)",
     "start": "node dist/index.js",

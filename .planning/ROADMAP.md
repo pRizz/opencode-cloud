@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 15: Prebuilt Image Option** - Option to pull prebuilt images vs building from scratch
 - [x] **Phase 16: Code Quality Audit** - Reduce nesting, eliminate duplication, improve readability
 - [x] **Phase 17: Custom Bind Mounts** - Allow users to mount local directories into the container
-- [ ] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync + prebuilt binary distribution
+- [x] **Phase 18: CLI Sync Strategy** - Strategy for keeping Rust and Node CLIs in sync + prebuilt binary distribution
 - [~] **Phase 19: CI/CD Automation** - ~~Automated Docker image uploads~~ (MERGED into Phase 14)
 - [ ] **Phase 20: One-Click Cloud Deploy** - Deploy buttons for AWS, GCP, Azure etc. that provision cloud instances with opencode-cloud pre-installed
 - [ ] **Phase 21: Use opencode Fork with PAM Authentication** - Switch to pRizz/opencode fork for proper PAM-based web authentication
@@ -365,9 +365,9 @@ Plans:
 - [x] 18-01-PLAN.md — Node CLI passthrough implementation (spawn wrapper, binary resolution, error handling)
 - [x] 18-02-PLAN.md — Parity test suite with dynamic command discovery and CI integration
 - [x] 18-03-PLAN.md — Documentation (CONTRIBUTING.md CLI architecture, command addition guide)
-- [ ] 18-04-PLAN.md — Platform-specific npm package scaffolds (darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl)
-- [ ] 18-05-PLAN.md — Update cli-node for optionalDependencies binary resolution
-- [ ] 18-06-PLAN.md — CI workflow for cross-platform binary builds and npm publish
+- [x] 18-04-PLAN.md — Platform-specific npm package scaffolds (darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl)
+- [x] 18-05-PLAN.md — Update cli-node for optionalDependencies binary resolution
+- [x] 18-06-PLAN.md — CI workflow for cross-platform binary builds and npm publish
 
 ### Phase 19: CI/CD Automation
 **Goal**: Automate Docker image builds/uploads and version management via GitHub Actions with user-triggered workflows
@@ -580,7 +580,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30
 | 15. Prebuilt Image Option | 3/3 | Complete | 2026-01-24 |
 | 16. Code Quality Audit | 2/2 | Complete | 2026-01-25 |
 | 17. Custom Bind Mounts | 3/3 | Complete | 2026-01-25 |
-| 18. CLI Sync Strategy | 3/6 | In Progress | - |
+| 18. CLI Sync Strategy | 6/6 | Complete | 2026-01-25 |
 | 19. CI/CD Automation | - | MERGED | - |
 | 20. One-Click Cloud Deploy | 0/3 | Not started | - |
 | 21. Use opencode Fork with PAM Auth | 0/1 | Not started | - |
