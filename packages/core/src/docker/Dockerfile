@@ -40,7 +40,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
 # Install build essentials (2026-01-22)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use BuildKit cache mount for APT package lists and cache
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential=12.* \
     # UNPINNED: ca-certificates - security-critical root certs, needs auto-updates
     ca-certificates \
@@ -74,7 +77,10 @@ ENV LC_ALL=C.UTF-8
 # Install core system packages in logical groups for better caching
 
 # Group 1: Core utilities and build tools (2026-01-22)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use BuildKit cache mount for APT package lists and cache
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     # Init systems
     tini=0.19.* \
     dumb-init=1.2.* \
@@ -136,14 +142,20 @@ RUN systemctl mask \
     systemd-remount-fs.service
 
 # Group 2: Database clients (2026-01-22)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use BuildKit cache mount for APT package lists and cache
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     sqlite3=3.45.* \
     postgresql-client=16+* \
     default-mysql-client=1.1.* \
     && rm -rf /var/lib/apt/lists/*
 
 # Group 3: Development libraries for compiling tools (2026-01-22)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Use BuildKit cache mount for APT package lists and cache
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev=3.0.* \
     libffi-dev=3.4.* \
     zlib1g-dev=1:1.3.* \
@@ -245,12 +257,16 @@ RUN mkdir -p "${PNPM_HOME}"
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install pipx for isolated Python application installs
-RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
+# Use BuildKit cache mount for pip cache
+RUN --mount=type=cache,target=/home/opencode/.cache/pip \
+    eval "$(/home/opencode/.local/bin/mise activate bash)" \
     && pip install --user pipx \
     && pipx ensurepath
 
 # Install global TypeScript compiler
-RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
+# Use BuildKit cache mount for pnpm store
+RUN --mount=type=cache,target=/home/opencode/.local/share/pnpm/store \
+    eval "$(/home/opencode/.local/bin/mise activate bash)" \
     && pnpm add -g typescript
 
 # -----------------------------------------------------------------------------
@@ -258,7 +274,10 @@ RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
 # -----------------------------------------------------------------------------
 # ripgrep 15.1.0 - fast regex search
 # eza 0.23.4 - modern ls replacement
-RUN . /home/opencode/.cargo/env \
+# Use BuildKit cache mount for Cargo registry and git cache
+RUN --mount=type=cache,target=/home/opencode/.cargo/registry \
+    --mount=type=cache,target=/home/opencode/.cargo/git \
+    . /home/opencode/.cargo/env \
     && cargo install --locked ripgrep@15.1.0 eza@0.23.4
 
 # lazygit v0.58.1 (2026-01-12) - terminal UI for git
@@ -304,8 +323,11 @@ RUN . /home/opencode/.cargo/env \
 #     && go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0
 
 # Install btop system monitor (2026-01-22)
+# Use BuildKit cache mount for APT package lists and cache
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends btop=1.3.* \
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends btop=1.3.* \
     && rm -rf /var/lib/apt/lists/*
 USER opencode
 
@@ -313,7 +335,10 @@ USER opencode
 # GitHub CLI
 # -----------------------------------------------------------------------------
 USER root
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+# Use BuildKit cache mount for APT package lists and cache
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
     && apt-get update && apt-get install -y --no-install-recommends gh \
@@ -325,8 +350,11 @@ USER opencode
 # -----------------------------------------------------------------------------
 # Cockpit provides web-based administration for the container
 # Ubuntu noble has cockpit 316 in main repos
+# Use BuildKit cache mount for APT package lists and cache
 USER root
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     cockpit-ws \
     cockpit-system \
@@ -419,19 +447,21 @@ USER opencode
 # -----------------------------------------------------------------------------
 # opencode Installation (Fork from pRizz/opencode)
 # -----------------------------------------------------------------------------
-# Clone the fork and build from source
+# Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility: 11277fd04fb7f6df4b6f188397dcb5275ef3a78f
-RUN git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode \
-    && cd /tmp/opencode \
+# Use BuildKit cache mounts to speed up rebuilds by caching bun packages and node_modules
+RUN --mount=type=cache,target=/home/opencode/.bun/install/cache \
+    --mount=type=cache,target=/tmp/opencode-repo/node_modules \
+    git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
+    && cd /tmp/opencode-repo \
     && git checkout 11277fd04fb7f6df4b6f188397dcb5275ef3a78f \
     && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
     && bun run packages/opencode/script/build.ts --single \
     && mkdir -p /home/opencode/.opencode/bin \
-    && cp /tmp/opencode/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.opencode/bin/opencode \
+    && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.opencode/bin/opencode \
     && chmod +x /home/opencode/.opencode/bin/opencode \
-    && rm -rf /tmp/opencode \
     && /home/opencode/.opencode/bin/opencode --version
 
 # Add opencode to PATH
@@ -442,17 +472,20 @@ ENV PATH="/home/opencode/.opencode/bin:${PATH}"
 # -----------------------------------------------------------------------------
 # Build opencode-broker from source (Rust service for PAM authentication)
 # The broker handles PAM authentication and user process spawning
+# NOTE: Requires root privileges for setuid bit (chmod 4755) to allow broker
+# to run with elevated privileges for PAM authentication
+# Use BuildKit cache mounts for Cargo registry, git cache, and build target
 USER root
-RUN git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-broker \
-    && cd /tmp/opencode-broker \
-    && git checkout 11277fd04fb7f6df4b6f188397dcb5275ef3a78f \
-    && cd packages/opencode-broker \
+RUN --mount=type=cache,target=/home/opencode/.cargo/registry \
+    --mount=type=cache,target=/home/opencode/.cargo/git \
+    --mount=type=cache,target=/tmp/opencode-repo/packages/opencode-broker/target \
+    cd /tmp/opencode-repo/packages/opencode-broker \
     && . /home/opencode/.cargo/env \
     && cargo build --release \
     && mkdir -p /usr/local/bin \
     && cp target/release/opencode-broker /usr/local/bin/opencode-broker \
     && chmod 4755 /usr/local/bin/opencode-broker \
-    && rm -rf /tmp/opencode-broker
+    && rm -rf /tmp/opencode-repo
 
 # Verify broker binary exists and is executable
 RUN ls -la /usr/local/bin/opencode-broker && /usr/local/bin/opencode-broker --version || echo "Broker installed (version check may not be available)"
@@ -462,6 +495,7 @@ RUN ls -la /usr/local/bin/opencode-broker && /usr/local/bin/opencode-broker --ve
 # -----------------------------------------------------------------------------
 # Install PAM configuration for opencode authentication
 # This allows opencode to authenticate users via PAM (same users as Cockpit)
+# NOTE: Requires root privileges to write to /etc/pam.d/
 RUN printf '%s\n' \
     '# PAM configuration for OpenCode authentication' \
     '# Install to /etc/pam.d/opencode' \
@@ -482,6 +516,7 @@ RUN ls -la /etc/pam.d/opencode && cat /etc/pam.d/opencode
 # opencode-broker systemd Service
 # -----------------------------------------------------------------------------
 # Create opencode-broker service for PAM authentication
+# NOTE: Requires root privileges to write to /etc/systemd/system/
 RUN printf '%s\n' \
     '[Unit]' \
     'Description=OpenCode Authentication Broker' \
@@ -527,12 +562,15 @@ USER opencode
 # Install the GSD (Get Shit Done) plugin for opencode
 # Note: If this fails in container builds due to "~" path resolution, retry with
 # OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
-RUN npx --yes get-shit-done-cc --opencode --global
+# Use BuildKit cache mount for npm cache
+RUN --mount=type=cache,target=/home/opencode/.npm \
+    npx --yes get-shit-done-cc --opencode --global
 
 # -----------------------------------------------------------------------------
 # opencode systemd Service (2026-01-22)
 # -----------------------------------------------------------------------------
 # Create opencode as a systemd service for Cockpit integration
+# NOTE: Requires root privileges to write to /etc/systemd/system/
 USER root
 RUN printf '%s\n' \
     '[Unit]' \
