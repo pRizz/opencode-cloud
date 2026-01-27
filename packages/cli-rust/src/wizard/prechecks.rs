@@ -22,7 +22,8 @@ pub async fn verify_docker_available() -> Result<()> {
                 Check:  docker ps\n\
                 Check:  ls -l /var/run/docker.sock (Linux default)\n\
                 Check:  your user has access to the Docker socket\n\
-                Fix:    Linux: sudo usermod -aG docker $USER"
+                Fix:    Linux: sudo usermod -aG docker $USER\n\
+                Note:   Restart your session or reboot after installing Docker"
             );
         }
     };
@@ -37,7 +38,8 @@ pub async fn verify_docker_available() -> Result<()> {
             Check:  docker ps\n\
             Check:  ls -l /var/run/docker.sock (Linux default)\n\
             Check:  your user has access to the Docker socket\n\
-            Fix:    Linux: sudo usermod -aG docker $USER"
+            Fix:    Linux: sudo usermod -aG docker $USER\n\
+            Note:   Restart your session or reboot after installing Docker"
         );
     }
 
