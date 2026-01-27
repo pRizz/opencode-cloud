@@ -513,12 +513,12 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # opencode Installation (Fork from pRizz/opencode)
 # -----------------------------------------------------------------------------
 # Clone the fork and build opencode from source (as non-root user)
-# Pin to specific commit for reproducibility: 6f2b0dfede58b34856c0e0bbaa5e3ae2cb3a316b
+# Pin to specific commit for reproducibility
 # Build opencode from source (BuildKit cache mounts disabled for now)
 RUN rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
-    && git checkout 6f2b0dfede58b34856c0e0bbaa5e3ae2cb3a316b \
+    && git checkout 189700cee2fcdf0a1a1157aac1a7dea6afaf7c82 \
     && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
@@ -603,19 +603,7 @@ RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev
     '  }' \
     '' \
     '  location / {' \
-    '    try_files $uri $uri/ @opencode_fallback;' \
-    '  }' \
-    '' \
-    '  location @opencode_fallback {' \
-    '    if ($http_accept ~* "text/html") { rewrite ^ /index.html break; }' \
-    '    proxy_pass http://127.0.0.1:3001;' \
-    '    proxy_http_version 1.1;' \
-    '    proxy_set_header Upgrade $http_upgrade;' \
-    '    proxy_set_header Connection "upgrade";' \
-    '    proxy_set_header Host $host;' \
-    '    proxy_set_header X-Real-IP $remote_addr;' \
-    '    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' \
-    '    proxy_set_header X-Forwarded-Proto $scheme;' \
+    '    try_files $uri $uri/ /index.html;' \
     '  }' \
     '}' \
     > /etc/nginx/conf.d/opencode.conf
