@@ -235,6 +235,7 @@ fn display_mount_mismatch(
         style("This will stop and recreate the container from the existing image.").dim()
     );
     eprintln!("{}", style("Your data volumes will be preserved.").dim());
+    display_container_recreate_warning();
     eprintln!();
 }
 
@@ -313,14 +314,21 @@ async fn ensure_container_stopped_for_image_flag(
     Ok(())
 }
 
-/// Check version compatibility and prompt user if mismatch detected
-/// Returns true if rebuild was requested
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VersionMismatchAction {
+    RebuildFromSource,
+    PullPrebuilt,
+    Continue,
+}
+
+/// Check version compatibility and prompt user if mismatch detected.
+/// Returns the user-selected action on mismatch.
 async fn check_version_compatibility(
     client: &DockerClient,
     config: &opencode_cloud_core::Config,
     args: &StartArgs,
     quiet: bool,
-) -> Result<bool> {
+) -> Result<VersionMismatchAction> {
     let should_check = !args.ignore_version
         && !args.cached_rebuild_sandbox_image
         && !args.full_rebuild_sandbox_image
@@ -329,22 +337,22 @@ async fn check_version_compatibility(
         && !quiet;
 
     if !should_check {
-        return Ok(false);
+        return Ok(VersionMismatchAction::Continue);
     }
 
     if !image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await? {
-        return Ok(false);
+        return Ok(VersionMismatchAction::Continue);
     }
 
     let cli_version = get_cli_version();
     let image_tag = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
 
     let Ok(Some(image_version)) = get_image_version(client, &image_tag).await else {
-        return Ok(false);
+        return Ok(VersionMismatchAction::Continue);
     };
 
     if versions_compatible(cli_version, Some(&image_version)) {
-        return Ok(false);
+        return Ok(VersionMismatchAction::Continue);
     }
 
     println!();
@@ -352,17 +360,24 @@ async fn check_version_compatibility(
     println!("  CLI version:   {}", style(cli_version).cyan());
     println!("  Image version: {}", style(&image_version).cyan());
     println!();
+    display_container_recreate_warning();
+    println!();
 
     let selection = dialoguer::Select::new()
         .with_prompt("What would you like to do?")
         .items(&[
-            "Rebuild image from source (recommended)",
+            "Redownload latest prebuilt image (recommended)",
+            "Rebuild image from source",
             "Continue with mismatched versions",
         ])
         .default(0)
         .interact()?;
 
-    Ok(selection == 0)
+    Ok(match selection {
+        0 => VersionMismatchAction::PullPrebuilt,
+        1 => VersionMismatchAction::RebuildFromSource,
+        _ => VersionMismatchAction::Continue,
+    })
 }
 
 /// Check for port mismatch and prompt user to recreate container
@@ -467,7 +482,21 @@ fn display_port_mismatch(
         style("This will stop and recreate the container from the existing image.").dim()
     );
     eprintln!("{}", style("Your data volumes will be preserved.").dim());
+    display_container_recreate_warning();
     eprintln!();
+}
+
+fn display_container_recreate_warning() {
+    eprintln!(
+        "{} {}",
+        style("Note:").yellow().bold(),
+        style("Container users must be reconfigured after recreate.").yellow()
+    );
+    eprintln!(
+        "{}",
+        style("This is a current limitation of the sandbox image; we're exploring mitigations.")
+            .dim()
+    );
 }
 
 /// Acquire Docker image (build or pull) based on configuration
@@ -632,20 +661,31 @@ pub async fn cmd_start(
     ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet, host_name.as_deref())
         .await?;
 
-    let mut any_rebuild = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
+    let mut rebuild_image = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
+    let mut recreate_container = rebuild_image;
+    let mut force_pull = false;
 
     // Determine image source: flag > config default
     let mut use_prebuilt = if args.pull_sandbox_image {
         true
-    } else if any_rebuild {
+    } else if rebuild_image {
         false
     } else {
         config.image_source == "prebuilt"
     };
 
     // Version compatibility check
-    if check_version_compatibility(&client, &config, args, quiet).await? {
-        any_rebuild = true;
+    match check_version_compatibility(&client, &config, args, quiet).await? {
+        VersionMismatchAction::RebuildFromSource => {
+            rebuild_image = true;
+            recreate_container = true;
+        }
+        VersionMismatchAction::PullPrebuilt => {
+            use_prebuilt = true;
+            force_pull = true;
+            recreate_container = true;
+        }
+        VersionMismatchAction::Continue => {}
     }
 
     // Security check: block first start without security configured
@@ -665,23 +705,23 @@ pub async fn cmd_start(
     }
 
     // Check for port mismatch on existing container
-    if !is_first_start && !any_rebuild {
+    if !is_first_start && !recreate_container {
         if let Some(rebuild) = check_port_mismatch(&client, &config, port, quiet).await? {
-            any_rebuild = rebuild;
+            recreate_container = rebuild;
         }
     }
 
     // Check for mount mismatch on existing container (only if not already rebuilding)
-    if !is_first_start && !any_rebuild {
+    if !is_first_start && !recreate_container {
         if let Some(rebuild) =
             check_mount_mismatch(&client, bind_mounts_option.as_deref(), quiet).await?
         {
-            any_rebuild = rebuild;
+            recreate_container = rebuild;
         }
     }
 
     // Handle rebuild: remove existing container so a new one is created from the new image
-    if any_rebuild {
+    if recreate_container {
         handle_rebuild(&client, host_name.as_deref(), quiet, verbose).await?;
     } else if container_is_running(&client, CONTAINER_NAME).await? {
         // Already running (idempotent behavior) - only when not rebuilding
@@ -722,14 +762,15 @@ pub async fn cmd_start(
     }
 
     // Acquire image if needed (first run, rebuild, or forced pull)
-    let needs_image = any_rebuild
+    let needs_image = rebuild_image
+        || force_pull
         || args.pull_sandbox_image
         || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
 
     if needs_image {
         acquire_image(
             &client,
-            use_prebuilt && !any_rebuild,
+            use_prebuilt && !rebuild_image,
             args.full_rebuild_sandbox_image,
             quiet,
             verbose,
@@ -800,6 +841,12 @@ async fn handle_rebuild(
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
+    if !quiet {
+        eprintln!();
+        display_container_recreate_warning();
+        eprintln!();
+    }
+
     let exists =
         opencode_cloud_core::docker::container::container_exists(client, CONTAINER_NAME).await?;
 
