@@ -3,14 +3,14 @@
 //! Stops the opencode service with a graceful timeout.
 //! Docker sends SIGTERM first, then SIGKILL if timeout expires.
 
-use crate::output::{CommandSpinner, format_docker_error, show_docker_error};
+use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
+use crate::output::format_docker_error;
 use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, container_is_running, stop_service,
+    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, container_is_running,
 };
-use std::time::Instant;
 
 /// Arguments for the stop command
 #[derive(Args, Default)]
@@ -46,55 +46,20 @@ pub async fn cmd_stop(args: &StopArgs, maybe_host: Option<&str>, quiet: bool) ->
         return Ok(());
     }
 
-    // Create spinner
-    let msg = crate::format_host_message(host_name.as_deref(), "Stopping service...");
-    let spinner = CommandSpinner::new_maybe(&msg, quiet);
-    spinner.update(&crate::format_host_message(
+    stop_service_with_spinner(
+        &client,
         host_name.as_deref(),
-        &format!(
-            "Stopping service ({}s graceful timeout, then force kill)...",
-            args.timeout
-        ),
-    ));
-
-    // Stop with graceful timeout, track how long it takes
-    let start = Instant::now();
-    match stop_service(&client, false, Some(args.timeout)).await {
-        Ok(()) => {
-            let elapsed = start.elapsed();
-            let elapsed_secs = elapsed.as_secs();
-
-            // If it took >= timeout, Docker likely had to force kill
-            if elapsed_secs >= args.timeout as u64 {
-                spinner.success(&crate::format_host_message(
-                    host_name.as_deref(),
-                    &format!(
-                        "Service stopped (force killed after {}s timeout)",
-                        args.timeout
-                    ),
-                ));
-                if !quiet {
-                    eprintln!(
-                        "{}",
-                        style("Note: Container did not stop gracefully within timeout.").dim()
-                    );
-                }
-            } else {
-                spinner.success(&crate::format_host_message(
-                    host_name.as_deref(),
-                    &format!("Service stopped ({elapsed_secs}s)"),
-                ));
-            }
-        }
-        Err(e) => {
-            spinner.fail(&crate::format_host_message(
-                host_name.as_deref(),
-                "Failed to stop",
-            ));
-            show_docker_error(&e);
-            return Err(e.into());
-        }
-    }
+        quiet,
+        false,
+        args.timeout,
+        StopSpinnerMessages {
+            action_message: "Stopping service...",
+            update_label: "Stopping service",
+            success_base_message: "Service stopped",
+            failure_message: "Failed to stop",
+        },
+    )
+    .await?;
 
     Ok(())
 }

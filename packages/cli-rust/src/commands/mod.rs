@@ -9,6 +9,7 @@ mod install;
 mod logs;
 mod mount;
 mod restart;
+mod service;
 mod setup;
 mod start;
 mod status;

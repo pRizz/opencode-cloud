@@ -2,6 +2,7 @@
 //!
 //! Starts the opencode service, building the image if needed.
 
+use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::output::{
     CommandSpinner, format_cockpit_url, format_docker_error, normalize_bind_addr,
     resolve_remote_addr, show_docker_error,
@@ -13,11 +14,11 @@ use futures_util::stream::StreamExt;
 use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
-    ParsedMount, ProgressReporter, build_image, check_container_path_warning, container_exists,
-    container_is_running, get_cli_version, get_container_bind_mounts, get_container_ports,
-    get_image_version, image_exists, pull_image, save_state, setup_and_start, stop_service,
-    validate_mount_path, versions_compatible,
+    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
+    IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
+    check_container_path_warning, container_exists, container_is_running, get_cli_version,
+    get_container_bind_mounts, get_container_ports, get_image_version, image_exists, pull_image,
+    save_state, setup_and_start, validate_mount_path, versions_compatible,
 };
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
@@ -270,6 +271,7 @@ async fn ensure_container_stopped_for_image_flag(
     client: &DockerClient,
     has_image_flag: bool,
     quiet: bool,
+    host_name: Option<&str>,
 ) -> Result<()> {
     if !has_image_flag {
         return Ok(());
@@ -294,7 +296,20 @@ async fn ensure_container_stopped_for_image_flag(
         return Err(anyhow!("Aborted. Stop container first with: occ stop"));
     }
 
-    stop_service(client, true, None).await.ok();
+    let _ = stop_service_with_spinner(
+        client,
+        host_name,
+        quiet,
+        true,
+        DEFAULT_STOP_TIMEOUT_SECS,
+        StopSpinnerMessages {
+            action_message: "Stopping container for rebuild...",
+            update_label: "Stopping container",
+            success_base_message: "Container stopped and removed",
+            failure_message: "Failed to stop container",
+        },
+    )
+    .await;
     Ok(())
 }
 
@@ -614,7 +629,8 @@ pub async fn cmd_start(
         || args.full_rebuild_sandbox_image;
 
     // If any image flag is used while container is running, prompt to stop
-    ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet).await?;
+    ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet, host_name.as_deref())
+        .await?;
 
     let mut any_rebuild = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
 
@@ -666,7 +682,7 @@ pub async fn cmd_start(
 
     // Handle rebuild: remove existing container so a new one is created from the new image
     if any_rebuild {
-        handle_rebuild(&client, verbose).await?;
+        handle_rebuild(&client, host_name.as_deref(), quiet, verbose).await?;
     } else if container_is_running(&client, CONTAINER_NAME).await? {
         // Already running (idempotent behavior) - only when not rebuilding
         return show_already_running(
@@ -778,7 +794,12 @@ pub async fn cmd_start(
 }
 
 /// Handle rebuild flags: remove existing container so a new one is created from the new image
-async fn handle_rebuild(client: &DockerClient, verbose: u8) -> Result<()> {
+async fn handle_rebuild(
+    client: &DockerClient,
+    host_name: Option<&str>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<()> {
     let exists =
         opencode_cloud_core::docker::container::container_exists(client, CONTAINER_NAME).await?;
 
@@ -793,8 +814,20 @@ async fn handle_rebuild(client: &DockerClient, verbose: u8) -> Result<()> {
         );
     }
 
-    // Ignore errors if container doesn't exist
-    stop_service(client, true, None).await.ok();
+    let _ = stop_service_with_spinner(
+        client,
+        host_name,
+        quiet,
+        true,
+        DEFAULT_STOP_TIMEOUT_SECS,
+        StopSpinnerMessages {
+            action_message: "Stopping container for rebuild...",
+            update_label: "Stopping container",
+            success_base_message: "Container stopped and removed",
+            failure_message: "Failed to stop container",
+        },
+    )
+    .await;
     Ok(())
 }
 
