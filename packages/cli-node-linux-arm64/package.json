@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cloud/cli-node-linux-arm64",
-  "version": "3.1.3",
+  "version": "3.1.4",
   "description": "opencode-cloud CLI binary for Linux ARM64 (glibc)",
   "license": "MIT",
   "author": "pRizz",
