@@ -16,6 +16,10 @@ pub enum DockerError {
     #[error("Docker daemon not running. Start Docker Desktop or the Docker service.")]
     NotRunning,
 
+    /// Docker socket not found
+    #[error("Docker socket not found. Is Docker installed and running?")]
+    SocketNotFound,
+
     /// Permission denied accessing Docker socket
     #[error(
         "Permission denied accessing Docker socket. You may need to add your user to the 'docker' group."
@@ -48,9 +52,10 @@ impl From<bollard::errors::Error> for DockerError {
         let msg = err.to_string();
 
         // Detect common error patterns and provide better messages
-        if msg.contains("Cannot connect to the Docker daemon")
+        if msg.contains("No such file or directory") {
+            DockerError::SocketNotFound
+        } else if msg.contains("Cannot connect to the Docker daemon")
             || msg.contains("connection refused")
-            || msg.contains("No such file or directory")
         {
             DockerError::NotRunning
         } else if msg.contains("permission denied") || msg.contains("Permission denied") {
@@ -69,6 +74,9 @@ mod tests {
     fn docker_error_displays_correctly() {
         let err = DockerError::NotRunning;
         assert!(err.to_string().contains("Docker daemon not running"));
+
+        let err = DockerError::SocketNotFound;
+        assert!(err.to_string().contains("Docker socket not found"));
 
         let err = DockerError::PermissionDenied;
         assert!(err.to_string().contains("Permission denied"));

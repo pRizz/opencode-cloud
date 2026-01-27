@@ -15,21 +15,37 @@ pub fn format_docker_error(e: &DockerError) -> String {
     match e {
         DockerError::NotRunning => {
             format!(
-                "{}\n\n  {}\n  {}\n\n  {}: {}",
-                style("Docker is not running").red().bold(),
-                "Start Docker Desktop or the Docker daemon:",
-                style("  sudo systemctl start docker").cyan(),
+                "{}\n\n  {}\n  {}\n  {}\n\n  {}: {}",
+                style("Docker is not responding").red().bold(),
+                "Start or restart the Docker daemon:",
+                style("  Linux:  sudo systemctl start docker").cyan(),
+                style("  Linux:  sudo systemctl restart docker").cyan(),
+                style("Docs").dim(),
+                style("https://github.com/pRizz/opencode-cloud#troubleshooting").dim()
+            )
+        }
+        DockerError::SocketNotFound => {
+            format!(
+                "{}\n\n  {}\n  {}\n  {}\n  {}\n\n  {}: {}",
+                style("Docker socket not found").red().bold(),
+                "Docker may not be installed or the service isn't running:",
+                style("  Linux:  sudo apt-get install docker.io").cyan(),
+                style("  Linux:  sudo systemctl enable --now docker").cyan(),
+                "Then verify the socket exists at /var/run/docker.sock (Linux default).",
                 style("Docs").dim(),
                 style("https://github.com/pRizz/opencode-cloud#troubleshooting").dim()
             )
         }
         DockerError::PermissionDenied => {
             format!(
-                "{}\n\n  {}\n  {}\n  {}\n\n  {}: {}",
+                "{}\n\n  {}\n  {}\n  {}\n\n  {}\n  {}\n  {}\n\n  {}: {}",
                 style("Permission denied accessing Docker").red().bold(),
-                "Add your user to the docker group:",
+                "Your user likely lacks access to the Docker socket.",
+                style("  Check: docker ps").cyan(),
+                style("  Check: ls -l /var/run/docker.sock").cyan(),
+                "Fix (Linux):",
                 style("  sudo usermod -aG docker $USER").cyan(),
-                "Then log out and back in.",
+                "Then log out and back in (or run: newgrp docker).",
                 style("Docs").dim(),
                 style("https://github.com/pRizz/opencode-cloud#troubleshooting").dim()
             )
@@ -81,8 +97,16 @@ mod tests {
     fn format_docker_error_not_running() {
         let error = DockerError::NotRunning;
         let msg = format_docker_error(&error);
-        assert!(msg.contains("Docker is not running"));
+        assert!(msg.contains("Docker is not responding"));
         assert!(msg.contains("systemctl start docker"));
+    }
+
+    #[test]
+    fn format_docker_error_socket_not_found() {
+        let error = DockerError::SocketNotFound;
+        let msg = format_docker_error(&error);
+        assert!(msg.contains("Docker socket not found"));
+        assert!(msg.contains("/var/run/docker.sock"));
     }
 
     #[test]
@@ -114,6 +138,6 @@ mod tests {
         let error = DockerError::NotRunning;
         let anyhow_err = format_docker_error_anyhow(&error);
         let err_msg = anyhow_err.to_string();
-        assert!(err_msg.contains("Docker is not running"));
+        assert!(err_msg.contains("Docker is not responding"));
     }
 }
