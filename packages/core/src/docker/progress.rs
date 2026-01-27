@@ -66,6 +66,8 @@ pub struct ProgressReporter {
     start_time: Instant,
     /// Optional context prefix shown before step messages (e.g., "Building Docker image")
     context: Option<String>,
+    /// When true, print build output lines directly instead of spinners
+    plain_output: bool,
 }
 
 impl Default for ProgressReporter {
@@ -84,6 +86,7 @@ impl ProgressReporter {
             last_message: HashMap::new(),
             start_time: Instant::now(),
             context: None,
+            plain_output: false,
         }
     }
 
@@ -98,7 +101,26 @@ impl ProgressReporter {
             last_message: HashMap::new(),
             start_time: Instant::now(),
             context: Some(context.to_string()),
+            plain_output: false,
         }
+    }
+
+    /// Create a progress reporter that prints build output directly
+    pub fn with_context_plain(context: &str) -> Self {
+        Self {
+            multi: MultiProgress::new(),
+            bars: HashMap::new(),
+            last_update: HashMap::new(),
+            last_message: HashMap::new(),
+            start_time: Instant::now(),
+            context: Some(context.to_string()),
+            plain_output: true,
+        }
+    }
+
+    /// Check if plain output mode is enabled
+    pub fn is_plain_output(&self) -> bool {
+        self.plain_output
     }
 
     /// Format a message with context prefix if set
@@ -123,6 +145,12 @@ impl ProgressReporter {
 
     /// Create a spinner for indeterminate progress (e.g., build steps)
     pub fn add_spinner(&mut self, id: &str, message: &str) -> &ProgressBar {
+        if self.plain_output {
+            let spinner = ProgressBar::hidden();
+            self.bars.insert(id.to_string(), spinner);
+            return self.bars.get(id).expect("just inserted");
+        }
+
         let spinner = self.multi.add(ProgressBar::new_spinner());
         spinner.set_style(
             ProgressStyle::default_spinner()
@@ -140,6 +168,12 @@ impl ProgressReporter {
     ///
     /// `total` is in bytes
     pub fn add_bar(&mut self, id: &str, total: u64) -> &ProgressBar {
+        if self.plain_output {
+            let bar = ProgressBar::hidden();
+            self.bars.insert(id.to_string(), bar);
+            return self.bars.get(id).expect("just inserted");
+        }
+
         let bar = self.multi.add(ProgressBar::new(total));
         bar.set_style(
             ProgressStyle::default_bar()
@@ -158,6 +192,10 @@ impl ProgressReporter {
     ///
     /// `current` and `total` are in bytes, `status` is the Docker status message
     pub fn update_layer(&mut self, layer_id: &str, current: u64, total: u64, status: &str) {
+        if self.plain_output {
+            return;
+        }
+
         if let Some(bar) = self.bars.get(layer_id) {
             // Update total if it changed (Docker sometimes updates this)
             if bar.length() != Some(total) && total > 0 {
@@ -178,6 +216,16 @@ impl ProgressReporter {
     /// Updates are throttled to prevent flickering from rapid message changes.
     /// "Step X/Y" messages always update immediately as they indicate significant progress.
     pub fn update_spinner(&mut self, id: &str, message: &str) {
+        if self.plain_output {
+            let clean = strip_ansi_codes(message);
+            let formatted = match &self.context {
+                Some(ctx) => format!("{ctx} · {clean}"),
+                None => clean,
+            };
+            eprintln!("{formatted}");
+            return;
+        }
+
         let now = Instant::now();
         let is_step_message = message.starts_with("Step ");
 

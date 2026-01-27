@@ -126,6 +126,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     netcat-openbsd=1.226-* \
     iputils-ping=3:20240117-* \
     dnsutils=1:9.18.* \
+    # Reverse proxy for opencode UI + API
+    nginx=1.24.* \
     # Compression
     zip=3.0-* \
     unzip=6.0-* \
@@ -447,10 +449,92 @@ USER opencode
 #     && go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.3
 
 # -----------------------------------------------------------------------------
+# Sensible Defaults Configuration
+# -----------------------------------------------------------------------------
+# Git configuration
+RUN git config --global init.defaultBranch main \
+    && git config --global core.editor "nvim" \
+    && git config --global pull.rebase false \
+    && git config --global merge.conflictstyle diff3 \
+    && git config --global diff.colorMoved default
+
+# Starship configuration (minimal, fast prompt)
+RUN mkdir -p /home/opencode/.config \
+    && printf '%s\n' \
+    '# Minimal starship config for fast prompt' \
+    'format = """' \
+    '$directory\' \
+    '$git_branch\' \
+    '$git_status\' \
+    '$character"""' \
+    '' \
+    '[directory]' \
+    'truncation_length = 3' \
+    'truncate_to_repo = true' \
+    '' \
+    '[git_branch]' \
+    'format = "[$branch]($style) "' \
+    'style = "bold purple"' \
+    '' \
+    '[git_status]' \
+    'format = '"'"'([$all_status$ahead_behind]($style) )'"'"'' \
+    '' \
+    '[character]' \
+    'success_symbol = "[>](bold green)"' \
+    'error_symbol = "[>](bold red)"' \
+    > /home/opencode/.config/starship.toml
+
+# Shell aliases
+RUN printf '%s\n' \
+    '' \
+    '# Modern CLI aliases' \
+    'alias ls="eza --icons"' \
+    'alias ll="eza -l --icons"' \
+    'alias la="eza -la --icons"' \
+    'alias lt="eza --tree --icons"' \
+    'alias grep="rg"' \
+    'alias top="btop"' \
+    '' \
+    '# Git aliases' \
+    'alias g="git"' \
+    'alias gs="git status"' \
+    'alias gd="git diff"' \
+    'alias gc="git commit"' \
+    'alias gp="git push"' \
+    'alias gl="git pull"' \
+    'alias gco="git checkout"' \
+    'alias gb="git branch"' \
+    'alias lg="lazygit"' \
+    '' \
+    '# Docker aliases (for Docker-in-Docker)' \
+    'alias d="docker"' \
+    'alias dc="docker compose"' \
+    '' \
+    >> /home/opencode/.zshrc
+
+# Set up pipx path
+RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
+
+# -----------------------------------------------------------------------------
+# opencode Setup (Fork + Broker + Proxy)
+# -----------------------------------------------------------------------------
+# Keep this block near the end to preserve cache for earlier layers. We expect
+# opencode fork changes to happen more often than base tooling changes.
+#
+# This block includes:
+# - opencode build (backend binary) + app build (frontend dist)
+# - opencode-broker build
+# - nginx config for single-endpoint UI + API proxy
+# - PAM configuration + systemd services
+# - opencode config file
+#
+# NOTE: This section switches between opencode and root users as needed.
+
+# -----------------------------------------------------------------------------
 # opencode Installation (Fork from pRizz/opencode)
 # -----------------------------------------------------------------------------
 # Clone the fork and build opencode from source (as non-root user)
-# Pin to specific commit for reproducibility: 11277fd04fb7f6df4b6f188397dcb5275ef3a78f
+# Pin to specific commit for reproducibility: 280a4538181f094f4faa0f3560d9764be084b76f
 # Build opencode from source (BuildKit cache mounts disabled for now)
 RUN rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
@@ -460,8 +544,16 @@ RUN rm -rf /tmp/opencode-repo \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
     && bun run packages/opencode/script/build.ts --single \
+    && cd packages/app \
+    && bun run build \
+    && cd /tmp/opencode-repo \
     && mkdir -p /home/opencode/.opencode/bin \
     && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.opencode/bin/opencode \
+    && mkdir -p /home/opencode/.opencode/app/dist \
+    && cp -R /tmp/opencode-repo/packages/app/dist/. /home/opencode/.opencode/app/dist/ \
+    && chown -R opencode:opencode /home/opencode/.opencode \
+    && chmod 755 /home/opencode /home/opencode/.opencode /home/opencode/.opencode/app /home/opencode/.opencode/app/dist \
+    && chmod -R a+rX /home/opencode/.opencode/app/dist \
     && chmod +x /home/opencode/.opencode/bin/opencode \
     && /home/opencode/.opencode/bin/opencode --version
 
@@ -475,7 +567,6 @@ ENV PATH="/home/opencode/.opencode/bin:${PATH}"
 # The broker handles PAM authentication and user process spawning
 # NOTE: Requires root privileges for setuid bit (chmod 4755) to allow broker
 # to run with elevated privileges for PAM authentication
-# Use BuildKit cache mounts for Cargo registry, git cache, and build target
 USER root
 RUN cd /tmp/opencode-repo/packages/opencode-broker \
     && runuser -u opencode -- bash -c '. /home/opencode/.cargo/env && cargo build --release' \
@@ -488,6 +579,40 @@ RUN cd /tmp/opencode-repo/packages/opencode-broker \
 RUN ls -la /usr/local/bin/opencode-broker \
     && test -x /usr/local/bin/opencode-broker \
     && echo "Broker installed"
+
+# -----------------------------------------------------------------------------
+# Nginx Reverse Proxy for UI + API
+# -----------------------------------------------------------------------------
+# Serve the built UI from /home/opencode/.opencode/app/dist and proxy API/WebSocket
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true \
+    && printf '%s\n' \
+    'server {' \
+    '  listen 3000;' \
+    '  server_name _;' \
+    '' \
+    '  root /home/opencode/.opencode/app/dist;' \
+    '  index index.html;' \
+    '' \
+    '  location /health {' \
+    '    proxy_pass http://127.0.0.1:3001;' \
+    '  }' \
+    '' \
+    '  location ~ ^/(auth|session|pty|event|api|ws) {' \
+    '    proxy_pass http://127.0.0.1:3001;' \
+    '    proxy_http_version 1.1;' \
+    '    proxy_set_header Upgrade $http_upgrade;' \
+    '    proxy_set_header Connection "upgrade";' \
+    '    proxy_set_header Host $host;' \
+    '    proxy_set_header X-Real-IP $remote_addr;' \
+    '    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' \
+    '    proxy_set_header X-Forwarded-Proto $scheme;' \
+    '  }' \
+    '' \
+    '  location / {' \
+    '    try_files $uri $uri/ /index.html;' \
+    '  }' \
+    '}' \
+    > /etc/nginx/conf.d/opencode.conf
 
 # -----------------------------------------------------------------------------
 # PAM Configuration
@@ -561,14 +686,13 @@ USER opencode
 # Install the GSD (Get Shit Done) plugin for opencode
 # Note: If this fails in container builds due to "~" path resolution, retry with
 # OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
-# Use BuildKit cache mount for npm cache
 RUN mkdir -p /home/opencode/.npm \
     && npx --yes get-shit-done-cc --opencode --global
 
 # -----------------------------------------------------------------------------
 # opencode systemd Service (2026-01-22)
 # -----------------------------------------------------------------------------
-# Create opencode as a systemd service for Cockpit integration
+# Create opencode as a systemd service for Cockpit integration (backend only)
 # NOTE: Requires root privileges to write to /etc/systemd/system/
 USER root
 RUN printf '%s\n' \
@@ -580,7 +704,7 @@ RUN printf '%s\n' \
     'Type=simple' \
     'User=opencode' \
     'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/home/opencode/.opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
+    'ExecStart=/home/opencode/.opencode/bin/opencode web --port 3001 --hostname 0.0.0.0' \
     'Restart=always' \
     'RestartSec=5' \
     'Environment=PATH=/home/opencode/.opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
@@ -592,6 +716,27 @@ RUN printf '%s\n' \
 # Enable opencode service to start at boot (manual symlink since systemctl doesn't work during build)
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
     && ln -sf /etc/systemd/system/opencode.service /etc/systemd/system/multi-user.target.wants/opencode.service
+
+# Nginx service for serving UI + proxying API
+RUN printf '%s\n' \
+    '[Unit]' \
+    'Description=Nginx reverse proxy for opencode UI' \
+    'After=network.target opencode.service' \
+    '' \
+    '[Service]' \
+    'Type=simple' \
+    'ExecStart=/usr/sbin/nginx -g "daemon off;"' \
+    'ExecReload=/usr/sbin/nginx -s reload' \
+    'Restart=always' \
+    'RestartSec=5' \
+    '' \
+    '[Install]' \
+    'WantedBy=multi-user.target' \
+    > /etc/systemd/system/opencode-nginx.service
+
+# Enable nginx service
+RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
+    && ln -sf /etc/systemd/system/opencode-nginx.service /etc/systemd/system/multi-user.target.wants/opencode-nginx.service
 
 # -----------------------------------------------------------------------------
 # opencode Configuration
@@ -614,73 +759,6 @@ RUN ls -la /home/opencode/.config/opencode/opencode.json && cat /home/opencode/.
 USER opencode
 
 # -----------------------------------------------------------------------------
-# Sensible Defaults Configuration
-# -----------------------------------------------------------------------------
-# Git configuration
-RUN git config --global init.defaultBranch main \
-    && git config --global core.editor "nvim" \
-    && git config --global pull.rebase false \
-    && git config --global merge.conflictstyle diff3 \
-    && git config --global diff.colorMoved default
-
-# Starship configuration (minimal, fast prompt)
-RUN mkdir -p /home/opencode/.config \
-    && printf '%s\n' \
-    '# Minimal starship config for fast prompt' \
-    'format = """' \
-    '$directory\' \
-    '$git_branch\' \
-    '$git_status\' \
-    '$character"""' \
-    '' \
-    '[directory]' \
-    'truncation_length = 3' \
-    'truncate_to_repo = true' \
-    '' \
-    '[git_branch]' \
-    'format = "[$branch]($style) "' \
-    'style = "bold purple"' \
-    '' \
-    '[git_status]' \
-    'format = '"'"'([$all_status$ahead_behind]($style) )'"'"'' \
-    '' \
-    '[character]' \
-    'success_symbol = "[>](bold green)"' \
-    'error_symbol = "[>](bold red)"' \
-    > /home/opencode/.config/starship.toml
-
-# Shell aliases
-RUN printf '%s\n' \
-    '' \
-    '# Modern CLI aliases' \
-    'alias ls="eza --icons"' \
-    'alias ll="eza -l --icons"' \
-    'alias la="eza -la --icons"' \
-    'alias lt="eza --tree --icons"' \
-    'alias grep="rg"' \
-    'alias top="btop"' \
-    '' \
-    '# Git aliases' \
-    'alias g="git"' \
-    'alias gs="git status"' \
-    'alias gd="git diff"' \
-    'alias gc="git commit"' \
-    'alias gp="git push"' \
-    'alias gl="git pull"' \
-    'alias gco="git checkout"' \
-    'alias gb="git branch"' \
-    'alias lg="lazygit"' \
-    '' \
-    '# Docker aliases (for Docker-in-Docker)' \
-    'alias d="docker"' \
-    'alias dc="docker compose"' \
-    '' \
-    >> /home/opencode/.zshrc
-
-# Set up pipx path
-RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
-
-# -----------------------------------------------------------------------------
 # Entrypoint Script (Hybrid Init Support)
 # -----------------------------------------------------------------------------
 # Supports both tini (default, works everywhere) and systemd (for Cockpit on Linux)
@@ -693,7 +771,8 @@ RUN printf '%s\n' \
     '    exec /sbin/init' \
     'else' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    exec /usr/bin/tini -- runuser -u opencode -- /home/opencode/.opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
+    '    runuser -u opencode -- /home/opencode/.opencode/bin/opencode web --port 3001 --hostname 0.0.0.0 &' \
+    '    exec /usr/sbin/nginx -g "daemon off;"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 

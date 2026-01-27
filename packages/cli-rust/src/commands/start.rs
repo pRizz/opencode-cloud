@@ -883,7 +883,11 @@ async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) 
         "Building Docker image"
     };
 
-    let mut progress = ProgressReporter::with_context(context);
+    let mut progress = if verbose > 0 {
+        ProgressReporter::with_context_plain(context)
+    } else {
+        ProgressReporter::with_context(context)
+    };
     build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, no_cache).await?;
     Ok(())
 }

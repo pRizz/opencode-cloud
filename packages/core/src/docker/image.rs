@@ -8,12 +8,13 @@ use super::{
     DOCKERFILE, DockerClient, DockerError, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
 };
 use bollard::image::{BuildImageOptions, BuilderVersion, CreateImageOptions};
+use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
 use bytes::Bytes;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use futures_util::StreamExt;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Builder as TarBuilder;
@@ -119,93 +120,40 @@ pub async fn build_image(
     progress.add_spinner("build", "Initializing...");
 
     let mut maybe_image_id = None;
-    let build_log_buffer_size = read_log_buffer_size(
-        "OPENCODE_DOCKER_BUILD_LOG_TAIL",
-        DEFAULT_BUILD_LOG_BUFFER_SIZE,
-    );
-    let error_log_buffer_size = read_log_buffer_size(
-        "OPENCODE_DOCKER_BUILD_ERROR_TAIL",
-        DEFAULT_ERROR_LOG_BUFFER_SIZE,
-    );
-    let mut recent_logs: VecDeque<String> = VecDeque::with_capacity(build_log_buffer_size);
-    let mut error_logs: VecDeque<String> = VecDeque::with_capacity(error_log_buffer_size);
+    let mut log_state = BuildLogState::new();
 
     while let Some(result) = stream.next().await {
-        match result {
-            Ok(info) => {
-                // Handle stream output (build log messages)
-                if let Some(stream_msg) = info.stream {
-                    let msg = stream_msg.trim();
-                    if !msg.is_empty() {
-                        progress.update_spinner("build", msg);
+        let Ok(info) = result else {
+            return Err(handle_stream_error(
+                "Build failed",
+                result.expect_err("checked error").to_string(),
+                &log_state,
+                progress,
+            ));
+        };
 
-                        // Capture recent log lines for error context
-                        if recent_logs.len() >= build_log_buffer_size {
-                            recent_logs.pop_front();
-                        }
-                        recent_logs.push_back(msg.to_string());
+        handle_stream_message(&info, progress, &mut log_state);
 
-                        // Also capture error-like lines separately (they might scroll off)
-                        if is_error_line(msg) {
-                            if error_logs.len() >= error_log_buffer_size {
-                                error_logs.pop_front();
-                            }
-                            error_logs.push_back(msg.to_string());
-                        }
+        if let Some(error_msg) = info.error {
+            progress.abandon_all(&error_msg);
+            let context = format_build_error_with_context(
+                &error_msg,
+                &log_state.recent_logs,
+                &log_state.error_logs,
+            );
+            return Err(DockerError::Build(context));
+        }
 
-                        // Capture step information for better progress
-                        if msg.starts_with("Step ") {
-                            debug!("Build step: {}", msg);
-                        }
+        if let Some(aux) = info.aux {
+            match aux {
+                BuildInfoAux::Default(image_id) => {
+                    if let Some(id) = image_id.id {
+                        maybe_image_id = Some(id);
                     }
                 }
-
-                // Handle error messages
-                if let Some(error_msg) = info.error {
-                    progress.abandon_all(&error_msg);
-                    let context =
-                        format_build_error_with_context(&error_msg, &recent_logs, &error_logs);
-                    return Err(DockerError::Build(context));
+                BuildInfoAux::BuildKit(status) => {
+                    handle_buildkit_status(&status, progress, &mut log_state);
                 }
-
-                // Capture the image ID from aux field
-                if let Some(aux) = info.aux {
-                    match aux {
-                        BuildInfoAux::Default(image_id) => {
-                            if let Some(id) = image_id.id {
-                                maybe_image_id = Some(id);
-                            }
-                        }
-                        BuildInfoAux::BuildKit(_) => {
-                            // BuildKit responses are handled via stream messages
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                progress.abandon_all("Build failed");
-                let error_str = e.to_string();
-
-                // Check if this might be a BuildKit-related error
-                let buildkit_hint = if error_str.contains("mount")
-                    || error_str.contains("--mount")
-                    || recent_logs
-                        .iter()
-                        .any(|log| log.contains("--mount") && log.contains("cache"))
-                {
-                    "\n\nNote: This Dockerfile uses BuildKit cache mounts (--mount=type=cache).\n\
-                     The build is configured to use BuildKit, but the Docker daemon may not support it.\n\
-                     Ensure BuildKit is enabled in Docker Desktop settings and the daemon is restarted."
-                } else {
-                    ""
-                };
-
-                let context = format!(
-                    "{}{}",
-                    format_build_error_with_context(&error_str, &recent_logs, &error_logs),
-                    buildkit_hint
-                );
-                return Err(DockerError::Build(context));
             }
         }
     }
@@ -215,6 +163,274 @@ pub async fn build_image(
     progress.finish("build", &finish_msg);
 
     Ok(full_name)
+}
+
+struct BuildLogState {
+    recent_logs: VecDeque<String>,
+    error_logs: VecDeque<String>,
+    build_log_buffer_size: usize,
+    error_log_buffer_size: usize,
+    last_buildkit_vertex: Option<String>,
+    last_buildkit_vertex_id: Option<String>,
+    buildkit_logs_by_vertex_id: HashMap<String, String>,
+    vertex_name_by_vertex_id: HashMap<String, String>,
+}
+
+impl BuildLogState {
+    fn new() -> Self {
+        let build_log_buffer_size = read_log_buffer_size(
+            "OPENCODE_DOCKER_BUILD_LOG_TAIL",
+            DEFAULT_BUILD_LOG_BUFFER_SIZE,
+        );
+        let error_log_buffer_size = read_log_buffer_size(
+            "OPENCODE_DOCKER_BUILD_ERROR_TAIL",
+            DEFAULT_ERROR_LOG_BUFFER_SIZE,
+        );
+        Self {
+            recent_logs: VecDeque::with_capacity(build_log_buffer_size),
+            error_logs: VecDeque::with_capacity(error_log_buffer_size),
+            build_log_buffer_size,
+            error_log_buffer_size,
+            last_buildkit_vertex: None,
+            last_buildkit_vertex_id: None,
+            buildkit_logs_by_vertex_id: HashMap::new(),
+            vertex_name_by_vertex_id: HashMap::new(),
+        }
+    }
+}
+
+fn handle_stream_message(
+    info: &bollard::models::BuildInfo,
+    progress: &mut ProgressReporter,
+    state: &mut BuildLogState,
+) {
+    let Some(stream_msg) = info.stream.as_deref() else {
+        return;
+    };
+    let msg = stream_msg.trim();
+    if msg.is_empty() {
+        return;
+    }
+
+    if progress.is_plain_output() {
+        eprint!("{stream_msg}");
+    } else {
+        let has_runtime_vertex = state
+            .last_buildkit_vertex
+            .as_deref()
+            .is_some_and(|name| name.starts_with("[runtime "));
+        let is_internal_msg = msg.contains("[internal]");
+        if !(has_runtime_vertex && is_internal_msg) {
+            progress.update_spinner("build", stream_msg);
+        }
+    }
+
+    if state.recent_logs.len() >= state.build_log_buffer_size {
+        state.recent_logs.pop_front();
+    }
+    state.recent_logs.push_back(msg.to_string());
+
+    if is_error_line(msg) {
+        if state.error_logs.len() >= state.error_log_buffer_size {
+            state.error_logs.pop_front();
+        }
+        state.error_logs.push_back(msg.to_string());
+    }
+
+    if msg.starts_with("Step ") {
+        debug!("Build step: {}", msg);
+    }
+}
+
+fn handle_buildkit_status(
+    status: &BuildkitStatusResponse,
+    progress: &mut ProgressReporter,
+    state: &mut BuildLogState,
+) {
+    let latest_logs = append_buildkit_logs(&mut state.buildkit_logs_by_vertex_id, status);
+    update_buildkit_vertex_names(&mut state.vertex_name_by_vertex_id, status);
+    let (vertex_id, vertex_name) =
+        match select_latest_buildkit_vertex(status, &state.vertex_name_by_vertex_id) {
+            Some((vertex_id, vertex_name)) => (vertex_id, vertex_name),
+            None => {
+                let Some(log_entry) = latest_logs.last() else {
+                    return;
+                };
+                let name = state
+                    .vertex_name_by_vertex_id
+                    .get(&log_entry.vertex_id)
+                    .cloned()
+                    .or_else(|| state.last_buildkit_vertex.clone())
+                    .unwrap_or_else(|| format_vertex_fallback_label(&log_entry.vertex_id));
+                (log_entry.vertex_id.clone(), name)
+            }
+        };
+    state.last_buildkit_vertex_id = Some(vertex_id);
+    if state.last_buildkit_vertex.as_deref() != Some(&vertex_name) {
+        state.last_buildkit_vertex = Some(vertex_name.clone());
+    }
+    let message = if progress.is_plain_output() {
+        vertex_name
+    } else if let Some(log_entry) = latest_logs.last() {
+        format!("{vertex_name} · {}", log_entry.message)
+    } else {
+        vertex_name
+    };
+    progress.update_spinner("build", &message);
+
+    if progress.is_plain_output() {
+        for log_entry in latest_logs {
+            eprintln!("[{}] {}", log_entry.vertex_id, log_entry.message);
+        }
+        return;
+    }
+
+    let (Some(current_id), Some(current_name)) = (
+        state.last_buildkit_vertex_id.as_ref(),
+        state.last_buildkit_vertex.as_ref(),
+    ) else {
+        return;
+    };
+
+    let name = state
+        .vertex_name_by_vertex_id
+        .get(current_id)
+        .unwrap_or(current_name);
+    // Keep non-verbose output on the spinner line only.
+    let _ = name;
+}
+
+fn handle_stream_error(
+    prefix: &str,
+    error_str: String,
+    state: &BuildLogState,
+    progress: &mut ProgressReporter,
+) -> DockerError {
+    progress.abandon_all(prefix);
+
+    let buildkit_hint = if error_str.contains("mount")
+        || error_str.contains("--mount")
+        || state
+            .recent_logs
+            .iter()
+            .any(|log| log.contains("--mount") && log.contains("cache"))
+    {
+        "\n\nNote: This Dockerfile uses BuildKit cache mounts (--mount=type=cache).\n\
+         The build is configured to use BuildKit, but the Docker daemon may not support it.\n\
+         Ensure BuildKit is enabled in Docker Desktop settings and the daemon is restarted."
+    } else {
+        ""
+    };
+
+    let context = format!(
+        "{}{}",
+        format_build_error_with_context(&error_str, &state.recent_logs, &state.error_logs),
+        buildkit_hint
+    );
+    DockerError::Build(context)
+}
+
+fn update_buildkit_vertex_names(
+    vertex_name_by_vertex_id: &mut HashMap<String, String>,
+    status: &BuildkitStatusResponse,
+) {
+    for vertex in &status.vertexes {
+        if vertex.name.is_empty() {
+            continue;
+        }
+        vertex_name_by_vertex_id
+            .entry(vertex.digest.clone())
+            .or_insert_with(|| vertex.name.clone());
+    }
+}
+
+fn select_latest_buildkit_vertex(
+    status: &BuildkitStatusResponse,
+    vertex_name_by_vertex_id: &HashMap<String, String>,
+) -> Option<(String, String)> {
+    let mut best_runtime: Option<(u32, String, String)> = None;
+    let mut fallback: Option<(String, String)> = None;
+
+    for vertex in &status.vertexes {
+        let name = if vertex.name.is_empty() {
+            vertex_name_by_vertex_id.get(&vertex.digest).cloned()
+        } else {
+            Some(vertex.name.clone())
+        };
+
+        let Some(name) = name else {
+            continue;
+        };
+
+        if fallback.is_none() && !name.starts_with("[internal]") {
+            fallback = Some((vertex.digest.clone(), name.clone()));
+        }
+
+        if let Some(step) = parse_runtime_step(&name) {
+            match &best_runtime {
+                Some((best_step, _, _)) if *best_step >= step => {}
+                _ => {
+                    best_runtime = Some((step, vertex.digest.clone(), name.clone()));
+                }
+            }
+        }
+    }
+
+    if let Some((_, digest, name)) = best_runtime {
+        Some((digest, name))
+    } else {
+        fallback.or_else(|| {
+            status.vertexes.iter().find_map(|vertex| {
+                let name = if vertex.name.is_empty() {
+                    vertex_name_by_vertex_id.get(&vertex.digest).cloned()
+                } else {
+                    Some(vertex.name.clone())
+                };
+                name.map(|resolved| (vertex.digest.clone(), resolved))
+            })
+        })
+    }
+}
+
+fn parse_runtime_step(name: &str) -> Option<u32> {
+    let prefix = "[runtime ";
+    let start = name.find(prefix)? + prefix.len();
+    let rest = &name[start..];
+    let end = rest.find('/')?;
+    rest[..end].trim().parse::<u32>().ok()
+}
+
+fn format_vertex_fallback_label(vertex_id: &str) -> String {
+    let short = vertex_id
+        .strip_prefix("sha256:")
+        .unwrap_or(vertex_id)
+        .chars()
+        .take(12)
+        .collect::<String>();
+    format!("vertex {short}")
+}
+
+#[derive(Debug, Clone)]
+struct BuildkitLogEntry {
+    vertex_id: String,
+    message: String,
+}
+
+fn append_buildkit_logs(
+    logs: &mut HashMap<String, String>,
+    status: &BuildkitStatusResponse,
+) -> Vec<BuildkitLogEntry> {
+    let mut latest: Vec<BuildkitLogEntry> = Vec::new();
+
+    for log in &status.logs {
+        let vertex_id = log.vertex.clone();
+        let message = String::from_utf8_lossy(&log.msg).to_string();
+        let entry = logs.entry(vertex_id.clone()).or_default();
+        entry.push_str(&message);
+        latest.push(BuildkitLogEntry { vertex_id, message });
+    }
+
+    latest
 }
 
 /// Pull the opencode image from registry with automatic fallback
