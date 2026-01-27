@@ -547,18 +547,22 @@ RUN rm -rf /tmp/opencode-repo \
     && cd packages/app \
     && bun run build \
     && cd /tmp/opencode-repo \
-    && mkdir -p /home/opencode/.opencode/bin \
-    && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.opencode/bin/opencode \
-    && mkdir -p /home/opencode/.opencode/app/dist \
-    && cp -R /tmp/opencode-repo/packages/app/dist/. /home/opencode/.opencode/app/dist/ \
-    && chown -R opencode:opencode /home/opencode/.opencode \
-    && chmod 755 /home/opencode /home/opencode/.opencode /home/opencode/.opencode/app /home/opencode/.opencode/app/dist \
-    && chmod -R a+rX /home/opencode/.opencode/app/dist \
-    && chmod +x /home/opencode/.opencode/bin/opencode \
-    && /home/opencode/.opencode/bin/opencode --version
+    && mkdir -p /home/opencode/.local/share/opencode/bin \
+    && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.local/share/opencode/bin/opencode \
+    && chown -R opencode:opencode /home/opencode/.local/share/opencode \
+    && chmod +x /home/opencode/.local/share/opencode/bin/opencode \
+    && /home/opencode/.local/share/opencode/bin/opencode --version
 
 # Add opencode to PATH
-ENV PATH="/home/opencode/.opencode/bin:${PATH}"
+ENV PATH="/home/opencode/.local/share/opencode/bin:${PATH}"
+
+# Copy UI assets to standard web root (requires root)
+USER root
+RUN mkdir -p /var/www/opencode \
+    && cp -R /tmp/opencode-repo/packages/app/dist/. /var/www/opencode/ \
+    && chown -R root:root /var/www/opencode \
+    && chmod 755 /var/www /var/www/opencode \
+    && chmod -R a+rX /var/www/opencode
 
 # -----------------------------------------------------------------------------
 # opencode-broker Installation
@@ -583,14 +587,14 @@ RUN ls -la /usr/local/bin/opencode-broker \
 # -----------------------------------------------------------------------------
 # Nginx Reverse Proxy for UI + API
 # -----------------------------------------------------------------------------
-# Serve the built UI from /home/opencode/.opencode/app/dist and proxy API/WebSocket
+# Serve the built UI from /var/www/opencode and proxy API/WebSocket
 RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true \
     && printf '%s\n' \
     'server {' \
     '  listen 3000;' \
     '  server_name _;' \
     '' \
-    '  root /home/opencode/.opencode/app/dist;' \
+    '  root /var/www/opencode;' \
     '  index index.html;' \
     '' \
     '  location /health {' \
@@ -704,10 +708,10 @@ RUN printf '%s\n' \
     'Type=simple' \
     'User=opencode' \
     'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/home/opencode/.opencode/bin/opencode web --port 3001 --hostname 0.0.0.0' \
+    'ExecStart=/home/opencode/.local/share/opencode/bin/opencode --port 3001 --hostname 0.0.0.0' \
     'Restart=always' \
     'RestartSec=5' \
-    'Environment=PATH=/home/opencode/.opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+    'Environment=PATH=/home/opencode/.local/share/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
     '' \
     '[Install]' \
     'WantedBy=multi-user.target' \
@@ -737,6 +741,10 @@ RUN printf '%s\n' \
 # Enable nginx service
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
     && ln -sf /etc/systemd/system/opencode-nginx.service /etc/systemd/system/multi-user.target.wants/opencode-nginx.service
+
+# Prevent the distro nginx service from also starting (port 3000 conflict)
+RUN rm -f /etc/systemd/system/multi-user.target.wants/nginx.service \
+    && ln -sf /dev/null /etc/systemd/system/nginx.service
 
 # -----------------------------------------------------------------------------
 # opencode Configuration
@@ -771,7 +779,7 @@ RUN printf '%s\n' \
     '    exec /sbin/init' \
     'else' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    runuser -u opencode -- /home/opencode/.opencode/bin/opencode web --port 3001 --hostname 0.0.0.0 &' \
+    '    runuser -u opencode -- /home/opencode/.local/share/opencode/bin/opencode --port 3001 --hostname 0.0.0.0 &' \
     '    exec /usr/sbin/nginx -g "daemon off;"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh

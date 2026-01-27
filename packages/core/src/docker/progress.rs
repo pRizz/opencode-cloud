@@ -40,20 +40,6 @@ fn strip_ansi_codes(s: &str) -> String {
     result
 }
 
-/// Format duration as MM:SS, or HH:MM:SS if over an hour
-fn format_elapsed(duration: Duration) -> String {
-    let total_secs = duration.as_secs();
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
-    let seconds = total_secs % 60;
-
-    if hours > 0 {
-        format!("{hours:02}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes:02}:{seconds:02}")
-    }
-}
-
 /// Progress reporter for Docker operations
 ///
 /// Manages multiple progress bars for concurrent operations like
@@ -61,9 +47,8 @@ fn format_elapsed(duration: Duration) -> String {
 pub struct ProgressReporter {
     multi: MultiProgress,
     bars: HashMap<String, ProgressBar>,
-    last_update: HashMap<String, Instant>,
-    last_message: HashMap<String, String>,
-    start_time: Instant,
+    last_update_by_id: HashMap<String, Instant>,
+    last_message_by_id: HashMap<String, String>,
     /// Optional context prefix shown before step messages (e.g., "Building Docker image")
     context: Option<String>,
     /// When true, print build output lines directly instead of spinners
@@ -82,9 +67,8 @@ impl ProgressReporter {
         Self {
             multi: MultiProgress::new(),
             bars: HashMap::new(),
-            last_update: HashMap::new(),
-            last_message: HashMap::new(),
-            start_time: Instant::now(),
+            last_update_by_id: HashMap::new(),
+            last_message_by_id: HashMap::new(),
             context: None,
             plain_output: false,
         }
@@ -97,9 +81,8 @@ impl ProgressReporter {
         Self {
             multi: MultiProgress::new(),
             bars: HashMap::new(),
-            last_update: HashMap::new(),
-            last_message: HashMap::new(),
-            start_time: Instant::now(),
+            last_update_by_id: HashMap::new(),
+            last_message_by_id: HashMap::new(),
             context: Some(context.to_string()),
             plain_output: false,
         }
@@ -110,9 +93,8 @@ impl ProgressReporter {
         Self {
             multi: MultiProgress::new(),
             bars: HashMap::new(),
-            last_update: HashMap::new(),
-            last_message: HashMap::new(),
-            start_time: Instant::now(),
+            last_update_by_id: HashMap::new(),
+            last_message_by_id: HashMap::new(),
             context: Some(context.to_string()),
             plain_output: true,
         }
@@ -125,8 +107,6 @@ impl ProgressReporter {
 
     /// Format a message with context prefix if set
     fn format_message(&self, message: &str) -> String {
-        let elapsed = format_elapsed(self.start_time.elapsed());
-
         // Strip ANSI escape codes that Docker may include in its output
         let stripped = strip_ansi_codes(message);
 
@@ -135,11 +115,10 @@ impl ProgressReporter {
         // - Trim leading/trailing whitespace
         let clean_msg = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
 
-        // Format: "[elapsed] Context · message" or "[elapsed] message"
-        // Timer at the beginning for easy scanning
+        // Format: "Context · message" or "message"
         match &self.context {
-            Some(ctx) => format!("[{elapsed}] {ctx} · {clean_msg}"),
-            None => format!("[{elapsed}] {clean_msg}"),
+            Some(ctx) => format!("{ctx} · {clean_msg}"),
+            None => clean_msg,
         }
     }
 
@@ -154,7 +133,7 @@ impl ProgressReporter {
         let spinner = self.multi.add(ProgressBar::new_spinner());
         spinner.set_style(
             ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
+                .template("{spinner:.green} [{elapsed}] {msg}")
                 .expect("valid template")
                 .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
         );
@@ -231,14 +210,14 @@ impl ProgressReporter {
 
         // Check if we should throttle this update
         if !is_step_message {
-            if let Some(last) = self.last_update.get(id) {
+            if let Some(last) = self.last_update_by_id.get(id) {
                 if now.duration_since(*last) < SPINNER_UPDATE_THROTTLE {
                     return; // Throttle: too soon since last update
                 }
             }
 
             // Skip if message is identical to last one
-            if let Some(last_msg) = self.last_message.get(id) {
+            if let Some(last_msg) = self.last_message_by_id.get(id) {
                 if last_msg == message {
                     return;
                 }
@@ -256,8 +235,8 @@ impl ProgressReporter {
         }
 
         // Track update time and message
-        self.last_update.insert(id.to_string(), now);
-        self.last_message
+        self.last_update_by_id.insert(id.to_string(), now);
+        self.last_message_by_id
             .insert(id.to_string(), message.to_string());
     }
 
@@ -349,30 +328,6 @@ mod tests {
     }
 
     #[test]
-    fn format_elapsed_shows_seconds_only() {
-        let duration = Duration::from_secs(45);
-        assert_eq!(format_elapsed(duration), "00:45");
-    }
-
-    #[test]
-    fn format_elapsed_shows_minutes_and_seconds() {
-        let duration = Duration::from_secs(90); // 1m 30s
-        assert_eq!(format_elapsed(duration), "01:30");
-    }
-
-    #[test]
-    fn format_elapsed_shows_hours_when_needed() {
-        let duration = Duration::from_secs(3661); // 1h 1m 1s
-        assert_eq!(format_elapsed(duration), "01:01:01");
-    }
-
-    #[test]
-    fn format_elapsed_zero() {
-        let duration = Duration::from_secs(0);
-        assert_eq!(format_elapsed(duration), "00:00");
-    }
-
-    #[test]
     fn with_context_sets_context() {
         let reporter = ProgressReporter::with_context("Building Docker image");
         assert!(reporter.context.is_some());
@@ -383,27 +338,24 @@ mod tests {
     fn format_message_includes_context_for_steps() {
         let reporter = ProgressReporter::with_context("Building Docker image");
         let msg = reporter.format_message("Step 1/10 : FROM ubuntu");
-        // Format: [elapsed] Context · message
-        assert!(msg.contains("Building Docker image · Step 1/10"));
-        assert!(msg.starts_with("[00:00]"));
+        // Format: Context · message
+        assert!(msg.starts_with("Building Docker image · Step 1/10"));
     }
 
     #[test]
     fn format_message_includes_context_for_all_messages() {
         let reporter = ProgressReporter::with_context("Building Docker image");
         let msg = reporter.format_message("Compiling foo v1.0");
-        // Format: [elapsed] Context · message
-        assert!(msg.contains("Building Docker image · Compiling foo"));
-        assert!(msg.starts_with("[00:00]"));
+        // Format: Context · message
+        assert!(msg.starts_with("Building Docker image · Compiling foo"));
     }
 
     #[test]
     fn format_message_without_context() {
         let reporter = ProgressReporter::new();
         let msg = reporter.format_message("Step 1/10 : FROM ubuntu");
-        // Format: [elapsed] message (no context, no dot)
-        assert!(msg.contains("Step 1/10"));
-        assert!(msg.starts_with("[00:00]"));
+        // Format: message (no context, no dot)
+        assert!(msg.starts_with("Step 1/10"));
         assert!(!msg.contains("·"));
     }
 

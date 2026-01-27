@@ -140,6 +140,7 @@ pub async fn build_image(
                 &error_msg,
                 &log_state.recent_logs,
                 &log_state.error_logs,
+                &log_state.recent_buildkit_logs,
             );
             return Err(DockerError::Build(context));
         }
@@ -168,6 +169,7 @@ pub async fn build_image(
 struct BuildLogState {
     recent_logs: VecDeque<String>,
     error_logs: VecDeque<String>,
+    recent_buildkit_logs: VecDeque<String>,
     build_log_buffer_size: usize,
     error_log_buffer_size: usize,
     last_buildkit_vertex: Option<String>,
@@ -189,6 +191,7 @@ impl BuildLogState {
         Self {
             recent_logs: VecDeque::with_capacity(build_log_buffer_size),
             error_logs: VecDeque::with_capacity(error_log_buffer_size),
+            recent_buildkit_logs: VecDeque::with_capacity(build_log_buffer_size),
             build_log_buffer_size,
             error_log_buffer_size,
             last_buildkit_vertex: None,
@@ -265,10 +268,12 @@ fn handle_buildkit_status(
                 (log_entry.vertex_id.clone(), name)
             }
         };
+    record_buildkit_logs(state, &latest_logs, &vertex_id, &vertex_name);
     state.last_buildkit_vertex_id = Some(vertex_id);
     if state.last_buildkit_vertex.as_deref() != Some(&vertex_name) {
         state.last_buildkit_vertex = Some(vertex_name.clone());
     }
+
     let message = if progress.is_plain_output() {
         vertex_name
     } else if let Some(log_entry) = latest_logs.last() {
@@ -324,7 +329,12 @@ fn handle_stream_error(
 
     let context = format!(
         "{}{}",
-        format_build_error_with_context(&error_str, &state.recent_logs, &state.error_logs),
+        format_build_error_with_context(
+            &error_str,
+            &state.recent_logs,
+            &state.error_logs,
+            &state.recent_buildkit_logs,
+        ),
         buildkit_hint
     );
     DockerError::Build(context)
@@ -408,6 +418,40 @@ fn format_vertex_fallback_label(vertex_id: &str) -> String {
         .take(12)
         .collect::<String>();
     format!("vertex {short}")
+}
+
+fn record_buildkit_logs(
+    state: &mut BuildLogState,
+    latest_logs: &[BuildkitLogEntry],
+    current_vertex_id: &str,
+    current_vertex_name: &str,
+) {
+    for log_entry in latest_logs {
+        let name = state
+            .vertex_name_by_vertex_id
+            .get(&log_entry.vertex_id)
+            .cloned()
+            .or_else(|| {
+                if log_entry.vertex_id == current_vertex_id {
+                    Some(current_vertex_name.to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| format_vertex_fallback_label(&log_entry.vertex_id));
+
+        let message = log_entry.message.replace('\r', "").trim_end().to_string();
+        if message.is_empty() {
+            continue;
+        }
+
+        if state.recent_buildkit_logs.len() >= state.build_log_buffer_size {
+            state.recent_buildkit_logs.pop_front();
+        }
+        state
+            .recent_buildkit_logs
+            .push_back(format!("[{name}] {message}"));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -593,6 +637,7 @@ fn format_build_error_with_context(
     error: &str,
     recent_logs: &VecDeque<String>,
     error_logs: &VecDeque<String>,
+    recent_buildkit_logs: &VecDeque<String>,
 ) -> String {
     let mut message = String::new();
 
@@ -618,6 +663,15 @@ fn format_build_error_with_context(
         }
     }
 
+    // Add recent BuildKit log context if available
+    if !recent_buildkit_logs.is_empty() {
+        message.push_str("\n\nRecent BuildKit output:");
+        for line in recent_buildkit_logs {
+            message.push_str("\n  ");
+            message.push_str(line);
+        }
+    }
+
     // Add recent log context if available
     if !recent_logs.is_empty() {
         message.push_str("\n\nRecent build output:");
@@ -625,7 +679,7 @@ fn format_build_error_with_context(
             message.push_str("\n  ");
             message.push_str(line);
         }
-    } else {
+    } else if recent_buildkit_logs.is_empty() {
         message.push_str("\n\nNo build output was received from the Docker daemon.");
         message.push_str("\nThis usually means the build failed before any logs were streamed.");
     }
@@ -702,9 +756,14 @@ mod tests {
         logs.push_back("Step 2/5 : RUN apt-get update".to_string());
         logs.push_back("E: Unable to fetch some archives".to_string());
         let error_logs = VecDeque::new();
+        let buildkit_logs = VecDeque::new();
 
-        let result =
-            format_build_error_with_context("Build failed: exit code 1", &logs, &error_logs);
+        let result = format_build_error_with_context(
+            "Build failed: exit code 1",
+            &logs,
+            &error_logs,
+            &buildkit_logs,
+        );
 
         assert!(result.contains("Build failed: exit code 1"));
         assert!(result.contains("Recent build output:"));
@@ -716,7 +775,9 @@ mod tests {
     fn format_build_error_handles_empty_logs() {
         let logs = VecDeque::new();
         let error_logs = VecDeque::new();
-        let result = format_build_error_with_context("Stream error", &logs, &error_logs);
+        let buildkit_logs = VecDeque::new();
+        let result =
+            format_build_error_with_context("Stream error", &logs, &error_logs, &buildkit_logs);
 
         assert!(result.contains("Stream error"));
         assert!(!result.contains("Recent build output:"));
@@ -726,7 +787,13 @@ mod tests {
     fn format_build_error_adds_network_suggestion() {
         let logs = VecDeque::new();
         let error_logs = VecDeque::new();
-        let result = format_build_error_with_context("connection timeout", &logs, &error_logs);
+        let buildkit_logs = VecDeque::new();
+        let result = format_build_error_with_context(
+            "connection timeout",
+            &logs,
+            &error_logs,
+            &buildkit_logs,
+        );
 
         assert!(result.contains("Check your network connection"));
     }
@@ -735,7 +802,13 @@ mod tests {
     fn format_build_error_adds_disk_suggestion() {
         let logs = VecDeque::new();
         let error_logs = VecDeque::new();
-        let result = format_build_error_with_context("no space left on device", &logs, &error_logs);
+        let buildkit_logs = VecDeque::new();
+        let result = format_build_error_with_context(
+            "no space left on device",
+            &logs,
+            &error_logs,
+            &buildkit_logs,
+        );
 
         assert!(result.contains("Free up disk space"));
     }
@@ -750,7 +823,13 @@ mod tests {
         error_logs.push_back("error: failed to compile dust".to_string());
         error_logs.push_back("error: failed to compile glow".to_string());
 
-        let result = format_build_error_with_context("Build failed", &recent_logs, &error_logs);
+        let buildkit_logs = VecDeque::new();
+        let result = format_build_error_with_context(
+            "Build failed",
+            &recent_logs,
+            &error_logs,
+            &buildkit_logs,
+        );
 
         assert!(result.contains("Potential errors detected during build:"));
         assert!(result.contains("failed to compile dust"));
