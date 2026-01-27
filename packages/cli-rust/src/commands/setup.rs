@@ -160,7 +160,7 @@ fn show_running_status(config: &Config, host: Option<&str>) {
 
     if config.cockpit_enabled {
         println!(
-            "Cockpit: {} (web admin)",
+            "Cockpit: {} (web admin) (currently disabled)",
             style(format!("http://{}:{}", bind_addr, config.cockpit_port)).cyan()
         );
     }
