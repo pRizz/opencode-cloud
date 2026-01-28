@@ -517,7 +517,7 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="34db1c9b23441b3b3a125c107149f346f9fdb96e" \
+RUN OPENCODE_COMMIT="3a4eccc7e883575e0d5a508f46036a9f243c06e8" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
