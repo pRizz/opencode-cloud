@@ -70,7 +70,8 @@ opencode-cloud --version
 
 ### Instance
 
-- **InstanceType**: Override the default `t3.medium`.
+- **InstanceType**: Override the default `t3.medium`. Smaller sizes (t3/t3a
+  micro or small) may be unstable under load.
 - **KeyPairName**: Provide an EC2 key pair to enable SSH.
 - **OpencodeUsername**: Customize the initial username.
 

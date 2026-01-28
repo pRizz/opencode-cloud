@@ -44,12 +44,16 @@ Parameters:
     Type: String
     Default: t3.medium
     AllowedValues:
+      - t3.micro
+      - t3.small
       - t3.medium
       - t3.large
       - t3.xlarge
+      - t3a.micro
+      - t3a.small
       - t3a.medium
       - t3a.large
-    Description: "EC2 instance type for opencode-cloud."
+    Description: "EC2 instance type for opencode-cloud. Smaller sizes (t3/t3a micro or small) may be unstable under load."
   KeyPairName:
     Type: String
     Default: ""
