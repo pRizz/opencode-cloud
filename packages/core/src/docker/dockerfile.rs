@@ -7,26 +7,8 @@
 //! clearly indicate this is the sandboxed container environment that the
 //! opencode-cloud CLI deploys, not the CLI tool itself.
 
-use std::collections::HashMap;
-
 /// The Dockerfile for building the opencode-cloud-sandbox container image
 pub const DOCKERFILE: &str = include_str!("Dockerfile");
-
-/// Build arg name for the opencode commit used in the Dockerfile.
-pub const OPENCODE_COMMIT_BUILD_ARG: &str = "OPENCODE_COMMIT";
-
-/// Default opencode commit pinned in the Dockerfile.
-pub const OPENCODE_COMMIT_DEFAULT: &str = "dac099a4892689d11abedb0fcc1098b50e0958c8";
-
-/// Build args for overriding the opencode commit in the Dockerfile.
-pub fn build_args_for_opencode_commit(
-    maybe_commit: Option<&str>,
-) -> Option<HashMap<String, String>> {
-    let commit = maybe_commit?;
-    let mut args = HashMap::new();
-    args.insert(OPENCODE_COMMIT_BUILD_ARG.to_string(), commit.to_string());
-    Some(args)
-}
 
 // =============================================================================
 // Docker Image Naming

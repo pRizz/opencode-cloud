@@ -4,51 +4,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
-use std::ops::Deref;
-
-/// Validated opencode commit SHA (7-40 hex characters)
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(transparent)]
-pub struct CommitSha(String);
-
-impl CommitSha {
-    pub fn parse(value: &str) -> Result<Self, String> {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            return Err("Commit cannot be empty".to_string());
-        }
-        if !(7..=40).contains(&trimmed.len()) {
-            return Err("Commit must be 7-40 hex characters".to_string());
-        }
-        if !trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err("Commit must be a hexadecimal SHA".to_string());
-        }
-        Ok(Self(trimmed.to_string()))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl Deref for CommitSha {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_str()
-    }
-}
-
-impl<'de> Deserialize<'de> for CommitSha {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        CommitSha::parse(&value).map_err(serde::de::Error::custom)
-    }
-}
-
 /// Main configuration structure for opencode-cloud
 ///
 /// Serialized to/from `~/.config/opencode-cloud/config.json`
@@ -155,11 +110,6 @@ pub struct Config {
     /// Source of Docker image: 'prebuilt' (pull from registry) or 'build' (compile locally)
     #[serde(default = "default_image_source")]
     pub image_source: String,
-
-    /// Override opencode commit used when building the Docker image (optional)
-    /// Must be a 7-40 character hex commit SHA.
-    #[serde(default)]
-    pub opencode_commit: Option<CommitSha>,
 
     /// When to check for updates: 'always' (every start), 'once' (once per version), 'never'
     #[serde(default = "default_update_check")]
@@ -274,7 +224,6 @@ impl Default for Config {
             cockpit_port: default_cockpit_port(),
             cockpit_enabled: default_cockpit_enabled(),
             image_source: default_image_source(),
-            opencode_commit: None,
             update_check: default_update_check(),
             mounts: Vec::new(),
         }
@@ -416,7 +365,6 @@ mod tests {
             cockpit_port: 9090,
             cockpit_enabled: true,
             image_source: default_image_source(),
-            opencode_commit: None,
             update_check: default_update_check(),
             mounts: Vec::new(),
         };

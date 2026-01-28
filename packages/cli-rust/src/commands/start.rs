@@ -12,14 +12,13 @@ use clap::Args;
 use console::style;
 use futures_util::stream::StreamExt;
 use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
-use opencode_cloud_core::config::{CommitSha, save_config};
+use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
-    IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_args_for_opencode_commit,
-    build_image, check_container_path_warning, container_exists, container_is_running,
-    get_cli_version, get_container_bind_mounts, get_container_ports, get_image_version,
-    image_exists, load_state, pull_image, save_state, setup_and_start, validate_mount_path,
-    versions_compatible,
+    IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
+    check_container_path_warning, container_exists, container_is_running, get_cli_version,
+    get_container_bind_mounts, get_container_ports, get_image_version, image_exists, pull_image,
+    save_state, setup_and_start, validate_mount_path, versions_compatible,
 };
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
@@ -51,10 +50,6 @@ pub struct StartArgs {
     /// Rebuild Docker image from scratch without cache (slow, 30-60 min)
     #[arg(long)]
     pub full_rebuild_sandbox_image: bool,
-
-    /// Override opencode commit when building the sandbox image
-    #[arg(long, value_name = "SHA")]
-    pub opencode_commit: Option<String>,
 
     /// Skip version compatibility check between CLI and Docker image
     #[arg(long)]
@@ -511,10 +506,9 @@ async fn acquire_image(
     full_rebuild: bool,
     quiet: bool,
     verbose: u8,
-    opencode_commit: Option<&str>,
 ) -> Result<()> {
     if !use_prebuilt {
-        build_docker_image(client, full_rebuild, verbose, opencode_commit).await?;
+        build_docker_image(client, full_rebuild, verbose).await?;
         save_state(&ImageState::built(get_cli_version())).ok();
         return Ok(());
     }
@@ -525,7 +519,7 @@ async fn acquire_image(
             save_state(&ImageState::prebuilt(get_cli_version(), &registry)).ok();
             Ok(())
         }
-        Err(e) => handle_pull_failure(client, e, quiet, verbose, opencode_commit).await,
+        Err(e) => handle_pull_failure(client, e, quiet, verbose).await,
     }
 }
 
@@ -535,7 +529,6 @@ async fn handle_pull_failure(
     error: anyhow::Error,
     quiet: bool,
     verbose: u8,
-    opencode_commit: Option<&str>,
 ) -> Result<()> {
     if quiet {
         return Err(error);
@@ -559,7 +552,7 @@ async fn handle_pull_failure(
         ));
     }
 
-    build_docker_image(client, false, verbose, opencode_commit).await?;
+    build_docker_image(client, false, verbose).await?;
     save_state(&ImageState::built(get_cli_version())).ok();
     Ok(())
 }
@@ -623,14 +616,6 @@ pub async fn cmd_start(
     let config = opencode_cloud_core::config::load_config()?;
     let port = args.port.unwrap_or(config.opencode_web_port);
     let bind_addr = &config.bind_address;
-    let commit_override_from_cli = args.opencode_commit.is_some();
-    let cli_commit = if let Some(commit) = args.opencode_commit.as_deref() {
-        Some(CommitSha::parse(commit).map_err(|msg| anyhow!("Invalid --opencode-commit: {msg}"))?)
-    } else {
-        None
-    };
-    let opencode_commit_override = cli_commit.as_ref().or(config.opencode_commit.as_ref());
-
     // Validate config before starting
     match opencode_cloud_core::config::validate_config(&config) {
         Ok(warnings) => {
@@ -688,15 +673,6 @@ pub async fn cmd_start(
         config.image_source == "prebuilt"
     };
 
-    if opencode_commit_override.is_some() {
-        if args.pull_sandbox_image {
-            return Err(anyhow!(
-                "--opencode-commit requires building from source. Remove --pull-sandbox-image or set image_source=build."
-            ));
-        }
-        use_prebuilt = false;
-    }
-
     // Version compatibility check
     match check_version_compatibility(&client, &config, args, quiet).await? {
         VersionMismatchAction::RebuildFromSource => {
@@ -709,21 +685,6 @@ pub async fn cmd_start(
             recreate_container = true;
         }
         VersionMismatchAction::Continue => {}
-    }
-
-    if opencode_commit_override.is_some() && !rebuild_image {
-        let needs_override_rebuild = if commit_override_from_cli {
-            true
-        } else {
-            match load_state() {
-                Some(state) => state.source != "build",
-                None => true,
-            }
-        };
-        if needs_override_rebuild {
-            rebuild_image = true;
-            recreate_container = true;
-        }
     }
 
     // Security check: block first start without security configured
@@ -812,7 +773,6 @@ pub async fn cmd_start(
             args.full_rebuild_sandbox_image,
             quiet,
             verbose,
-            opencode_commit_override.map(CommitSha::as_str),
         )
         .await?;
     }
@@ -976,12 +936,7 @@ fn port_in_use_error(port: u16) -> anyhow::Error {
 ///
 /// If `no_cache` is true, builds from scratch ignoring Docker layer cache.
 /// Otherwise uses cached layers for faster builds.
-async fn build_docker_image(
-    client: &DockerClient,
-    no_cache: bool,
-    verbose: u8,
-    opencode_commit: Option<&str>,
-) -> Result<()> {
+async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) -> Result<()> {
     if verbose > 0 {
         let action = if no_cache {
             "Full rebuilding Docker image"
@@ -1012,13 +967,12 @@ async fn build_docker_image(
     } else {
         ProgressReporter::with_context(context)
     };
-    let build_args = build_args_for_opencode_commit(opencode_commit);
     build_image(
         client,
         Some(IMAGE_TAG_DEFAULT),
         &mut progress,
         no_cache,
-        build_args,
+        None,
     )
     .await?;
     Ok(())

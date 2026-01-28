@@ -117,7 +117,6 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
         pull_sandbox_image: false,
         cached_rebuild_sandbox_image: false,
         full_rebuild_sandbox_image: false,
-        opencode_commit: None,
         ignore_version: false,
         no_update_check: false,
         mounts: Vec::new(),

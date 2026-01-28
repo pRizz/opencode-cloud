@@ -10,9 +10,9 @@ use dialoguer::Confirm;
 use opencode_cloud_core::config::load_config;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
-    build_args_for_opencode_commit, build_image, create_user, get_cli_version, has_previous_image,
-    pull_image, rollback_image, save_state, setup_and_start, stop_service,
+    CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
+    create_user, get_cli_version, has_previous_image, pull_image, rollback_image, save_state,
+    setup_and_start, stop_service,
 };
 
 /// Arguments for the update command
@@ -105,27 +105,7 @@ async fn handle_update(
 ) -> Result<()> {
     let port = config.opencode_web_port;
     let bind_addr = &config.bind_address;
-    let opencode_commit_override = config
-        .opencode_commit
-        .as_ref()
-        .map(|commit| commit.as_str());
-    let mut use_build = config.image_source == "build";
-
-    if opencode_commit_override.is_some() {
-        if config.image_source != "build" && !quiet {
-            println!();
-            println!(
-                "{} opencode_commit is set; rebuilding image from source.",
-                style("Info:").cyan()
-            );
-            println!(
-                "{}",
-                style("To use prebuilt images: occ config set opencode_commit none").dim()
-            );
-            println!();
-        }
-        use_build = true;
-    }
+    let use_build = config.image_source == "build";
 
     // Show warning about downtime
     if !quiet {
@@ -171,14 +151,9 @@ async fn handle_update(
     if use_build {
         // Building from source
         if !quiet {
-            let reason = if config.image_source == "build" {
-                "per config.image_source=build"
-            } else {
-                "opencode_commit override"
-            };
             println!();
             println!(
-                "{} Rebuilding image from source ({reason})",
+                "{} Rebuilding image from source (per config.image_source=build)",
                 style("Info:").cyan()
             );
             println!(
@@ -200,16 +175,9 @@ async fn handle_update(
             ProgressReporter::with_context("Building image")
         };
 
-        let build_args = build_args_for_opencode_commit(opencode_commit_override);
-        build_image(
-            client,
-            Some(IMAGE_TAG_DEFAULT),
-            &mut progress,
-            false,
-            build_args,
-        )
-        .await
-        .map_err(|e| anyhow!("Failed to build image: {e}"))?;
+        build_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress, false, None)
+            .await
+            .map_err(|e| anyhow!("Failed to build image: {e}"))?;
 
         // Save provenance
         save_state(&ImageState::built(get_cli_version())).ok();

@@ -217,7 +217,6 @@ mod tests {
         assert!(obj.contains_key("version"));
         assert!(obj.contains_key("opencode_web_port"));
         assert!(obj.contains_key("image_source"));
-        assert!(obj.contains_key("opencode_commit"));
         assert!(obj.contains_key("update_check"));
     }
 

@@ -17,8 +17,5 @@
   // if it crashes unexpectedly
   "auto_restart": true,
 
-  // Optional: override opencode commit used when building the sandbox image
-  // Set to null to use the Dockerfile default.
-  // "opencode_commit": "dac099a4892689d11abedb0fcc1098b50e0958c8"
-  "opencode_commit": null
+  // Additional settings omitted for brevity
 }

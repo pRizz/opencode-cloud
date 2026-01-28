@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 use jsonc_parser::parse_to_serde_value;
 
 pub use paths::{get_config_dir, get_config_path, get_data_dir, get_hosts_path, get_pid_path};
-pub use schema::{CommitSha, Config, validate_bind_address};
+pub use schema::{Config, validate_bind_address};
 pub use validation::{
     ValidationError, ValidationWarning, display_validation_error, display_validation_warning,
     validate_config,
@@ -88,9 +88,14 @@ pub fn load_config() -> Result<Config> {
         .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
 
     // Parse JSONC (JSON with comments)
-    let parsed_value = parse_to_serde_value(&contents, &Default::default())
+    let mut parsed_value = parse_to_serde_value(&contents, &Default::default())
         .map_err(|e| anyhow::anyhow!("Invalid JSONC in config file: {e}"))?
         .ok_or_else(|| anyhow::anyhow!("Config file is empty"))?;
+
+    // Drop deprecated keys that were removed from the schema.
+    if let Some(obj) = parsed_value.as_object_mut() {
+        obj.remove("opencode_commit");
+    }
 
     // Deserialize into Config struct (deny_unknown_fields will reject unknown keys)
     let config: Config = serde_json::from_value(parsed_value).with_context(|| {
