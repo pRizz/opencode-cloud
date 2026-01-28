@@ -5,7 +5,7 @@
 use anyhow::{Result, bail};
 use console::style;
 use dialoguer::{Confirm, Password};
-use opencode_cloud_core::config::validate_bind_address;
+use opencode_cloud_core::config::{CommitSha, validate_bind_address};
 use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
 use opencode_cloud_core::{load_config, save_config};
 
@@ -199,6 +199,20 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()>
             display_value = window.to_string();
         }
 
+        "opencode_commit" => {
+            let val = require_value(value, key)?;
+            match normalize_optional_commit(val)? {
+                Some(commit) => {
+                    display_value = commit.as_str().to_string();
+                    config.opencode_commit = Some(commit);
+                }
+                None => {
+                    config.opencode_commit = None;
+                    display_value = "(not set)".to_string();
+                }
+            }
+        }
+
         "allow_unauthenticated_network" | "allow_unauth" | "unauth_network" => {
             let val = require_value(value, key)?;
             let allow = parse_bool(val).ok_or_else(|| {
@@ -313,6 +327,7 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()>
                   trust_proxy / proxy\n  \
                   rate_limit_attempts / rate_attempts\n  \
                   rate_limit_window_seconds / rate_window\n  \
+                  opencode_commit\n  \
                   allow_unauthenticated_network / allow_unauth\n  \
                   cockpit_enabled / cockpit\n  \
                   cockpit_port\n\n\
@@ -351,6 +366,16 @@ fn require_value<'a>(value: Option<&'a str>, key: &str) -> Result<&'a str> {
     value.ok_or_else(|| {
         anyhow::anyhow!("Value required for key '{key}'.\nUsage: occ config set {key} <value>")
     })
+}
+
+fn normalize_optional_commit(value: &str) -> Result<Option<CommitSha>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || matches!(trimmed, "none" | "null") {
+        return Ok(None);
+    }
+    CommitSha::parse(trimmed)
+        .map(Some)
+        .map_err(|msg| anyhow::anyhow!("Invalid opencode_commit: {msg}"))
 }
 
 /// Validate username according to rules

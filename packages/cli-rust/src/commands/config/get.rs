@@ -40,6 +40,7 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
         "rate_limit_window_seconds" | "rate_window" | "rate_limit_window" => {
             config.rate_limit_window_seconds.to_string()
         }
+        "opencode_commit" => format_optional_commit(&config.opencode_commit),
         "users" => {
             if config.users.is_empty() {
                 "(none)".to_string()
@@ -68,6 +69,7 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
                   allow_unauthenticated_network / allow_unauth\n  \
                   rate_limit_attempts / rate_attempts\n  \
                   rate_limit_window_seconds / rate_window\n  \
+                  opencode_commit\n  \
                   users\n  \
                   cockpit_enabled / cockpit\n  \
                   cockpit_port"
@@ -82,6 +84,13 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
 /// Format an optional string, returning empty string if None
 fn format_optional(value: &Option<String>) -> String {
     value.clone().unwrap_or_default()
+}
+
+fn format_optional_commit(value: &Option<opencode_cloud_core::config::CommitSha>) -> String {
+    value
+        .as_ref()
+        .map(|commit| commit.as_str().to_string())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

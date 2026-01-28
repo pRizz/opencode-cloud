@@ -38,7 +38,10 @@ pub use health::{
 };
 
 // Dockerfile constants
-pub use dockerfile::{DOCKERFILE, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
+pub use dockerfile::{
+    DOCKERFILE, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    OPENCODE_COMMIT_BUILD_ARG, OPENCODE_COMMIT_DEFAULT, build_args_for_opencode_commit,
+};
 
 // Image operations
 pub use image::{build_image, image_exists, pull_image};

@@ -81,6 +81,7 @@ pub async fn build_image(
     tag: Option<&str>,
     progress: &mut ProgressReporter,
     no_cache: bool,
+    build_args: Option<HashMap<String, String>>,
 ) -> Result<String, DockerError> {
     let tag = tag.unwrap_or(IMAGE_TAG_DEFAULT);
     let full_name = format!("{IMAGE_NAME_GHCR}:{tag}");
@@ -100,6 +101,7 @@ pub async fn build_image(
             .unwrap_or_default()
             .as_nanos()
     );
+    let build_args = build_args.unwrap_or_default();
     let options = BuildImageOptions {
         t: full_name.clone(),
         dockerfile: "Dockerfile".to_string(),
@@ -107,6 +109,7 @@ pub async fn build_image(
         session: Some(session_id),
         rm: true,
         nocache: no_cache,
+        buildargs: build_args,
         ..Default::default()
     };
 

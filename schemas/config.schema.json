@@ -26,6 +26,11 @@
       "type": "boolean",
       "default": true,
       "description": "Automatically restart the service if it crashes"
+    },
+    "opencode_commit": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Override opencode commit SHA used when building the sandbox image"
     }
   },
   "required": ["version"],
