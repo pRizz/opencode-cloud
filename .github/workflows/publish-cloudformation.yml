@@ -1,0 +1,39 @@
+name: Publish CloudFormation Templates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/aws/cloudformation/**"
+      - ".github/workflows/publish-cloudformation.yml"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      S3_BUCKET: ${{ vars.AWS_CFN_BUCKET }}
+      S3_PREFIX: ${{ vars.AWS_CFN_PREFIX || 'cloudformation' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate S3 configuration
+        run: |
+          if [ -z "${S3_BUCKET}" ]; then
+            echo "Missing AWS_CFN_BUCKET repository variable."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload CloudFormation templates
+        run: |
+          aws s3 sync infra/aws/cloudformation "s3://${S3_BUCKET}/${S3_PREFIX}/" --delete

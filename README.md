@@ -19,12 +19,12 @@ opencode-cloud --version
 
 ## Deploy to AWS
 
-[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://raw.githubusercontent.com/pRizz/opencode-cloud/main/infra/aws/cloudformation/opencode-cloud-quick.yaml)
+[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://opencode-cloud-templates.s3.us-east-2.amazonaws.com/cloudformation/opencode-cloud-quick.yaml)
 
 Quick deploy provisions a private EC2 instance behind a public ALB with HTTPS.
 **A domain name is required** for ACM certificate validation.
 
-Docs: `docs/deploy/aws.md` (includes teardown steps)
+Docs: `docs/deploy/aws.md` (includes teardown steps and S3 hosting setup for forks)
 
 ## Features
 

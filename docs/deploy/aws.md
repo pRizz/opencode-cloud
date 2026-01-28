@@ -21,6 +21,57 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
 
 Cockpit is available at `https://<your-domain>/cockpit`.
 
+## CloudFormation Template Hosting (S3 Required)
+
+AWS CloudFormation requires `templateURL` to point to an S3-hosted file. This
+repo publishes `infra/aws/cloudformation` to S3 via GitHub Actions so the Launch
+Stack button always references a public S3 URL.
+
+### Fork Setup (One-Time)
+
+1. **Create an S3 bucket** for templates (example: `opencode-cloud-templates`).
+2. **Allow public reads** for the template prefix (or use signed URLs). Minimal
+   bucket policy example:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadCloudFormationTemplates",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR_BUCKET/cloudformation/*"
+    }
+  ]
+}
+```
+
+3. **Create GitHub OIDC access** in AWS (recommended):
+   - Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`.
+   - Create a role that trusts your repo (`repo:ORG/REPO:*`) and grants S3 write
+     access to the bucket/prefix.
+4. **Set GitHub repository secrets/vars**:
+   - `AWS_ROLE_ARN` (secret)
+   - `AWS_CFN_BUCKET` (variable, must match README Launch Stack URL)
+   - `AWS_CFN_PREFIX` (variable, optional, default `cloudformation`)
+   - `AWS_REGION` (variable, optional, default `us-east-1`)
+5. **Run the workflow**: `.github/workflows/publish-cloudformation.yml` (push to
+   `main` or run manually).
+6. **Update the Launch Stack URL** in `README.md` and `packages/core/README.md`
+   to point at your bucket:
+
+```
+https://s3.amazonaws.com/YOUR_BUCKET/cloudformation/opencode-cloud-quick.yaml
+```
+
+For non-`us-east-1` buckets, use the regional endpoint:
+
+```
+https://YOUR_BUCKET.s3.<region>.amazonaws.com/cloudformation/opencode-cloud-quick.yaml
+```
+
 ## Required Parameters
 
 - **DomainName**: Fully-qualified domain name for HTTPS. ACM requires DNS
