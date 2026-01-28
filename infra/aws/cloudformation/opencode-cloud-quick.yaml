@@ -1,0 +1,598 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: opencode-cloud quick deploy (ALB + ACM + private EC2 + cloud-init)
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Required"
+        Parameters:
+          - DomainName
+      - Label:
+          default: "Advanced: Instance"
+        Parameters:
+          - InstanceType
+          - KeyPairName
+          - OpencodeUsername
+      - Label:
+          default: "Advanced: Networking"
+        Parameters:
+          - UseExistingVpc
+          - ExistingVpcId
+          - ExistingPublicSubnetIds
+          - ExistingPrivateSubnetId
+          - AllowSsh
+          - SshIngressCidr
+      - Label:
+          default: "Advanced: TLS"
+        Parameters:
+          - HostedZoneId
+      - Label:
+          default: "Advanced: Image"
+        Parameters:
+          - OpencodeImage
+
+Parameters:
+  DomainName:
+    Type: String
+    Description: "Fully-qualified domain name for HTTPS (ACM certificate validation required)."
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: "Optional Route53 hosted zone ID for automatic ACM DNS validation."
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3a.medium
+      - t3a.large
+    Description: "EC2 instance type for opencode-cloud."
+  KeyPairName:
+    Type: String
+    Default: ""
+    Description: "Optional EC2 key pair name for SSH access (leave empty to use SSM only)."
+  OpencodeUsername:
+    Type: String
+    Default: opencode
+    Description: "Initial opencode username created during provisioning."
+  OpencodeImage:
+    Type: String
+    Default: ghcr.io/prizz/opencode-cloud-sandbox:latest
+    Description: "Container image to run."
+  UseExistingVpc:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Use existing VPC/subnets instead of creating a new VPC."
+  ExistingVpcId:
+    Type: String
+    Default: ""
+    Description: "Existing VPC ID (required if UseExistingVpc=true)."
+  ExistingPublicSubnetIds:
+    Type: String
+    Default: ""
+    Description: "Existing public subnet IDs for the ALB (required if UseExistingVpc=true)."
+  ExistingPrivateSubnetId:
+    Type: String
+    Default: ""
+    Description: "Existing private subnet ID for the EC2 instance (required if UseExistingVpc=true)."
+  AllowSsh:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Allow SSH access to the instance (defaults to SSM-only)."
+  SshIngressCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: "CIDR range allowed to SSH when AllowSsh=true."
+  UbuntuAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+    Description: "Ubuntu 24.04 LTS AMI (SSM public parameter)."
+
+Conditions:
+  UseHostedZone: !Not [!Equals [!Ref HostedZoneId, ""]]
+  UseExistingVpcCondition: !Equals [!Ref UseExistingVpc, "true"]
+  CreateVpc: !Equals [!Ref UseExistingVpc, "false"]
+  UseKeyPair: !Not [!Equals [!Ref KeyPairName, ""]]
+  AllowSshCondition: !Equals [!Ref AllowSsh, "true"]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Condition: CreateVpc
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Condition: CreateVpc
+    Properties:
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-igw
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-public-a
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-public-b
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.0.10.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-private-a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-private-b
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-public-rt
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Condition: CreateVpc
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    Condition: CreateVpc
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateVpc
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-nat
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: opencode-cloud-quick-private-rt
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Condition: CreateVpc
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: opencode-cloud ALB security group
+      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: opencode-cloud instance security group
+      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 3001
+          ToPort: 3001
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 3002
+          ToPort: 3002
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 9090
+          ToPort: 9090
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - !If
+          - AllowSshCondition
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Ref SshIngressCidr
+          - !Ref "AWS::NoValue"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions: !If
+        - UseHostedZone
+        - - DomainName: !Ref DomainName
+            HostedZoneId: !Ref HostedZoneId
+        - !Ref "AWS::NoValue"
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: opencode-cloud-quick-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Subnets: !If
+        - UseExistingVpcCondition
+        - !Split [",", !Ref ExistingPublicSubnetIds]
+        - - !Ref PublicSubnetA
+          - !Ref PublicSubnetB
+
+  OpencodeTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: opencode-cloud-ui
+      Port: 3000
+      Protocol: HTTP
+      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+      TargetType: instance
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: "200-399"
+
+  CockpitTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: opencode-cloud-cockpit
+      Port: 9090
+      Protocol: HTTP
+      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+      TargetType: instance
+      HealthCheckPath: /cockpit
+      Matcher:
+        HttpCode: "200-399"
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: "443"
+            StatusCode: HTTP_301
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref Certificate
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref OpencodeTargetGroup
+
+  CockpitListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /cockpit*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref CockpitTargetGroup
+
+  OpencodeInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref UbuntuAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !If [UseKeyPair, !Ref KeyPairName, !Ref "AWS::NoValue"]
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          AssociatePublicIpAddress: false
+          SubnetId: !If
+            - UseExistingVpcCondition
+            - !Ref ExistingPrivateSubnetId
+            - !Ref PrivateSubnetA
+          GroupSet:
+            - !Ref InstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #cloud-config
+            package_update: true
+            package_upgrade: false
+            packages:
+              - docker.io
+              - curl
+              - jq
+            write_files:
+              - path: /etc/opencode-cloud/stack.env
+                permissions: "0600"
+                content: |
+                  OPENCODE_IMAGE=${OpencodeImage}
+                  OPENCODE_CONTAINER_NAME=opencode-cloud
+                  OPENCODE_USERNAME=${OpencodeUsername}
+                  OPENCODE_DOMAIN_URL=https://${DomainName}
+                  OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
+                  COCKPIT_DOMAIN_URL=https://${DomainName}/cockpit
+                  COCKPIT_ALB_URL=https://${ApplicationLoadBalancer.DNSName}/cockpit
+              - path: /usr/local/bin/opencode-cloud-setup.sh
+                permissions: "0755"
+                content: |
+                  #!/usr/bin/env bash
+                  set -euo pipefail
+
+                  STATUS_DIR="/var/lib/opencode-cloud"
+                  STATUS_FILE="${STATUS_DIR}/deploy-status.json"
+                  PROVISIONED_FILE="${STATUS_DIR}/.provisioned"
+
+                  if [ -f "${PROVISIONED_FILE}" ]; then
+                    echo "opencode-cloud: already provisioned"
+                    exit 0
+                  fi
+
+                  mkdir -p "${STATUS_DIR}"
+                  chmod 700 "${STATUS_DIR}"
+
+                  if [ -f /etc/opencode-cloud/stack.env ]; then
+                    # shellcheck disable=SC1091
+                    source /etc/opencode-cloud/stack.env
+                  fi
+
+                  : "${OPENCODE_IMAGE:=ghcr.io/prizz/opencode-cloud-sandbox:latest}"
+                  : "${OPENCODE_CONTAINER_NAME:=opencode-cloud}"
+                  : "${OPENCODE_USERNAME:=opencode}"
+                  : "${OPENCODE_DOMAIN_URL:=}"
+                  : "${OPENCODE_ALB_URL:=}"
+                  : "${COCKPIT_DOMAIN_URL:=}"
+                  : "${COCKPIT_ALB_URL:=}"
+
+                  systemctl enable --now docker
+
+                  docker pull "${OPENCODE_IMAGE}"
+
+                  docker volume create opencode-config >/dev/null
+                  docker volume create opencode-data >/dev/null
+                  docker volume create opencode-workspace >/dev/null
+
+                  if ! docker ps -a --format '{{.Names}}' | grep -qx "${OPENCODE_CONTAINER_NAME}"; then
+                    docker run -d \
+                      --name "${OPENCODE_CONTAINER_NAME}" \
+                      --restart unless-stopped \
+                      -p 3000:3000 \
+                      -p 3001:3001 \
+                      -p 3002:3002 \
+                      -p 9090:9090 \
+                      -v opencode-config:/home/opencode/.config \
+                      -v opencode-data:/home/opencode/.local/share \
+                      -v opencode-workspace:/home/opencode/workspace \
+                      "${OPENCODE_IMAGE}"
+                  fi
+
+                  for _ in $(seq 1 30); do
+                    if docker exec "${OPENCODE_CONTAINER_NAME}" true >/dev/null 2>&1; then
+                      break
+                    fi
+                    sleep 2
+                  done
+
+                  if ! docker exec "${OPENCODE_CONTAINER_NAME}" id -u "${OPENCODE_USERNAME}" >/dev/null 2>&1; then
+                    docker exec "${OPENCODE_CONTAINER_NAME}" useradd -m -s /bin/bash "${OPENCODE_USERNAME}"
+                    docker exec "${OPENCODE_CONTAINER_NAME}" usermod -aG sudo "${OPENCODE_USERNAME}"
+                  fi
+
+                  OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+                  echo "${OPENCODE_USERNAME}:${OPENCODE_PASSWORD}" | docker exec -i "${OPENCODE_CONTAINER_NAME}" chpasswd
+
+                  cat > "${STATUS_FILE}" <<EOF
+                  {
+                    "opencode_url": "${OPENCODE_DOMAIN_URL}",
+                    "opencode_alb_url": "${OPENCODE_ALB_URL}",
+                    "cockpit_url": "${COCKPIT_DOMAIN_URL}",
+                    "cockpit_alb_url": "${COCKPIT_ALB_URL}",
+                    "username": "${OPENCODE_USERNAME}",
+                    "password": "${OPENCODE_PASSWORD}",
+                    "container": "${OPENCODE_CONTAINER_NAME}",
+                    "image": "${OPENCODE_IMAGE}"
+                  }
+                  EOF
+                  chmod 600 "${STATUS_FILE}"
+
+                  cat > /etc/motd <<EOF
+                  opencode-cloud ready.
+                  Username: ${OPENCODE_USERNAME}
+                  Password: ${OPENCODE_PASSWORD}
+                  opencode: ${OPENCODE_DOMAIN_URL}
+                  Cockpit: ${COCKPIT_DOMAIN_URL}
+                  Status file: ${STATUS_FILE}
+                  EOF
+
+                  date -u +"%Y-%m-%dT%H:%M:%SZ" > "${PROVISIONED_FILE}"
+            runcmd:
+              - [bash, -lc, "/usr/local/bin/opencode-cloud-setup.sh"]
+
+  OpencodeTargetAttachment:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref OpencodeTargetGroup
+      TargetId: !Ref OpencodeInstance
+      Port: 3000
+
+  CockpitTargetAttachment:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroupAttachment
+    Properties:
+      TargetGroupArn: !Ref CockpitTargetGroup
+      TargetId: !Ref OpencodeInstance
+      Port: 9090
+
+Outputs:
+  OpencodeUrl:
+    Description: "Primary opencode URL (requires DNS + ACM validation)."
+    Value: !Sub "https://${DomainName}"
+  CockpitUrl:
+    Description: "Cockpit URL (requires DNS + ACM validation)."
+    Value: !Sub "https://${DomainName}/cockpit"
+  AlbDnsName:
+    Description: "ALB DNS name (useful for debugging before DNS cutover)."
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  CertificateArn:
+    Description: "ACM certificate ARN."
+    Value: !Ref Certificate
+  InstanceId:
+    Description: "EC2 instance ID."
+    Value: !Ref OpencodeInstance
+  VpcId:
+    Description: "VPC ID (created or provided)."
+    Value: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+  PublicSubnets:
+    Description: "Public subnet IDs used by the ALB."
+    Value: !If
+      - UseExistingVpcCondition
+      - !Ref ExistingPublicSubnetIds
+      - !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+  PrivateSubnet:
+    Description: "Private subnet ID used by the instance."
+    Value: !If [UseExistingVpcCondition, !Ref ExistingPrivateSubnetId, !Ref PrivateSubnetA]
+  CredentialsFile:
+    Description: "Path on the instance containing generated credentials."
+    Value: "/var/lib/opencode-cloud/deploy-status.json"
