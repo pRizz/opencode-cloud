@@ -35,7 +35,7 @@
 FROM ubuntu:24.04 AS runtime
 
 # Pin opencode fork commit used during build
-ARG OPENCODE_COMMIT=dac099a4892689d11abedb0fcc1098b50e0958c8
+ARG OPENCODE_COMMIT=8694cc2e60422ad82d5ca72b67716423b18dabc2
 
 # OCI Labels for image metadata
 LABEL org.opencontainers.image.title="opencode-cloud"
