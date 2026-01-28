@@ -34,9 +34,6 @@
 # -----------------------------------------------------------------------------
 FROM ubuntu:24.04 AS runtime
 
-# Pin opencode fork commit used during build
-ARG OPENCODE_COMMIT=8694cc2e60422ad82d5ca72b67716423b18dabc2
-
 # OCI Labels for image metadata
 LABEL org.opencontainers.image.title="opencode-cloud"
 LABEL org.opencontainers.image.description="AI-assisted development environment with opencode"
@@ -523,8 +520,8 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 RUN rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
-    && git fetch --depth 1 origin "${OPENCODE_COMMIT}" \
-    && git checkout "${OPENCODE_COMMIT}" \
+    && git fetch --depth 1 origin "8694cc2e60422ad82d5ca72b67716423b18dabc2" \
+    && git checkout "8694cc2e60422ad82d5ca72b67716423b18dabc2" \
     && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
