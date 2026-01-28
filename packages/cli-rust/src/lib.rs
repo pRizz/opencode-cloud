@@ -144,6 +144,12 @@ pub fn run() -> Result<()> {
         console::set_colors_enabled(false);
     }
 
+    eprintln!(
+        "{} This tool is still a work in progress and may be unstable. Follow updates at https://github.com/pRizz/opencode-cloud. Stability will be announced at some point.",
+        style("Warning:").yellow().bold()
+    );
+    eprintln!();
+
     // Load config (creates default if missing)
     let config_path = config::paths::get_config_path()
         .ok_or_else(|| anyhow::anyhow!("Could not determine config path"))?;
