@@ -174,15 +174,25 @@ opencode-cloud --version
 
 - **OpencodeImage**: Override the container image (defaults to GHCR latest).
 
+## Port Architecture
+
+- **Public access**: The ALB terminates HTTPS on 443 and forwards to the
+  instance on port 3000. The UI is exposed separately on 444 for static assets.
+- **Nginx (3000)**: Nginx listens on 3000, proxies backend requests to 3001, and
+  serves the static UI on 3002.
+- **Backend (3001)**: The opencode backend handles API requests and forwards
+  unhandled requests to the configured `uiUrl`.
+- **UI (3002 / 444)**: The `uiUrl` is set to `https://<your-domain>:444`; the
+  ALB listens on 444 and proxies to the instance on port 3002 for static UI
+  assets.
+
 ## Troubleshooting
 
 - **ACM validation stuck**: Ensure the CNAME record is created exactly as shown
   in ACM and that DNS has propagated.
 - **HTTPS not working**: Confirm the domain points to the ALB and the ACM
   certificate is issued.
-- **UI not loading**: The UI is served over HTTPS on port 444. Make sure
-  `https://<your-domain>:444` is reachable and your network allows outbound
-  traffic on port 444.
+- **UI not loading**: The UI should be reachable at `https://<your-domain>:444`.
 - **Stack rollback during create**: The stack uses a CloudFormation
   `CreationPolicy` and `cfn-signal` from the instance bootstrap. It only
   completes if the opencode service is reachable on port 3000. If the signal is
