@@ -12,6 +12,7 @@ Metadata:
           default: "Advanced: Instance"
         Parameters:
           - InstanceType
+          - RootVolumeSize
           - KeyPairName
           - OpencodeUsername
       - Label:
@@ -58,10 +59,14 @@ Parameters:
       - t3a.medium
       - t3a.large
     Description: "EC2 instance type for opencode-cloud. Smaller sizes (t3/t3a micro or small) may be unstable under load."
+  RootVolumeSize:
+    Type: Number
+    Default: 30
+    MinValue: 16
+    Description: "Root EBS volume size in GiB."
   KeyPairName:
     Type: String
-    Default: ""
-    Description: "Optional EC2 key pair name for SSH access (leave empty to use SSM only)."
+    Description: "EC2 key pair name required for SSH access to retrieve credentials. Example: ssh -i /path/key.pem ubuntu@<alb-dns> then sudo cat /var/lib/opencode-cloud/deploy-status.json. See https://github.com/pRizz/opencode-cloud/blob/main/docs/deploy/aws.md"
   OpencodeUsername:
     Type: String
     Default: opencode
@@ -111,7 +116,6 @@ Parameters:
 Conditions:
   UseExistingVpcCondition: !Equals [!Ref UseExistingVpc, "true"]
   CreateVpc: !Equals [!Ref UseExistingVpc, "false"]
-  UseKeyPair: !Not [!Equals [!Ref KeyPairName, ""]]
   AllowSshCondition: !Equals [!Ref AllowSsh, "true"]
 
 Rules:
@@ -129,6 +133,10 @@ Rules:
     Assertions:
       - Assert: !Not [!Equals [!Ref SshIngressCidr, ""]]
         AssertDescription: "SshIngressCidr is required when AllowSsh=true."
+  KeyPairRequired:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref KeyPairName, ""]]
+        AssertDescription: "KeyPairName is required to enable SSH access to retrieve credentials. See https://github.com/pRizz/opencode-cloud/blob/main/docs/deploy/aws.md"
 
 Resources:
   Vpc:
@@ -455,7 +463,13 @@ Resources:
       ImageId: !Ref UbuntuAmiId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: !If [UseKeyPair, !Ref KeyPairName, !Ref "AWS::NoValue"]
+      KeyName: !Ref KeyPairName
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+            DeleteOnTermination: true
       NetworkInterfaces:
         - DeviceIndex: "0"
           AssociatePublicIpAddress: false
