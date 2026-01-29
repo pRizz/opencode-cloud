@@ -517,7 +517,7 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="3a4eccc7e883575e0d5a508f46036a9f243c06e8" \
+RUN OPENCODE_COMMIT="203568a603eed007dfd2c667f259e7d2fa56e084" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
@@ -528,6 +528,7 @@ RUN OPENCODE_COMMIT="3a4eccc7e883575e0d5a508f46036a9f243c06e8" \
     && bun install --frozen-lockfile \
     && bun run packages/opencode/script/build.ts --single \
     && cd packages/app \
+    && export VITE_OPENCODE_SERVER_URL="http://localhost:3001" \
     && bun run build \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
