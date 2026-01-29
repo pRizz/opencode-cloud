@@ -604,7 +604,7 @@ Outputs:
     Description: "Public subnet IDs used by the ALB."
     Value: !If
       - UseExistingVpcCondition
-      - !Ref ExistingPublicSubnetIds
+      - !Join [",", !Ref ExistingPublicSubnetIds]
       - !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
   PrivateSubnet:
     Description: "Private subnet ID used by the instance."
