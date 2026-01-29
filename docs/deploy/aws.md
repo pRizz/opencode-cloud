@@ -50,8 +50,11 @@ Stack button always references a public S3 URL.
 
 3. **Create GitHub OIDC access** in AWS (recommended):
    - Create an IAM OIDC provider for `https://token.actions.githubusercontent.com`.
-   - Create a role that trusts your repo (`repo:ORG/REPO:*`) and grants S3 write
-     access to the bucket/prefix.
+   - Create a role that trusts your repo (`repo:ORG/REPO:*`), grants S3 write
+     access to the bucket/prefix, and includes `AWSCloudFormationReadOnlyAccess`
+     so the workflow can run template validation from the GitHub Action
+     [`publish-cloudformation.yml`](../../.github/workflows/publish-cloudformation.yml)
+     and upload the templates to the bucket.
 4. **Set GitHub repository secrets/vars**:
    - `AWS_ROLE_ARN` (secret)
    - `AWS_CFN_BUCKET` (variable, must match README Launch Stack URL)
