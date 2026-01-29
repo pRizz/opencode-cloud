@@ -13,6 +13,8 @@
 
 A production-ready toolkit for deploying and managing [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
+This project uses the opencode fork at https://github.com/pRizz/opencode, which adds additional authentication and security features.
+
 ## Quick install (cargo)
 
 ```bash
