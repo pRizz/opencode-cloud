@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cloud/cli-node-darwin-x64",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "opencode-cloud CLI binary for macOS x64 (Intel)",
   "license": "MIT",
   "author": "pRizz",
