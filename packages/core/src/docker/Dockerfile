@@ -744,6 +744,7 @@ RUN rm -f /etc/systemd/system/multi-user.target.wants/nginx.service \
 # opencode Configuration
 # -----------------------------------------------------------------------------
 # Create opencode.jsonc config file with PAM authentication enabled and UI URL
+ENV OPENCODE_UI_URL=http://localhost:3002
 RUN mkdir -p /home/opencode/.config/opencode \
     && printf '%s\n' \
     '{' \
@@ -752,7 +753,7 @@ RUN mkdir -p /home/opencode/.config/opencode \
     '    "enabled": true' \
     '  },' \
     '  "server": {' \
-    '    "uiUrl": "http://localhost:3002"' \
+    '    "uiUrl": "{env:OPENCODE_UI_URL}"' \
     '  }' \
     '}' \
     > /home/opencode/.config/opencode/opencode.jsonc \

@@ -19,7 +19,7 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
    limits) and create the stack.
 5. If ACM validation is stuck, verify the CNAME record in Route53.
 6. Point your domain to the ALB DNS name (create an ALIAS or CNAME).
-7. Wait for stack completion, then open `https://<your-domain>`.
+7. Wait for stack completion, then open `https://<your-domain>:444`.
 
 Cockpit is available at `https://<your-domain>/cockpit`.
 
@@ -180,6 +180,9 @@ opencode-cloud --version
   in ACM and that DNS has propagated.
 - **HTTPS not working**: Confirm the domain points to the ALB and the ACM
   certificate is issued.
+- **UI not loading**: The UI is served over HTTPS on port 444. Make sure
+  `https://<your-domain>:444` is reachable and your network allows outbound
+  traffic on port 444.
 - **Stack rollback during create**: The stack uses a CloudFormation
   `CreationPolicy` and `cfn-signal` from the instance bootstrap. It only
   completes if the opencode service is reachable on port 3000. If the signal is
