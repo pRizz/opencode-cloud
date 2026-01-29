@@ -209,6 +209,7 @@ Recent decisions affecting current work:
 3. **Optimize Docker build with BuildKit caches** (tooling) - Revisit safe cache mounts to speed up builds without permission issues.
 4. **Sustain opencode nginx routing** (tooling) - Replace hardcoded proxy route lists with a more robust strategy.
 5. **Investigate hanging graceful stop** (tooling) - Diagnose missing stop progress when rebuilding a running container.
+6. **Fix missing export step display** (tooling) - Ensure "exporting to image" appears as the final Docker build step.
 
 ### Roadmap Evolution
 
