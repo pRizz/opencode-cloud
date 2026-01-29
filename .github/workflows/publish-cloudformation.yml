@@ -28,11 +28,23 @@ jobs:
             exit 1
           fi
 
+      - name: Install cfn-lint
+        run: pipx install cfn-lint
+
+      - name: Lint CloudFormation templates
+        run: cfn-lint infra/aws/cloudformation/*.yaml
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate CloudFormation templates
+        run: |
+          for template in infra/aws/cloudformation/*.yaml; do
+            aws cloudformation validate-template --template-body "file://${template}"
+          done
 
       - name: Upload CloudFormation templates
         run: |
