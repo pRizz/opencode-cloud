@@ -141,7 +141,9 @@ opencode-cloud --version
 - **ExistingPrivateSubnetId**: Private subnet for the instance (must have NAT
   egress so the instance can pull the container image).
 - **AllowSsh**: Enable SSH access (defaults to SSM-only).
-- **SshIngressCidr**: Limit SSH access to a trusted CIDR range.
+  When enabled, SSH allows inbound traffic from 0.0.0.0/0, but the instance
+  stays in a private subnet with no public IP. Access still requires a path
+  into the VPC (for example, via a bastion host, VPN, or SSM).
 
 ### TLS
 

@@ -23,7 +23,6 @@ Metadata:
           - ExistingPublicSubnetIds
           - ExistingPrivateSubnetId
           - AllowSsh
-          - SshIngressCidr
       - Label:
           default: "Advanced: TLS"
         Parameters:
@@ -41,7 +40,7 @@ Parameters:
     MaxLength: 253
     AllowedPattern: "^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$"
     ConstraintDescription: "Provide a valid FQDN (e.g., opencode.example.com)."
-    Description: "Fully-qualified domain name for HTTPS (ACM certificate validation required)."
+    Description: "Fully-qualified domain name for HTTPS (ACM certificate validation required). Provide a valid FQDN (e.g., opencode.example.com)."
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: "Route53 hosted zone ID for DNS validation."
@@ -67,7 +66,7 @@ Parameters:
   KeyPairName:
     Type: String
     Default: ""
-    Description: "Optional EC2 key pair name for SSH access (credentials are available in Secrets Manager)."
+    Description: "Optional EC2 key pair name (not ID) for SSH access (credentials are available in Secrets Manager)."
   OpencodeUsername:
     Type: String
     Default: opencode
@@ -102,13 +101,6 @@ Parameters:
       - "true"
       - "false"
     Description: "Allow SSH access to the instance (defaults to SSM-only)."
-  SshIngressCidr:
-    Type: String
-    Default: "0.0.0.0/0"
-    # TODO: Recommend limiting SSH CIDR to the user's current public IP.
-    AllowedPattern: "^$|^(?:\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$"
-    ConstraintDescription: "Provide a valid CIDR block (e.g., 203.0.113.4/32)."
-    Description: "CIDR range allowed to SSH when AllowSsh=true."
   UbuntuAmiId:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
@@ -130,11 +122,6 @@ Rules:
         AssertDescription: "ExistingPublicSubnetIds must be real subnet IDs when UseExistingVpc=true."
       - Assert: !Not [!Equals [!Ref ExistingPrivateSubnetId, "subnet-00000000"]]
         AssertDescription: "ExistingPrivateSubnetId must be a real subnet ID when UseExistingVpc=true."
-  SshCidrRequired:
-    RuleCondition: !Equals [!Ref AllowSsh, "true"]
-    Assertions:
-      - Assert: !Not [!Equals [!Ref SshIngressCidr, ""]]
-        AssertDescription: "SshIngressCidr is required when AllowSsh=true."
 Resources:
   CredentialsSecret:
     Type: AWS::SecretsManager::Secret
@@ -340,7 +327,7 @@ Resources:
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: !Ref SshIngressCidr
+            CidrIp: 0.0.0.0/0
           - !Ref "AWS::NoValue"
       SecurityGroupEgress:
         - IpProtocol: -1
@@ -477,6 +464,9 @@ Resources:
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref InstanceProfile
       KeyName: !If [UseKeyPair, !Ref KeyPairName, !Ref "AWS::NoValue"]
+      Tags:
+        - Key: Name
+          Value: !Sub "opencode-cloud-${AWS::StackName}"
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
           Ebs:
