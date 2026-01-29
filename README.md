@@ -8,6 +8,9 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> [!WARNING]
+> This project is a work in progress and evolving rapidly. Use with caution.
+
 A production-ready toolkit for deploying and managing [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
 ## Quick install (cargo)
