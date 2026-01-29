@@ -4,7 +4,8 @@
 //! port bindings, uptime, health status, and security configuration.
 
 use crate::output::{
-    format_cockpit_url, format_docker_error_anyhow, resolve_remote_addr, state_style,
+    format_cockpit_url, format_docker_error_anyhow, normalize_bind_addr, resolve_remote_addr,
+    state_style,
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -13,8 +14,8 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, HealthError, OPENCODE_UI_PORT, OPENCODE_WEB_PORT, ParsedMount, check_health,
-    get_cli_version, get_image_version, load_state,
+    CONTAINER_NAME, HealthError, OPENCODE_WEB_PORT, ParsedMount, check_health, get_cli_version,
+    get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::time::Duration;
@@ -119,17 +120,6 @@ pub async fn cmd_status(
         .and_then(|binding| binding.host_port.as_ref())
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(OPENCODE_WEB_PORT);
-    let ui_port = info
-        .network_settings
-        .as_ref()
-        .and_then(|ns| ns.ports.as_ref())
-        .and_then(|ports| ports.get("3002/tcp"))
-        .and_then(|bindings| bindings.as_ref())
-        .and_then(|bindings| bindings.first())
-        .and_then(|binding| binding.host_port.as_ref())
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(OPENCODE_UI_PORT);
-
     // Extract bind mounts from container
     let container_mounts = info
         .host_config
@@ -151,6 +141,13 @@ pub async fn cmd_status(
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 
+    // Load config early for reuse in multiple sections
+    let config = config::load_config().ok();
+    let bind_addr = config
+        .as_ref()
+        .map(|cfg| cfg.bind_address.as_str())
+        .unwrap_or("127.0.0.1");
+
     // Get remote host address if using --host
     let maybe_remote_addr = resolve_remote_addr(host_name.as_deref());
 
@@ -162,15 +159,6 @@ pub async fn cmd_status(
         if let Some(ref remote_addr) = maybe_remote_addr {
             let remote_url = format!("http://{remote_addr}:{host_port}");
             println!("Remote URL:  {}", style(&remote_url).cyan());
-            println!(
-                "Backend API URL (internal): {}",
-                style("http://127.0.0.1:3001").dim()
-            );
-            let remote_ui = format!("http://{remote_addr}:{ui_port}");
-            println!(
-                "Custom UI URL (Impl detail - do not use): {}",
-                style(&remote_ui).cyan()
-            );
             let local_url = format!("http://127.0.0.1:{host_port}");
             println!(
                 "Local URL:   {} {}",
@@ -178,22 +166,13 @@ pub async fn cmd_status(
                 style("(on remote host)").dim()
             );
         } else {
-            let url = format!("http://127.0.0.1:{host_port}");
+            let url = format!("http://{bind_addr}:{host_port}");
             println!("URL:         {}", style(&url).cyan());
-            println!(
-                "Backend API URL (internal): {}",
-                style("http://127.0.0.1:3001").dim()
-            );
-            let ui_url = format!("http://127.0.0.1:{ui_port}");
-            println!(
-                "Custom UI URL (Impl detail - do not use): {}",
-                style(&ui_url).cyan()
-            );
         }
 
         // Show health check status (only for local connections - can't check remote health directly)
         if host_name.is_none() {
-            match check_health(host_port).await {
+            match check_health(normalize_bind_addr(bind_addr), host_port).await {
                 Ok(response) => {
                     println!(
                         "Health:      {} (v{})",
@@ -254,9 +233,6 @@ pub async fn cmd_status(
         println!("Image src:   {}", style(&source_info).dim());
     }
 
-    // Load config early for reuse in multiple sections
-    let config = config::load_config().ok();
-
     if running {
         // Calculate and display uptime
         if let Some(ref started) = started_at {
@@ -269,11 +245,6 @@ pub async fn cmd_status(
         println!(
             "Port:        {} -> container:3000",
             style(host_port.to_string()).cyan()
-        );
-        println!("API Port:    3001 -> container:3001 (internal)");
-        println!(
-            "UI Port:     {} -> container:3002",
-            style(ui_port.to_string()).cyan()
         );
 
         // Show Cockpit info if enabled

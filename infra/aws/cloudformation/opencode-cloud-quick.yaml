@@ -40,10 +40,10 @@ Parameters:
     MaxLength: 253
     AllowedPattern: "^(?=.{1,253}$)(?!-)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$"
     ConstraintDescription: "Provide a valid FQDN (e.g., opencode.example.com)."
-    Description: "Fully-qualified domain name for HTTPS (ACM certificate validation required). Provide a valid FQDN (e.g., opencode.example.com)."
+    Description: "Fully-qualified domain name for HTTPS (ACM certificate validation required). This should be compatible with the HostedZone you provided. For example, if the HostedZone is 'example.com', the DomainName could be 'opencode.example.com'."
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
-    Description: "Route53 hosted zone ID for DNS validation."
+    Description: "Route53 hosted zone ID for DNS validation. This should be compatible with the DomainName you provided. For example, if the DomainName is 'opencode.example.com', the HostedZoneId has to be the ID of the 'example.com' hosted zone."
   InstanceType:
     Type: String
     Default: t3.medium
@@ -302,10 +302,6 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 444
-          ToPort: 444
-          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -319,14 +315,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3000
           ToPort: 3000
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 3001
-          ToPort: 3001
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 3002
-          ToPort: 3002
           SourceSecurityGroupId: !Ref AlbSecurityGroup
         - IpProtocol: tcp
           FromPort: 9090
@@ -402,7 +390,7 @@ Resources:
   OpencodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "opencode-${AWS::StackName}-nginx"
+      Name: !Sub "opencode-${AWS::StackName}-web"
       Port: 3000
       Protocol: HTTP
       VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
@@ -429,21 +417,6 @@ Resources:
         - Id: !Ref OpencodeInstance
           Port: 9090
 
-  UiTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub "opencode-${AWS::StackName}-ui"
-      Port: 3002
-      Protocol: HTTP
-      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
-      TargetType: instance
-      HealthCheckPath: /
-      Matcher:
-        HttpCode: "200-399"
-      Targets:
-        - Id: !Ref OpencodeInstance
-          Port: 3002
-
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -468,18 +441,6 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref OpencodeTargetGroup
-
-  UiHttpsListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ApplicationLoadBalancer
-      Port: 444
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref Certificate
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref UiTargetGroup
 
   CockpitListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -547,7 +508,6 @@ Resources:
                   OPENCODE_USERNAME=${OpencodeUsername}
                   OPENCODE_DOMAIN_URL=https://${DomainName}
                   OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
-                  OPENCODE_UI_URL=https://${DomainName}:444
                   COCKPIT_DOMAIN_URL=https://${DomainName}/cockpit
                   COCKPIT_ALB_URL=https://${ApplicationLoadBalancer.DNSName}/cockpit
                   OPENCODE_CREDENTIALS_SECRET_ARN=${CredentialsSecret}
@@ -633,8 +593,6 @@ Resources:
                     exit 1
                   fi
 
-                  OPENCODE_UI_URL="${OPENCODE_DOMAIN_URL}:444"
-
                   if [ -z "$COCKPIT_DOMAIN_URL" ]; then
                     COCKPIT_DOMAIN_URL=""
                   fi
@@ -667,10 +625,7 @@ Resources:
                     docker run -d \
                       --name "$OPENCODE_CONTAINER_NAME" \
                       --restart unless-stopped \
-                      -e OPENCODE_UI_URL="$OPENCODE_UI_URL" \
                       -p 3000:3000 \
-                      -p 3001:3001 \
-                      -p 3002:3002 \
                       -p 9090:9090 \
                       -v opencode-config:/home/opencode/.config \
                       -v opencode-data:/home/opencode/.local/share \

@@ -145,7 +145,7 @@ pub fn run() -> Result<()> {
     }
 
     eprintln!(
-        "{} This tool is still a work in progress and may be unstable. Follow updates at https://github.com/pRizz/opencode-cloud. Stability will be announced at some point.",
+        "{} This tool is still a work in progress and may be unstable. Follow updates at https://github.com/pRizz/opencode-cloud. Stability will be announced at some point. Use with caution.",
         style("Warning:").yellow().bold()
     );
     eprintln!();

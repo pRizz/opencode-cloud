@@ -104,8 +104,6 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     netcat-openbsd=1.226-* \
     iputils-ping=3:20240117-* \
     dnsutils=1:9.18.* \
-    # Reverse proxy for opencode UI + API
-    nginx=1.24.* \
     # Compression
     zip=3.0-* \
     unzip=6.0-* \
@@ -505,7 +503,7 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # This block includes:
 # - opencode build (backend binary) + app build (frontend dist)
 # - opencode-broker build
-# - nginx config for single-endpoint UI + API proxy
+# - opencode web build + runtime
 # - PAM configuration + systemd services
 # - opencode config file
 #
@@ -517,7 +515,7 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="203568a603eed007dfd2c667f259e7d2fa56e084" \
+RUN OPENCODE_COMMIT="9b91eb17f5ca1b0ee99cfaa0b4c87da6dbe9e784" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
@@ -526,28 +524,21 @@ RUN OPENCODE_COMMIT="203568a603eed007dfd2c667f259e7d2fa56e084" \
     && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
-    && bun run packages/opencode/script/build.ts --single \
-    && cd packages/app \
-    && export VITE_OPENCODE_SERVER_URL="http://localhost:3001" \
-    && bun run build \
+    && cd packages/opencode \
+    && export VITE_OPENCODE_SERVER_URL="http://localhost:3000" \
+    && bun run build-single-ui \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
     && mkdir -p /home/opencode/.local/share/opencode/bin \
+    && mkdir -p /home/opencode/.local/share/opencode/ui \
     && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.local/share/opencode/bin/opencode \
+    && cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /home/opencode/.local/share/opencode/ui/ \
     && chown -R opencode:opencode /home/opencode/.local/share/opencode \
     && chmod +x /home/opencode/.local/share/opencode/bin/opencode \
     && /home/opencode/.local/share/opencode/bin/opencode --version
 
 # Add opencode to PATH
 ENV PATH="/home/opencode/.local/share/opencode/bin:${PATH}"
-
-# Copy UI assets to standard web root (requires root)
-USER root
-RUN mkdir -p /var/www/opencode \
-    && cp -R /tmp/opencode-repo/packages/app/dist/. /var/www/opencode/ \
-    && chown -R root:root /var/www/opencode \
-    && chmod 755 /var/www /var/www/opencode \
-    && chmod -R a+rX /var/www/opencode
 
 # -----------------------------------------------------------------------------
 # opencode-broker Installation
@@ -568,49 +559,6 @@ RUN cd /tmp/opencode-repo/packages/opencode-broker \
 RUN ls -la /usr/local/bin/opencode-broker \
     && test -x /usr/local/bin/opencode-broker \
     && echo "Broker installed"
-
-# -----------------------------------------------------------------------------
-# Nginx Reverse Proxy for UI + API
-# -----------------------------------------------------------------------------
-# Serve the built UI from /var/www/opencode and proxy all 3000 traffic to backend.
-RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true \
-    && printf '%s\n' \
-    'server {' \
-    '  listen 3000;' \
-    '  server_name _;' \
-    '' \
-    '  location / {' \
-    '    proxy_pass http://127.0.0.1:3001;' \
-    '    proxy_http_version 1.1;' \
-    '    proxy_set_header Upgrade $http_upgrade;' \
-    '    proxy_set_header Connection "upgrade";' \
-    '    proxy_set_header Host $host;' \
-    '    proxy_set_header X-Real-IP $remote_addr;' \
-    '    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' \
-    '    proxy_set_header X-Forwarded-Proto $scheme;' \
-    '  }' \
-    '}' \
-    '' \
-    'server {' \
-    '  listen 3002;' \
-    '  server_name _;' \
-    '' \
-    '  root /var/www/opencode;' \
-    '  index index.html;' \
-    '' \
-    '  location /assets/ {' \
-    '    try_files $uri =404;' \
-    '  }' \
-    '' \
-    '  location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|map)$ {' \
-    '    try_files $uri =404;' \
-    '  }' \
-    '' \
-    '  location / {' \
-    '    try_files $uri $uri/ /index.html;' \
-    '  }' \
-    '}' \
-    > /etc/nginx/conf.d/opencode.conf
 
 # -----------------------------------------------------------------------------
 # PAM Configuration
@@ -691,7 +639,7 @@ RUN mkdir -p /home/opencode/.npm \
 # -----------------------------------------------------------------------------
 # opencode systemd Service (2026-01-22)
 # -----------------------------------------------------------------------------
-# Create opencode as a systemd service for Cockpit integration (backend only)
+# Create opencode as a systemd service for Cockpit integration
 # NOTE: Requires root privileges to write to /etc/systemd/system/
 USER root
 RUN printf '%s\n' \
@@ -703,7 +651,7 @@ RUN printf '%s\n' \
     'Type=simple' \
     'User=opencode' \
     'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/home/opencode/.local/share/opencode/bin/opencode --port 3001 --hostname 0.0.0.0' \
+    'ExecStart=/home/opencode/.local/share/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
     'Restart=always' \
     'RestartSec=5' \
     'Environment=PATH=/home/opencode/.local/share/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
@@ -716,45 +664,15 @@ RUN printf '%s\n' \
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
     && ln -sf /etc/systemd/system/opencode.service /etc/systemd/system/multi-user.target.wants/opencode.service
 
-# Nginx service for serving UI + proxying API
-RUN printf '%s\n' \
-    '[Unit]' \
-    'Description=Nginx reverse proxy for opencode UI' \
-    'After=network.target opencode.service' \
-    '' \
-    '[Service]' \
-    'Type=simple' \
-    'ExecStart=/usr/sbin/nginx -g "daemon off;"' \
-    'ExecReload=/usr/sbin/nginx -s reload' \
-    'Restart=always' \
-    'RestartSec=5' \
-    '' \
-    '[Install]' \
-    'WantedBy=multi-user.target' \
-    > /etc/systemd/system/opencode-nginx.service
-
-# Enable nginx service
-RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
-    && ln -sf /etc/systemd/system/opencode-nginx.service /etc/systemd/system/multi-user.target.wants/opencode-nginx.service
-
-# Prevent the distro nginx service from also starting (port 3000 conflict)
-RUN rm -f /etc/systemd/system/multi-user.target.wants/nginx.service \
-    && ln -sf /dev/null /etc/systemd/system/nginx.service
-
 # -----------------------------------------------------------------------------
 # opencode Configuration
 # -----------------------------------------------------------------------------
-# Create opencode.jsonc config file with PAM authentication enabled and UI URL
-ENV OPENCODE_UI_URL=http://localhost:3002
+# Create opencode.jsonc config file with PAM authentication enabled
 RUN mkdir -p /home/opencode/.config/opencode \
     && printf '%s\n' \
     '{' \
-    '  // Container UI served via nginx on 3002' \
     '  "auth": {' \
     '    "enabled": true' \
-    '  },' \
-    '  "server": {' \
-    '    "uiUrl": "{env:OPENCODE_UI_URL}"' \
     '  }' \
     '}' \
     > /home/opencode/.config/opencode/opencode.jsonc \
@@ -782,8 +700,7 @@ RUN printf '%s\n' \
     '    install -d -m 0755 /run/opencode' \
     '    /usr/local/bin/opencode-broker &' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /home/opencode/.local/share/opencode/bin/opencode serve --port 3001 --hostname 0.0.0.0" &' \
-    '    exec /usr/sbin/nginx -g "daemon off;"' \
+    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /home/opencode/.local/share/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
@@ -817,8 +734,8 @@ RUN echo "${OPENCODE_CLOUD_VERSION}" > /etc/opencode-cloud-version
 # -----------------------------------------------------------------------------
 WORKDIR /home/opencode/workspace
 
-# Expose opencode ports (3000/3001/3002) and Cockpit (9090)
-EXPOSE 3000 3001 3002 9090
+# Expose opencode web (3000) and Cockpit (9090)
+EXPOSE 3000 9090
 
 # Hybrid init: entrypoint script chooses tini or systemd based on USE_SYSTEMD env
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

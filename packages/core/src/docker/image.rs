@@ -177,6 +177,8 @@ struct BuildLogState {
     error_log_buffer_size: usize,
     last_buildkit_vertex: Option<String>,
     last_buildkit_vertex_id: Option<String>,
+    export_vertex_id: Option<String>,
+    export_vertex_name: Option<String>,
     buildkit_logs_by_vertex_id: HashMap<String, String>,
     vertex_name_by_vertex_id: HashMap<String, String>,
 }
@@ -199,6 +201,8 @@ impl BuildLogState {
             error_log_buffer_size,
             last_buildkit_vertex: None,
             last_buildkit_vertex_id: None,
+            export_vertex_id: None,
+            export_vertex_name: None,
             buildkit_logs_by_vertex_id: HashMap::new(),
             vertex_name_by_vertex_id: HashMap::new(),
         }
@@ -255,31 +259,45 @@ fn handle_buildkit_status(
 ) {
     let latest_logs = append_buildkit_logs(&mut state.buildkit_logs_by_vertex_id, status);
     update_buildkit_vertex_names(&mut state.vertex_name_by_vertex_id, status);
-    let (vertex_id, vertex_name) =
-        match select_latest_buildkit_vertex(status, &state.vertex_name_by_vertex_id) {
-            Some((vertex_id, vertex_name)) => (vertex_id, vertex_name),
-            None => {
-                let Some(log_entry) = latest_logs.last() else {
-                    return;
-                };
-                let name = state
-                    .vertex_name_by_vertex_id
-                    .get(&log_entry.vertex_id)
-                    .cloned()
-                    .or_else(|| state.last_buildkit_vertex.clone())
-                    .unwrap_or_else(|| format_vertex_fallback_label(&log_entry.vertex_id));
-                (log_entry.vertex_id.clone(), name)
-            }
-        };
+    update_export_vertex_from_logs(
+        &latest_logs,
+        &state.vertex_name_by_vertex_id,
+        &mut state.export_vertex_id,
+        &mut state.export_vertex_name,
+    );
+    let (vertex_id, vertex_name) = match select_latest_buildkit_vertex(
+        status,
+        &state.vertex_name_by_vertex_id,
+        state.export_vertex_id.as_deref(),
+        state.export_vertex_name.as_deref(),
+    ) {
+        Some((vertex_id, vertex_name)) => (vertex_id, vertex_name),
+        None => {
+            let Some(log_entry) = latest_logs.last() else {
+                return;
+            };
+            let name = state
+                .vertex_name_by_vertex_id
+                .get(&log_entry.vertex_id)
+                .cloned()
+                .or_else(|| state.last_buildkit_vertex.clone())
+                .unwrap_or_else(|| format_vertex_fallback_label(&log_entry.vertex_id));
+            (log_entry.vertex_id.clone(), name)
+        }
+    };
     record_buildkit_logs(state, &latest_logs, &vertex_id, &vertex_name);
-    state.last_buildkit_vertex_id = Some(vertex_id);
+    state.last_buildkit_vertex_id = Some(vertex_id.clone());
     if state.last_buildkit_vertex.as_deref() != Some(&vertex_name) {
         state.last_buildkit_vertex = Some(vertex_name.clone());
     }
 
     let message = if progress.is_plain_output() {
         vertex_name
-    } else if let Some(log_entry) = latest_logs.last() {
+    } else if let Some(log_entry) = latest_logs
+        .iter()
+        .rev()
+        .find(|entry| entry.vertex_id == vertex_id)
+    {
         format!("{vertex_name} · {}", log_entry.message)
     } else {
         vertex_name
@@ -360,7 +378,17 @@ fn update_buildkit_vertex_names(
 fn select_latest_buildkit_vertex(
     status: &BuildkitStatusResponse,
     vertex_name_by_vertex_id: &HashMap<String, String>,
+    export_vertex_id: Option<&str>,
+    export_vertex_name: Option<&str>,
 ) -> Option<(String, String)> {
+    if let Some(export_vertex_id) = export_vertex_id {
+        let name = export_vertex_name
+            .map(str::to_string)
+            .or_else(|| vertex_name_by_vertex_id.get(export_vertex_id).cloned())
+            .unwrap_or_else(|| format_vertex_fallback_label(export_vertex_id));
+        return Some((export_vertex_id.to_string(), name));
+    }
+
     let mut best_runtime: Option<(u32, String, String)> = None;
     let mut fallback: Option<(String, String)> = None;
 
@@ -421,6 +449,24 @@ fn format_vertex_fallback_label(vertex_id: &str) -> String {
         .take(12)
         .collect::<String>();
     format!("vertex {short}")
+}
+
+fn update_export_vertex_from_logs(
+    latest_logs: &[BuildkitLogEntry],
+    vertex_name_by_vertex_id: &HashMap<String, String>,
+    export_vertex_id: &mut Option<String>,
+    export_vertex_name: &mut Option<String>,
+) {
+    if let Some(entry) = latest_logs
+        .iter()
+        .rev()
+        .find(|log| log.message.trim_start().starts_with("exporting to image"))
+    {
+        *export_vertex_id = Some(entry.vertex_id.clone());
+        if let Some(name) = vertex_name_by_vertex_id.get(&entry.vertex_id) {
+            *export_vertex_name = Some(name.clone());
+        }
+    }
 }
 
 fn record_buildkit_logs(

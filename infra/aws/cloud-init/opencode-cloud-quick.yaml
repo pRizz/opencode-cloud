@@ -89,8 +89,6 @@ write_files:
           --name "${OPENCODE_CONTAINER_NAME}" \
           --restart unless-stopped \
           -p 3000:3000 \
-          -p 3001:3001 \
-          -p 3002:3002 \
           -p 9090:9090 \
           -v opencode-config:/home/opencode/.config \
           -v opencode-data:/home/opencode/.local/share \

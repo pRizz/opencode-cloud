@@ -24,7 +24,6 @@ pub const CONTAINER_NAME: &str = "opencode-cloud";
 
 /// Default port for opencode web UI
 pub const OPENCODE_WEB_PORT: u16 = 3000;
-pub const OPENCODE_UI_PORT: u16 = 3002;
 
 /// Create the opencode container with volume mounts
 ///
@@ -131,15 +130,6 @@ pub async fn create_container(
         }]),
     );
 
-    // opencode static UI port
-    port_bindings.insert(
-        "3002/tcp".to_string(),
-        Some(vec![PortBinding {
-            host_ip: Some(bind_addr.to_string()),
-            host_port: Some(OPENCODE_UI_PORT.to_string()),
-        }]),
-    );
-
     // Cockpit port (if enabled)
     // Container always listens on 9090, map to host's configured port
     if cockpit_enabled_val {
@@ -155,7 +145,6 @@ pub async fn create_container(
     // Create exposed ports map
     let mut exposed_ports = HashMap::new();
     exposed_ports.insert("3000/tcp".to_string(), HashMap::new());
-    exposed_ports.insert("3002/tcp".to_string(), HashMap::new());
     if cockpit_enabled_val {
         exposed_ports.insert("9090/tcp".to_string(), HashMap::new());
     }
@@ -384,8 +373,6 @@ pub async fn container_state(client: &DockerClient, name: &str) -> Result<String
 pub struct ContainerPorts {
     /// Host port for opencode web UI (mapped from container port 3000)
     pub opencode_port: Option<u16>,
-    /// Host port for opencode static UI (mapped from container port 3002)
-    pub ui_port: Option<u16>,
     /// Host port for Cockpit (mapped from container port 9090)
     pub cockpit_port: Option<u16>,
 }
@@ -430,14 +417,6 @@ pub async fn get_container_ports(
         .and_then(|binding| binding.host_port.as_ref())
         .and_then(|port_str| port_str.parse::<u16>().ok());
 
-    // Extract UI port (3002/tcp -> host port)
-    let ui_port = port_bindings
-        .get("3002/tcp")
-        .and_then(|bindings| bindings.as_ref())
-        .and_then(|bindings| bindings.first())
-        .and_then(|binding| binding.host_port.as_ref())
-        .and_then(|port_str| port_str.parse::<u16>().ok());
-
     // Extract cockpit port (9090/tcp -> host port)
     let cockpit_port = port_bindings
         .get("9090/tcp")
@@ -448,7 +427,6 @@ pub async fn get_container_ports(
 
     Ok(ContainerPorts {
         opencode_port,
-        ui_port,
         cockpit_port,
     })
 }

@@ -15,7 +15,7 @@ use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
-    IMAGE_TAG_DEFAULT, ImageState, OPENCODE_UI_PORT, ParsedMount, ProgressReporter, build_image,
+    IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
     check_container_path_warning, container_exists, container_is_running, get_cli_version,
     get_container_bind_mounts, get_container_ports, get_image_version, image_exists, pull_image,
     save_state, setup_and_start, validate_mount_path, versions_compatible,
@@ -390,19 +390,18 @@ async fn check_port_mismatch(
 ) -> Result<Option<bool>> {
     let current_ports = get_container_ports(client, CONTAINER_NAME).await?;
     let current_opencode_port = current_ports.opencode_port.unwrap_or(3000);
-    let current_ui_port = current_ports.ui_port.unwrap_or(OPENCODE_UI_PORT);
     let current_cockpit_port = current_ports.cockpit_port.unwrap_or(9090);
 
     let port_mismatch = current_opencode_port != port;
-    let ui_mismatch = current_ui_port != OPENCODE_UI_PORT;
     let cockpit_mismatch = current_cockpit_port != config.cockpit_port;
 
-    if !port_mismatch && !ui_mismatch && !cockpit_mismatch {
+    if !port_mismatch && !cockpit_mismatch {
         return Ok(None);
     }
 
     // Check port availability BEFORE prompting - fail fast if new port isn't available
-    if port_mismatch && !check_port_available(port) {
+    let bind_addr = config.bind_address.as_str();
+    if port_mismatch && !check_port_available(bind_addr, port) {
         return Err(anyhow!(
             "Port mismatch: container uses port {current_opencode_port} but requested port {port}.\n\
              Cannot switch to port {port} - it's already in use.\n\n\
@@ -410,14 +409,6 @@ async fn check_port_mismatch(
              1. Stop the process using port {port}\n  \
              2. Use a different port: occ start --port <available-port>\n  \
              3. Keep current port: occ start --port {current_opencode_port}"
-        ));
-    }
-
-    if ui_mismatch && !check_port_available(OPENCODE_UI_PORT) {
-        return Err(anyhow!(
-            "UI port mismatch: container uses port {current_ui_port} but required port {OPENCODE_UI_PORT}.\n\
-             Cannot switch to port {OPENCODE_UI_PORT} - it's already in use.\n\n\
-             Stop the process using port {OPENCODE_UI_PORT} and retry."
         ));
     }
 
@@ -432,12 +423,9 @@ async fn check_port_mismatch(
 
     display_port_mismatch(
         port_mismatch,
-        ui_mismatch,
         cockpit_mismatch,
         current_opencode_port,
         port,
-        current_ui_port,
-        OPENCODE_UI_PORT,
         current_cockpit_port,
         config.cockpit_port,
     );
@@ -461,12 +449,9 @@ async fn check_port_mismatch(
 #[allow(clippy::too_many_arguments)]
 fn display_port_mismatch(
     port_mismatch: bool,
-    ui_mismatch: bool,
     cockpit_mismatch: bool,
     current_opencode: u16,
     requested_opencode: u16,
-    current_ui: u16,
-    requested_ui: u16,
     current_cockpit: u16,
     requested_cockpit: u16,
 ) {
@@ -482,14 +467,6 @@ fn display_port_mismatch(
             "  opencode port: {} (current) → {} (requested)",
             style(current_opencode).red(),
             style(requested_opencode).green()
-        );
-    }
-
-    if ui_mismatch {
-        eprintln!(
-            "  ui port: {} (current) → {} (required)",
-            style(current_ui).red(),
-            style(requested_ui).green()
         );
     }
 
@@ -769,21 +746,8 @@ pub async fn cmd_start(
     }
 
     // Pre-check port availability
-    if port == OPENCODE_UI_PORT {
-        return Err(anyhow!(
-            "Requested port {port} conflicts with the UI port {OPENCODE_UI_PORT}.\n\
-             Choose a different port: occ start --port <available-port>"
-        ));
-    }
-
-    if !check_port_available(port) {
-        return Err(port_in_use_error(port));
-    }
-
-    if !check_port_available(OPENCODE_UI_PORT) {
-        return Err(anyhow!(
-            "UI port {OPENCODE_UI_PORT} is already in use. Stop the process using it and retry."
-        ));
+    if !check_port_available(bind_addr, port) {
+        return Err(port_in_use_error(bind_addr, port));
     }
 
     // First-run image source prompt (if no image and no flag specified)
@@ -817,7 +781,6 @@ pub async fn cmd_start(
 
     // Start container
     let msg = crate::format_host_message(host_name.as_deref(), "Starting container...");
-    let maybe_remote_addr = resolve_remote_addr(host_name.as_deref());
     let spinner = CommandSpinner::new_maybe(&msg, quiet);
     let container_id = match start_container(
         &client,
@@ -826,7 +789,6 @@ pub async fn cmd_start(
         config.cockpit_port,
         config.cockpit_enabled,
         bind_mounts_option,
-        make_ui_env_var(maybe_remote_addr.as_deref(), bind_addr, OPENCODE_UI_PORT),
     )
     .await
     {
@@ -843,7 +805,7 @@ pub async fn cmd_start(
     };
 
     // Wait for service to be ready
-    if let Err(e) = wait_for_service_ready(&client, port, &spinner, host_name.as_deref()).await {
+    if let Err(e) = wait_for_service_ready(&client, bind_addr, port, &spinner).await {
         spinner.fail(&crate::format_host_message(
             host_name.as_deref(),
             "Service failed to become ready",
@@ -940,30 +902,9 @@ fn show_already_running(
     if let Some(ref remote_addr) = maybe_remote_addr {
         let remote_url = format!("http://{remote_addr}:{port}");
         println!("Remote URL: {}", style(&remote_url).cyan());
-        println!(
-            "Backend API URL (internal): {}",
-            style("http://127.0.0.1:3001").dim()
-        );
-        let ui_url = format!("http://{remote_addr}:{OPENCODE_UI_PORT}");
-        println!(
-            "Custom UI URL (Impl detail - do not use): {}",
-            style(&ui_url).cyan()
-        );
     } else {
         let url = format!("http://{bind_addr}:{port}");
         println!("URL:        {}", style(&url).cyan());
-        println!(
-            "Backend API URL (internal): {}",
-            style("http://127.0.0.1:3001").dim()
-        );
-        let ui_url = format!(
-            "http://{}:{OPENCODE_UI_PORT}",
-            normalize_bind_addr(bind_addr)
-        );
-        println!(
-            "Custom UI URL (Impl detail - do not use): {}",
-            style(&ui_url).cyan()
-        );
     }
 
     // Show Cockpit URL if enabled
@@ -985,9 +926,9 @@ fn show_already_running(
 }
 
 /// Create error message for port already in use
-fn port_in_use_error(port: u16) -> anyhow::Error {
+fn port_in_use_error(bind_addr: &str, port: u16) -> anyhow::Error {
     let mut msg = format!("Port {port} is already in use");
-    if let Some(p) = find_next_available_port(port) {
+    if let Some(p) = find_next_available_port(bind_addr, port) {
         msg.push_str(&format!(". Try: occ start --port {p}"));
     }
     anyhow!(msg)
@@ -1131,12 +1072,11 @@ async fn start_container(
     cockpit_port: u16,
     cockpit_enabled: bool,
     bind_mounts: Option<Vec<ParsedMount>>,
-    ui_env_var: String,
 ) -> Result<String, DockerError> {
     setup_and_start(
         client,
         Some(port),
-        Some(vec![ui_env_var]),
+        None,
         Some(bind_address),
         Some(cockpit_port),
         Some(cockpit_enabled),
@@ -1185,30 +1125,9 @@ fn show_start_result(
     if let Some(ref remote_addr) = maybe_remote_addr {
         let remote_url = format!("http://{remote_addr}:{port}");
         println!("Remote URL: {}", style(&remote_url).cyan());
-        println!(
-            "Backend API URL (internal): {}",
-            style("http://127.0.0.1:3001").dim()
-        );
-        let ui_url = format!("http://{remote_addr}:{OPENCODE_UI_PORT}");
-        println!(
-            "Custom UI URL (Impl detail - do not use): {}",
-            style(&ui_url).cyan()
-        );
     } else {
         let url = format!("http://{bind_addr}:{port}");
         println!("URL:        {}", style(&url).cyan());
-        println!(
-            "Backend API URL (internal): {}",
-            style("http://127.0.0.1:3001").dim()
-        );
-        let ui_url = format!(
-            "http://{}:{OPENCODE_UI_PORT}",
-            normalize_bind_addr(bind_addr)
-        );
-        println!(
-            "Custom UI URL (Impl detail - do not use): {}",
-            style(&ui_url).cyan()
-        );
     }
 
     println!(
@@ -1216,8 +1135,6 @@ fn show_start_result(
         style(&container_id[..12.min(container_id.len())]).dim()
     );
     println!("Port:       {port} -> 3000");
-    println!("API Port:   3001 -> 3001 (internal)");
-    println!("UI Port:    {OPENCODE_UI_PORT} -> 3002");
 
     // Show Cockpit availability if enabled
     if let Ok(config) = opencode_cloud_core::config::load_config() {
@@ -1263,19 +1180,23 @@ fn open_browser_if_requested(should_open: bool, port: u16, bind_addr: &str) {
     }
 }
 
-fn make_ui_env_var(maybe_remote_addr: Option<&str>, bind_addr: &str, ui_port: u16) -> String {
-    let ui_host = maybe_remote_addr.unwrap_or_else(|| normalize_bind_addr(bind_addr));
-    format!("OPENCODE_UI_URL=http://{ui_host}:{ui_port}")
-}
-
 /// Check if a port is available for binding
-fn check_port_available(port: u16) -> bool {
-    TcpListener::bind(("127.0.0.1", port)).is_ok()
+fn check_port_available(bind_addr: &str, port: u16) -> bool {
+    let bind_target = format_bind_addr(bind_addr, port);
+    TcpListener::bind(&bind_target).is_ok()
 }
 
 /// Find the next available port starting from the given port
-fn find_next_available_port(start: u16) -> Option<u16> {
-    (start..start.saturating_add(100)).find(|&p| check_port_available(p))
+fn find_next_available_port(bind_addr: &str, start: u16) -> Option<u16> {
+    (start..start.saturating_add(100)).find(|&p| check_port_available(bind_addr, p))
+}
+
+fn format_bind_addr(bind_addr: &str, port: u16) -> String {
+    if bind_addr.contains(':') && !bind_addr.starts_with('[') {
+        format!("[{bind_addr}]:{port}")
+    } else {
+        format!("{bind_addr}:{port}")
+    }
 }
 
 /// Configuration for health check waiting
@@ -1333,9 +1254,9 @@ async fn check_for_fatal_errors(client: &DockerClient) -> Option<String> {
 /// Also monitors container logs for fatal errors to fail fast.
 async fn wait_for_service_ready(
     client: &DockerClient,
+    bind_addr: &str,
     port: u16,
     spinner: &CommandSpinner,
-    _host_name: Option<&str>,
 ) -> Result<()> {
     let start = Instant::now();
     let timeout = Duration::from_secs(HEALTH_CHECK_TIMEOUT_SECS);
@@ -1365,7 +1286,8 @@ async fn wait_for_service_ready(
         }
 
         // Try to connect to the service
-        let addr = format!("127.0.0.1:{port}").parse().unwrap();
+        let browser_addr = normalize_bind_addr(bind_addr);
+        let addr = format_bind_addr(browser_addr, port).parse().unwrap();
         let connected = TcpStream::connect_timeout(&addr, Duration::from_secs(1)).is_ok();
 
         if connected {
@@ -1428,13 +1350,13 @@ mod tests {
         // Port 1 is privileged and typically unavailable
         // This test may pass if run as root, but that's unlikely in dev
         // Instead, test the logic with a known available port
-        assert!(!check_port_available(1)); // Privileged, should fail on non-root
+        assert!(!check_port_available("127.0.0.1", 1)); // Privileged, should fail on non-root
     }
 
     #[test]
     fn find_next_port_finds_available_port() {
         // This should find something in the 49152-49252 range (dynamic ports)
-        let result = find_next_available_port(49152);
+        let result = find_next_available_port("127.0.0.1", 49152);
         assert!(result.is_some());
     }
 

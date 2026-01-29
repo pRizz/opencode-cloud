@@ -19,7 +19,7 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
    limits) and create the stack.
 5. If ACM validation is stuck, verify the CNAME record in Route53.
 6. Point your domain to the ALB DNS name (create an ALIAS or CNAME).
-7. Wait for stack completion, then open `https://<your-domain>:444`.
+7. Wait for stack completion, then open `https://<your-domain>`.
 
 Cockpit is available at `https://<your-domain>/cockpit`.
 
@@ -177,14 +177,9 @@ opencode-cloud --version
 ## Port Architecture
 
 - **Public access**: The ALB terminates HTTPS on 443 and forwards to the
-  instance on port 3000. The UI is exposed separately on 444 for static assets.
-- **Nginx (3000)**: Nginx listens on 3000, proxies backend requests to 3001, and
-  serves the static UI on 3002.
-- **Backend (3001)**: The opencode backend handles API requests and forwards
-  unhandled requests to the configured `uiUrl`.
-- **UI (3002 / 444)**: The `uiUrl` is set to `https://<your-domain>:444`; the
-  ALB listens on 444 and proxies to the instance on port 3002 for static UI
-  assets.
+  instance on port 3000.
+- **opencode web (3000)**: `opencode web` serves the web UI and API directly on
+  port 3000 (no nginx layer).
 
 ## Troubleshooting
 
@@ -192,7 +187,7 @@ opencode-cloud --version
   in ACM and that DNS has propagated.
 - **HTTPS not working**: Confirm the domain points to the ALB and the ACM
   certificate is issued.
-- **UI not loading**: The UI should be reachable at `https://<your-domain>:444`.
+- **UI not loading**: The UI should be reachable at `https://<your-domain>`.
 - **Stack rollback during create**: The stack uses a CloudFormation
   `CreationPolicy` and `cfn-signal` from the instance bootstrap. It only
   completes if the opencode service is reachable on port 3000. If the signal is
