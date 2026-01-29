@@ -776,8 +776,11 @@ RUN printf '%s\n' \
     'if [ "${USE_SYSTEMD}" = "1" ]; then' \
     '    exec /sbin/init' \
     'else' \
+    '    # Ensure broker socket directory exists' \
+    '    install -d -m 0755 /run/opencode' \
+    '    /usr/local/bin/opencode-broker &' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    runuser -u opencode -- /home/opencode/.local/share/opencode/bin/opencode --port 3001 --hostname 0.0.0.0 &' \
+    '    runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /home/opencode/.local/share/opencode/bin/opencode serve --port 3001 --hostname 0.0.0.0" &' \
     '    exec /usr/sbin/nginx -g "daemon off;"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
