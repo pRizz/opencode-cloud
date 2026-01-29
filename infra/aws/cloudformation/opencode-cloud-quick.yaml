@@ -465,6 +465,10 @@ Resources:
 
   OpencodeInstance:
     Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT30M
+        Count: 1
     Properties:
       ImageId: !Ref UbuntuAmiId
       InstanceType: !Ref InstanceType
@@ -494,6 +498,12 @@ Resources:
             #cloud-config
             package_update: true
             package_upgrade: false
+            packages:
+              - aws-cfn-bootstrap
+              - awscli
+              - curl
+              - docker.io
+              - jq
             write_files:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
@@ -525,32 +535,34 @@ Resources:
                   #!/usr/bin/env bash
                   set -euo pipefail
 
-                  install_packages() {
-                    local -r max_attempts=5
-                    local -r packages=(docker.io curl jq awscli)
-                    local attempt=1
-
-                    printf '%s\n' 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
-
-                    while [ "$attempt" -le "$max_attempts" ]; do
-                      echo "opencode-cloud: installing packages (attempt ${attempt}/${max_attempts})"
-                      apt-get update -y -o Acquire::ForceIPv4=true
-                      if apt-get install -y --no-install-recommends -o Acquire::ForceIPv4=true "${packages[@]}"; then
-                        return 0
-                      fi
-                      attempt=$((attempt + 1))
-                      sleep 5
-                    done
-
-                    echo "opencode-cloud: package install failed after ${max_attempts} attempts"
-                    return 1
-                  }
-
                   STATUS_DIR="/var/lib/opencode-cloud"
                   PROVISIONED_FILE="$STATUS_DIR/.provisioned"
+                  STACK_NAME="${AWS::StackName}"
+                  SIGNAL_RESOURCE="OpencodeInstance"
+                  SIGNAL_BIN="/opt/aws/bin/cfn-signal"
+
+                  signal_result() {
+                    local -r exit_code="$1"
+                    local -r reason="$2"
+
+                    if [ -x "$SIGNAL_BIN" ]; then
+                      "$SIGNAL_BIN" \
+                        --exit-code "$exit_code" \
+                        --stack "$STACK_NAME" \
+                        --resource "$SIGNAL_RESOURCE" \
+                        --region "${AWS::Region}" \
+                        --reason "$reason"
+                    fi
+
+                    if [ "$exit_code" -ne 0 ]; then
+                      exit "$exit_code"
+                    fi
+                  }
+                  trap 'signal_result 1 "opencode-cloud bootstrap failed"' ERR
 
                   if [ -f "$PROVISIONED_FILE" ]; then
                     echo "opencode-cloud: already provisioned"
+                    signal_result 0 "opencode-cloud already provisioned"
                     exit 0
                   fi
 
@@ -592,15 +604,15 @@ Resources:
 
                   if [ -z "$OPENCODE_CREDENTIALS_SECRET_ARN" ]; then
                     echo "opencode-cloud: missing credentials secret ARN"
+                    signal_result 1 "opencode-cloud missing credentials secret ARN"
                     exit 1
                   fi
 
                   if [ -z "$AWS_REGION" ]; then
                     echo "opencode-cloud: missing AWS region"
+                    signal_result 1 "opencode-cloud missing AWS region"
                     exit 1
                   fi
-
-                  install_packages
 
                   systemctl enable --now docker
 
@@ -636,6 +648,19 @@ Resources:
                     docker exec "$OPENCODE_CONTAINER_NAME" usermod -aG sudo "$OPENCODE_USERNAME"
                   fi
 
+                  # Wait briefly for the service to accept HTTP connections.
+                  for _ in $(seq 1 30); do
+                    if curl -sS --max-time 2 http://localhost:3000/ -o /dev/null; then
+                      break
+                    fi
+                    sleep 2
+                  done
+
+                  # Fail the stack if the service never becomes reachable.
+                  if ! curl -sS --max-time 2 http://localhost:3000/ -o /dev/null; then
+                    signal_result 1 "opencode-cloud service did not become reachable on port 3000"
+                  fi
+
                   OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
                   echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
 
@@ -656,6 +681,7 @@ Resources:
                     --secret-string "$secret_payload"
 
                   date -u +"%Y-%m-%dT%H:%M:%SZ" > "$PROVISIONED_FILE"
+                  signal_result 0 "opencode-cloud provisioned successfully"
             runcmd:
               - [bash, -lc, "/usr/local/bin/opencode-cloud-setup.sh"]
 

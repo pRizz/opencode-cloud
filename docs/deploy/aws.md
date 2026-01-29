@@ -148,6 +148,19 @@ opencode-cloud --version
   Note: The instance still needs outbound internet access (NAT gateway + route)
   to install packages during bootstrap.
 
+### Gotchas
+
+- **Existing VPC + NAT placement**: When `UseExistingVpc=true`, the stack always
+  creates a NAT gateway in the first subnet in `ExistingPublicSubnetIds`. That
+  subnet must be public (route to an Internet Gateway) or the NAT gateway will
+  not have outbound access and package installs will fail.
+- **Private subnet egress**: The private subnet must route `0.0.0.0/0` to the NAT
+  gateway created by the stack so the instance can install packages and pull the
+  container image.
+- **No public IP by design**: The instance is always in a private subnet with
+  `AssociatePublicIpAddress=false`. SSH (when enabled) still requires a VPC path
+  such as SSM Session Manager, a bastion host, or VPN.
+
 ### TLS
 
 - **HostedZoneId**: Required. Used to create ACM DNS validation records in
@@ -163,6 +176,15 @@ opencode-cloud --version
   in ACM and that DNS has propagated.
 - **HTTPS not working**: Confirm the domain points to the ALB and the ACM
   certificate is issued.
+- **Stack rollback during create**: The stack uses a CloudFormation
+  `CreationPolicy` and `cfn-signal` from the instance bootstrap. It only
+  completes if the opencode service is reachable on port 3000. If the signal is
+  never sent within 30 minutes, CloudFormation rolls back and the instance
+  terminates.
+- **Health check logic**: After the container starts, bootstrap waits for
+  `http://localhost:3000/` to respond for ~60 seconds (30 attempts with 2-second
+  sleeps). Failure to reach the port signals stack failure. Review
+  `/var/log/cloud-init-output.log` for details.
 - **Health checks failing**: Check `/var/log/cloud-init-output.log` and run
   `docker ps` on the instance to confirm the container is running.
 - **Cockpit not loading**: Verify the `/cockpit` path and that port 9090 is
