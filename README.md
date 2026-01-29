@@ -23,6 +23,7 @@ opencode-cloud --version
 
 Quick deploy provisions a private EC2 instance behind a public ALB with HTTPS.
 **A domain name is required** for ACM certificate validation.
+**A Route53 hosted zone ID is required** for automated DNS validation.
 
 Docs: `docs/deploy/aws.md` (includes teardown steps and S3 hosting setup for forks)
 Credentials: `docs/deploy/aws.md#retrieving-credentials`

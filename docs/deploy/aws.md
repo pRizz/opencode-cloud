@@ -8,14 +8,15 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
 - AWS account with permissions to create EC2, ALB, ACM, and IAM resources.
 - A domain name you control (required for ACM TLS validation).
 - Ability to edit DNS records for the domain.
+- A Route53 hosted zone for the domain (required for automated validation).
 
 ## Quick Deploy
 
 1. Click the AWS deploy button in the root `README.md`.
 2. Provide a **domain name** (e.g., `opencode.example.com`).
-3. (Optional) Provide a Route53 hosted zone ID for automatic DNS validation.
+3. Provide the Route53 hosted zone ID for automatic DNS validation.
 4. Create the stack.
-5. If ACM validation is not automatic, add the CNAME record shown in ACM.
+5. If ACM validation is stuck, verify the CNAME record in Route53.
 6. Point your domain to the ALB DNS name (create an ALIAS or CNAME).
 7. Wait for stack completion, then open `https://<your-domain>`.
 
@@ -143,7 +144,8 @@ opencode-cloud --version
 
 ### TLS
 
-- **HostedZoneId**: If provided, ACM DNS validation is automated via Route53.
+- **HostedZoneId**: Required. Used to create ACM DNS validation records in
+  Route53.
 
 ### Image
 
