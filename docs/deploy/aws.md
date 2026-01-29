@@ -139,11 +139,14 @@ opencode-cloud --version
 - **ExistingVpcId**: Required if using an existing VPC.
 - **ExistingPublicSubnetIds**: Public subnets for the ALB (must allow internet).
 - **ExistingPrivateSubnetId**: Private subnet for the instance (must have NAT
-  egress so the instance can pull the container image).
+  egress so the instance can pull the container image). The stack always creates
+  a NAT gateway for outbound access.
 - **AllowSsh**: Enable SSH access (defaults to SSM-only).
   When enabled, SSH allows inbound traffic from 0.0.0.0/0, but the instance
   stays in a private subnet with no public IP. Access still requires a path
   into the VPC (for example, via a bastion host, VPN, or SSM).
+  Note: The instance still needs outbound internet access (NAT gateway + route)
+  to install packages during bootstrap.
 
 ### TLS
 

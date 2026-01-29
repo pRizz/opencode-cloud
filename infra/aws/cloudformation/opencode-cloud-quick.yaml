@@ -100,7 +100,7 @@ Parameters:
     AllowedValues:
       - "true"
       - "false"
-    Description: "Allow SSH access to the instance (defaults to SSM-only)."
+    Description: "Allow SSH access to the instance. When false, access is via AWS Systems Manager (SSM) Session Manager, or via other VPC paths (bastion/VPN)."
   UbuntuAmiId:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
@@ -237,32 +237,31 @@ Resources:
 
   NatEip:
     Type: AWS::EC2::EIP
-    Condition: CreateVpc
     Properties:
       Domain: vpc
 
   NatGateway:
     Type: AWS::EC2::NatGateway
-    Condition: CreateVpc
     Properties:
       AllocationId: !GetAtt NatEip.AllocationId
-      SubnetId: !Ref PublicSubnetA
+      SubnetId: !If
+        - UseExistingVpcCondition
+        - !Select [0, !Ref ExistingPublicSubnetIds]
+        - !Ref PublicSubnetA
       Tags:
         - Key: Name
           Value: opencode-cloud-quick-nat
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
-    Condition: CreateVpc
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
       Tags:
         - Key: Name
           Value: opencode-cloud-quick-private-rt
 
   PrivateRoute:
     Type: AWS::EC2::Route
-    Condition: CreateVpc
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -280,6 +279,13 @@ Resources:
     Condition: CreateVpc
     Properties:
       SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  ExistingPrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UseExistingVpcCondition
+    Properties:
+      SubnetId: !Ref ExistingPrivateSubnetId
       RouteTableId: !Ref PrivateRouteTable
 
   AlbSecurityGroup:
@@ -488,11 +494,6 @@ Resources:
             #cloud-config
             package_update: true
             package_upgrade: false
-            packages:
-              - docker.io
-              - curl
-              - jq
-              - awscli
             write_files:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
@@ -523,6 +524,27 @@ Resources:
                 content: |
                   #!/usr/bin/env bash
                   set -euo pipefail
+
+                  install_packages() {
+                    local -r max_attempts=5
+                    local -r packages=(docker.io curl jq awscli)
+                    local attempt=1
+
+                    printf '%s\n' 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+
+                    while [ "$attempt" -le "$max_attempts" ]; do
+                      echo "opencode-cloud: installing packages (attempt ${attempt}/${max_attempts})"
+                      apt-get update -y -o Acquire::ForceIPv4=true
+                      if apt-get install -y --no-install-recommends -o Acquire::ForceIPv4=true "${packages[@]}"; then
+                        return 0
+                      fi
+                      attempt=$((attempt + 1))
+                      sleep 5
+                    done
+
+                    echo "opencode-cloud: package install failed after ${max_attempts} attempts"
+                    return 1
+                  }
 
                   STATUS_DIR="/var/lib/opencode-cloud"
                   PROVISIONED_FILE="$STATUS_DIR/.provisioned"
@@ -577,6 +599,8 @@ Resources:
                     echo "opencode-cloud: missing AWS region"
                     exit 1
                   fi
+
+                  install_packages
 
                   systemctl enable --now docker
 
