@@ -69,9 +69,10 @@ pub use mount::{MountError, ParsedMount, check_container_path_warning, validate_
 
 // Container lifecycle
 pub use container::{
-    CONTAINER_NAME, ContainerBindMount, ContainerPorts, OPENCODE_WEB_PORT, container_exists,
-    container_is_running, container_state, create_container, get_container_bind_mounts,
-    get_container_ports, remove_container, start_container, stop_container,
+    CONTAINER_NAME, ContainerBindMount, ContainerPorts, OPENCODE_UI_PORT, OPENCODE_WEB_PORT,
+    container_exists, container_is_running, container_state, create_container,
+    get_container_bind_mounts, get_container_ports, remove_container, start_container,
+    stop_container,
 };
 
 // Image state tracking

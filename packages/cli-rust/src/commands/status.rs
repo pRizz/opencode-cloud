@@ -13,8 +13,8 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, HealthError, OPENCODE_WEB_PORT, ParsedMount, check_health, get_cli_version,
-    get_image_version, load_state,
+    CONTAINER_NAME, HealthError, OPENCODE_UI_PORT, OPENCODE_WEB_PORT, ParsedMount, check_health,
+    get_cli_version, get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::time::Duration;
@@ -108,7 +108,7 @@ pub async fn cmd_status(
         .and_then(|c| c.image.clone())
         .unwrap_or_else(|| "unknown".to_string());
 
-    // Extract port binding
+    // Extract port bindings
     let host_port = info
         .network_settings
         .as_ref()
@@ -119,6 +119,16 @@ pub async fn cmd_status(
         .and_then(|binding| binding.host_port.as_ref())
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(OPENCODE_WEB_PORT);
+    let ui_port = info
+        .network_settings
+        .as_ref()
+        .and_then(|ns| ns.ports.as_ref())
+        .and_then(|ports| ports.get("3002/tcp"))
+        .and_then(|bindings| bindings.as_ref())
+        .and_then(|bindings| bindings.first())
+        .and_then(|binding| binding.host_port.as_ref())
+        .and_then(|p| p.parse::<u16>().ok())
+        .unwrap_or(OPENCODE_UI_PORT);
 
     // Extract bind mounts from container
     let container_mounts = info
@@ -152,6 +162,15 @@ pub async fn cmd_status(
         if let Some(ref remote_addr) = maybe_remote_addr {
             let remote_url = format!("http://{remote_addr}:{host_port}");
             println!("Remote URL:  {}", style(&remote_url).cyan());
+            println!(
+                "Backend API URL (internal): {}",
+                style("http://127.0.0.1:3001").dim()
+            );
+            let remote_ui = format!("http://{remote_addr}:{ui_port}");
+            println!(
+                "Custom UI URL (Impl detail - do not use): {}",
+                style(&remote_ui).cyan()
+            );
             let local_url = format!("http://127.0.0.1:{host_port}");
             println!(
                 "Local URL:   {} {}",
@@ -161,6 +180,15 @@ pub async fn cmd_status(
         } else {
             let url = format!("http://127.0.0.1:{host_port}");
             println!("URL:         {}", style(&url).cyan());
+            println!(
+                "Backend API URL (internal): {}",
+                style("http://127.0.0.1:3001").dim()
+            );
+            let ui_url = format!("http://127.0.0.1:{ui_port}");
+            println!(
+                "Custom UI URL (Impl detail - do not use): {}",
+                style(&ui_url).cyan()
+            );
         }
 
         // Show health check status (only for local connections - can't check remote health directly)
@@ -241,6 +269,11 @@ pub async fn cmd_status(
         println!(
             "Port:        {} -> container:3000",
             style(host_port.to_string()).cyan()
+        );
+        println!("API Port:    3001 -> container:3001 (internal)");
+        println!(
+            "UI Port:     {} -> container:3002",
+            style(ui_port.to_string()).cyan()
         );
 
         // Show Cockpit info if enabled
