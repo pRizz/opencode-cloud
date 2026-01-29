@@ -70,7 +70,7 @@ Parameters:
   OpencodeUsername:
     Type: String
     Default: opencode
-    Description: "Initial opencode username created during provisioning."
+    Description: "Initial opencode username created during provisioning. This is in addition to the default ubuntu user which has no password but is only accessible via SSH."
   OpencodeImage:
     Type: String
     Default: ghcr.io/prizz/opencode-cloud-sandbox:latest
@@ -384,7 +384,7 @@ Resources:
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: opencode-cloud-quick-alb
+      Name: !Sub "opencode-${AWS::StackName}-alb"
       Scheme: internet-facing
       Type: application
       SecurityGroups:
@@ -398,7 +398,7 @@ Resources:
   OpencodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: opencode-cloud-ui
+      Name: !Sub "opencode-${AWS::StackName}-ui"
       Port: 3000
       Protocol: HTTP
       VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
@@ -413,7 +413,7 @@ Resources:
   CockpitTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: opencode-cloud-cockpit
+      Name: !Sub "opencode-${AWS::StackName}-cockpit"
       Port: 9090
       Protocol: HTTP
       VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
@@ -496,6 +496,9 @@ Resources:
         Fn::Base64:
           Fn::Sub: |
             #cloud-config
+            apt:
+              conf: |
+                Acquire::ForceIPv4 "true";
             package_update: true
             package_upgrade: false
             packages:

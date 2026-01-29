@@ -15,7 +15,8 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
 1. Click the AWS deploy button in the root `README.md`.
 2. Provide a **domain name** (e.g., `opencode.example.com`).
 3. Provide the Route53 hosted zone ID for automatic DNS validation.
-4. Create the stack.
+4. Choose a stack name (15 characters or fewer to avoid ALB/target group name
+   limits) and create the stack.
 5. If ACM validation is stuck, verify the CNAME record in Route53.
 6. Point your domain to the ALB DNS name (create an ALIAS or CNAME).
 7. Wait for stack completion, then open `https://<your-domain>`.
@@ -160,6 +161,9 @@ opencode-cloud --version
 - **No public IP by design**: The instance is always in a private subnet with
   `AssociatePublicIpAddress=false`. SSH (when enabled) still requires a VPC path
   such as SSM Session Manager, a bastion host, or VPN.
+- **Stack name length**: The stack name is embedded in ALB and target group
+  names to prevent naming collisions across stacks. Keep the stack name <= 15
+  characters to avoid AWS name length limits.
 
 ### TLS
 
