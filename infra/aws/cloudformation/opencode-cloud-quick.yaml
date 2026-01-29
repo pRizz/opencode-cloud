@@ -516,6 +516,18 @@ Resources:
                   COCKPIT_ALB_URL=https://${ApplicationLoadBalancer.DNSName}/cockpit
                   OPENCODE_CREDENTIALS_SECRET_ARN=${CredentialsSecret}
                   AWS_REGION=${AWS::Region}
+              - path: /etc/motd
+                permissions: "0644"
+                content: |
+                  opencode-cloud ready.
+                  Username: ${OpencodeUsername}
+                  opencode: https://${DomainName}
+                  Cockpit: https://${DomainName}/cockpit
+                  Credentials secret: ${CredentialsSecret}
+                  Fetch credentials:
+                    aws secretsmanager get-secret-value --region ${AWS::Region} \
+                      --secret-id ${CredentialsSecret} \
+                      --query SecretString --output text
               - path: /usr/local/bin/opencode-cloud-setup.sh
                 permissions: "0755"
                 content: |
@@ -613,34 +625,21 @@ Resources:
                   OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
                   echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
 
+                  secret_payload="$(jq -n \
+                    --arg opencode_url "$OPENCODE_DOMAIN_URL" \
+                    --arg opencode_alb_url "$OPENCODE_ALB_URL" \
+                    --arg cockpit_url "$COCKPIT_DOMAIN_URL" \
+                    --arg cockpit_alb_url "$COCKPIT_ALB_URL" \
+                    --arg username "$OPENCODE_USERNAME" \
+                    --arg password "$OPENCODE_PASSWORD" \
+                    --arg container "$OPENCODE_CONTAINER_NAME" \
+                    --arg image "$OPENCODE_IMAGE" \
+                    '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,cockpit_url:$cockpit_url,cockpit_alb_url:$cockpit_alb_url,username:$username,password:$password,container:$container,image:$image}')"
+
                   aws secretsmanager put-secret-value \
                     --region "$AWS_REGION" \
                     --secret-id "$OPENCODE_CREDENTIALS_SECRET_ARN" \
-                    --secret-string "$(cat <<EOF
-                  {
-                    "opencode_url": "$OPENCODE_DOMAIN_URL",
-                    "opencode_alb_url": "$OPENCODE_ALB_URL",
-                    "cockpit_url": "$COCKPIT_DOMAIN_URL",
-                    "cockpit_alb_url": "$COCKPIT_ALB_URL",
-                    "username": "$OPENCODE_USERNAME",
-                    "password": "$OPENCODE_PASSWORD",
-                    "container": "$OPENCODE_CONTAINER_NAME",
-                    "image": "$OPENCODE_IMAGE"
-                  }
-EOF
-                    )"
-
-                  cat > /etc/motd <<EOF
-                  opencode-cloud ready.
-                  Username: $OPENCODE_USERNAME
-                  opencode: $OPENCODE_DOMAIN_URL
-                  Cockpit: $COCKPIT_DOMAIN_URL
-                  Credentials secret: $OPENCODE_CREDENTIALS_SECRET_ARN
-                  Fetch credentials:
-                    aws secretsmanager get-secret-value --region $AWS_REGION \
-                      --secret-id $OPENCODE_CREDENTIALS_SECRET_ARN \
-                      --query SecretString --output text
-                  EOF
+                    --secret-string "$secret_payload"
 
                   date -u +"%Y-%m-%dT%H:%M:%SZ" > "$PROVISIONED_FILE"
             runcmd:
