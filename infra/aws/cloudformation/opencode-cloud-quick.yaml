@@ -507,7 +507,7 @@ Resources:
               - path: /etc/motd
                 permissions: "0644"
                 content: |
-                  opencode-cloud ready.
+                  opencode-cloud ready. (cloudformation)
                   Username: ${OpencodeUsername}
                   opencode: https://${DomainName}
                   Cockpit: https://${DomainName}/cockpit
