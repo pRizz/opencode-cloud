@@ -710,10 +710,10 @@ RUN printf '%s\n' \
 # -----------------------------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------------------------
-# Check that opencode health endpoint responds
+# Check that opencode main page responds
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:3000/ || exit 1
 
 # -----------------------------------------------------------------------------
 # Version File

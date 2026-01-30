@@ -40,19 +40,31 @@ write_files:
       STATUS_DIR="/var/lib/opencode-cloud"
       STATUS_FILE="${STATUS_DIR}/deploy-status.json"
       PROVISIONED_FILE="${STATUS_DIR}/.provisioned"
+      LOG_FILE="/var/log/opencode-cloud-setup.log"
+
+      log() {
+        printf '%s %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$LOG_FILE"
+      }
+
+      log "opencode-cloud setup (cloud-init): start"
 
       if [ -f "${PROVISIONED_FILE}" ]; then
+        log "opencode-cloud setup: already provisioned"
         echo "opencode-cloud: already provisioned"
         exit 0
       fi
 
+      log "opencode-cloud setup: prepare status dir"
       mkdir -p "${STATUS_DIR}"
       chmod 700 "${STATUS_DIR}"
+      log "opencode-cloud setup: status dir ready"
 
       # Load CloudFormation-provided values.
       if [ -f /etc/opencode-cloud/stack.env ]; then
+        log "opencode-cloud setup: load stack env"
         # shellcheck disable=SC1091
         source /etc/opencode-cloud/stack.env
+        log "opencode-cloud setup: stack env loaded"
       fi
 
       : "${OPENCODE_IMAGE:=ghcr.io/prizz/opencode-cloud-sandbox:latest}"
@@ -64,27 +76,38 @@ write_files:
       : "${COCKPIT_ALB_URL:=}"
 
       if ! command -v cargo >/dev/null 2>&1; then
+        log "opencode-cloud setup: install rust toolchain"
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
           bash -s -- -y --profile minimal --default-toolchain 1.85.0
+        log "opencode-cloud setup: rust toolchain installed"
       fi
 
       export PATH="$HOME/.cargo/bin:${PATH}"
 
       if ! command -v opencode-cloud >/dev/null 2>&1; then
+        log "opencode-cloud setup: install opencode-cloud CLI"
         cargo install opencode-cloud
+        log "opencode-cloud setup: opencode-cloud CLI installed"
       fi
 
       OPENCODE_CLI_VERSION="$(opencode-cloud --version 2>/dev/null || true)"
 
+      log "opencode-cloud setup: enable docker"
       systemctl enable --now docker
+      log "opencode-cloud setup: docker enabled"
 
+      log "opencode-cloud setup: pull image ${OPENCODE_IMAGE}"
       docker pull "${OPENCODE_IMAGE}"
+      log "opencode-cloud setup: image pulled"
 
+      log "opencode-cloud setup: create volumes"
       docker volume create opencode-config >/dev/null
       docker volume create opencode-data >/dev/null
       docker volume create opencode-workspace >/dev/null
+      log "opencode-cloud setup: volumes ready"
 
       if ! docker ps -a --format '{{.Names}}' | grep -qx "${OPENCODE_CONTAINER_NAME}"; then
+        log "opencode-cloud setup: start container ${OPENCODE_CONTAINER_NAME}"
         docker run -d \
           --name "${OPENCODE_CONTAINER_NAME}" \
           --restart unless-stopped \
@@ -94,24 +117,32 @@ write_files:
           -v opencode-data:/home/opencode/.local/share \
           -v opencode-workspace:/home/opencode/workspace \
           "${OPENCODE_IMAGE}"
+        log "opencode-cloud setup: container started"
       fi
 
       # Wait for the container to be ready to accept commands.
+      log "opencode-cloud setup: wait for container readiness"
       for _ in $(seq 1 30); do
         if docker exec "${OPENCODE_CONTAINER_NAME}" true >/dev/null 2>&1; then
           break
         fi
         sleep 2
       done
+      log "opencode-cloud setup: container ready for exec"
 
       if ! docker exec "${OPENCODE_CONTAINER_NAME}" id -u "${OPENCODE_USERNAME}" >/dev/null 2>&1; then
+        log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
         docker exec "${OPENCODE_CONTAINER_NAME}" useradd -m -s /bin/bash "${OPENCODE_USERNAME}"
         docker exec "${OPENCODE_CONTAINER_NAME}" usermod -aG sudo "${OPENCODE_USERNAME}"
+        log "opencode-cloud setup: user created"
       fi
 
+      log "opencode-cloud setup: set user password"
       OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
       echo "${OPENCODE_USERNAME}:${OPENCODE_PASSWORD}" | docker exec -i "${OPENCODE_CONTAINER_NAME}" chpasswd
+      log "opencode-cloud setup: user password set"
 
+      log "opencode-cloud setup: write status file"
       cat > "${STATUS_FILE}" <<EOF
       {
         "opencode_url": "${OPENCODE_DOMAIN_URL}",
@@ -126,7 +157,9 @@ write_files:
       }
       EOF
       chmod 600 "${STATUS_FILE}"
+      log "opencode-cloud setup: status file written"
 
+      log "opencode-cloud setup: write motd"
       cat > /etc/motd <<EOF
       opencode-cloud ready.
       Username: ${OPENCODE_USERNAME}
@@ -135,8 +168,11 @@ write_files:
       Cockpit: ${COCKPIT_DOMAIN_URL}
       Status file: ${STATUS_FILE}
       EOF
+      log "opencode-cloud setup: motd written"
 
+      log "opencode-cloud setup: mark provisioned"
       date -u +"%Y-%m-%dT%H:%M:%SZ" > "${PROVISIONED_FILE}"
+      log "opencode-cloud setup: complete"
 
 runcmd:
   - [bash, -lc, "/usr/local/bin/opencode-cloud-setup.sh"]

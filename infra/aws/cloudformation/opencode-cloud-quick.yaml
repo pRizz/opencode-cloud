@@ -527,6 +527,13 @@ Resources:
                   STACK_NAME="${AWS::StackName}"
                   SIGNAL_RESOURCE="OpencodeInstance"
                   SIGNAL_BIN="/opt/aws/bin/cfn-signal"
+                  LOG_FILE="/var/log/opencode-cloud-setup.log"
+
+                  log() {
+                    printf '%s %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$LOG_FILE"
+                  }
+
+                  log "opencode-cloud setup (cloudformation): start"
 
                   signal_result() {
                     local -r exit_code="$1"
@@ -548,17 +555,22 @@ Resources:
                   trap 'signal_result 1 "opencode-cloud bootstrap failed"' ERR
 
                   if [ -f "$PROVISIONED_FILE" ]; then
+                    log "opencode-cloud setup: already provisioned"
                     echo "opencode-cloud: already provisioned"
                     signal_result 0 "opencode-cloud already provisioned"
                     exit 0
                   fi
 
+                  log "opencode-cloud setup: prepare status dir"
                   mkdir -p "$STATUS_DIR"
                   chmod 700 "$STATUS_DIR"
+                  log "opencode-cloud setup: status dir ready"
 
                   if [ -f /etc/opencode-cloud/stack.env ]; then
+                    log "opencode-cloud setup: load stack env"
                     # shellcheck disable=SC1091
                     source /etc/opencode-cloud/stack.env
+                    log "opencode-cloud setup: stack env loaded"
                   fi
 
                   if [ -z "$OPENCODE_IMAGE" ]; then
@@ -574,12 +586,14 @@ Resources:
                   fi
 
                   if [ -z "$OPENCODE_DOMAIN_URL" ]; then
+                    log "opencode-cloud setup: missing OPENCODE_DOMAIN_URL"
                     echo "opencode-cloud: missing OPENCODE_DOMAIN_URL"
                     signal_result 1 "opencode-cloud missing OPENCODE_DOMAIN_URL"
                     exit 1
                   fi
 
                   if [ -z "$OPENCODE_ALB_URL" ]; then
+                    log "opencode-cloud setup: missing OPENCODE_ALB_URL"
                     echo "opencode-cloud: missing OPENCODE_ALB_URL"
                     signal_result 1 "opencode-cloud missing OPENCODE_ALB_URL"
                     exit 1
@@ -594,26 +608,35 @@ Resources:
                   fi
 
                   if [ -z "$OPENCODE_CREDENTIALS_SECRET_ARN" ]; then
+                    log "opencode-cloud setup: missing credentials secret ARN"
                     echo "opencode-cloud: missing credentials secret ARN"
                     signal_result 1 "opencode-cloud missing credentials secret ARN"
                     exit 1
                   fi
 
                   if [ -z "$AWS_REGION" ]; then
+                    log "opencode-cloud setup: missing AWS region"
                     echo "opencode-cloud: missing AWS region"
                     signal_result 1 "opencode-cloud missing AWS region"
                     exit 1
                   fi
 
+                  log "opencode-cloud setup: enable docker"
                   systemctl enable --now docker
+                  log "opencode-cloud setup: docker enabled"
 
+                  log "opencode-cloud setup: pull image ${OPENCODE_IMAGE}"
                   docker pull "$OPENCODE_IMAGE"
+                  log "opencode-cloud setup: image pulled"
 
+                  log "opencode-cloud setup: create volumes"
                   docker volume create opencode-config >/dev/null
                   docker volume create opencode-data >/dev/null
                   docker volume create opencode-workspace >/dev/null
+                  log "opencode-cloud setup: volumes ready"
 
                   if ! docker ps -a --format '{{.Names}}' | grep -qx "$OPENCODE_CONTAINER_NAME"; then
+                    log "opencode-cloud setup: start container ${OPENCODE_CONTAINER_NAME}"
                     docker run -d \
                       --name "$OPENCODE_CONTAINER_NAME" \
                       --restart unless-stopped \
@@ -623,21 +646,27 @@ Resources:
                       -v opencode-data:/home/opencode/.local/share \
                       -v opencode-workspace:/home/opencode/workspace \
                       "$OPENCODE_IMAGE"
+                    log "opencode-cloud setup: container started"
                   fi
 
+                  log "opencode-cloud setup: wait for container readiness"
                   for _ in $(seq 1 30); do
                     if docker exec "$OPENCODE_CONTAINER_NAME" true >/dev/null 2>&1; then
                       break
                     fi
                     sleep 2
                   done
+                  log "opencode-cloud setup: container ready for exec"
 
                   if ! docker exec "$OPENCODE_CONTAINER_NAME" id -u "$OPENCODE_USERNAME" >/dev/null 2>&1; then
+                    log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
                     docker exec "$OPENCODE_CONTAINER_NAME" useradd -m -s /bin/bash "$OPENCODE_USERNAME"
                     docker exec "$OPENCODE_CONTAINER_NAME" usermod -aG sudo "$OPENCODE_USERNAME"
+                    log "opencode-cloud setup: user created"
                   fi
 
                   # Wait briefly for the service to accept HTTP connections.
+                  log "opencode-cloud setup: wait for service readiness"
                   for _ in $(seq 1 30); do
                     if curl -sS --max-time 2 http://localhost:3000/ -o /dev/null; then
                       break
@@ -647,12 +676,16 @@ Resources:
 
                   # Fail the stack if the service never becomes reachable.
                   if ! curl -sS --max-time 2 http://localhost:3000/ -o /dev/null; then
+                    log "opencode-cloud setup: service not reachable"
                     signal_result 1 "opencode-cloud service did not become reachable on port 3000"
                   fi
 
+                  log "opencode-cloud setup: set user password"
                   OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
                   echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
+                  log "opencode-cloud setup: user password set"
 
+                  log "opencode-cloud setup: write secrets payload"
                   secret_payload="$(jq -n \
                     --arg opencode_url "$OPENCODE_DOMAIN_URL" \
                     --arg opencode_alb_url "$OPENCODE_ALB_URL" \
@@ -664,12 +697,16 @@ Resources:
                     --arg image "$OPENCODE_IMAGE" \
                     '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,cockpit_url:$cockpit_url,cockpit_alb_url:$cockpit_alb_url,username:$username,password:$password,container:$container,image:$image}')"
 
+                  log "opencode-cloud setup: store secret"
                   aws secretsmanager put-secret-value \
                     --region "$AWS_REGION" \
                     --secret-id "$OPENCODE_CREDENTIALS_SECRET_ARN" \
                     --secret-string "$secret_payload"
+                  log "opencode-cloud setup: secret stored"
 
+                  log "opencode-cloud setup: mark provisioned"
                   date -u +"%Y-%m-%dT%H:%M:%SZ" > "$PROVISIONED_FILE"
+                  log "opencode-cloud setup: complete"
                   signal_result 0 "opencode-cloud provisioned successfully"
             runcmd:
               - [bash, -lc, "/usr/local/bin/opencode-cloud-setup.sh"]
