@@ -37,7 +37,7 @@ pub struct UserInfo {
 ///
 /// # Example
 /// ```ignore
-/// create_user(&client, "opencode-cloud", "admin").await?;
+/// create_user(&client, "opencode-cloud-sandbox", "admin").await?;
 /// ```
 pub async fn create_user(
     client: &DockerClient,
@@ -80,7 +80,7 @@ pub async fn create_user(
 ///
 /// # Example
 /// ```ignore
-/// set_user_password(&client, "opencode-cloud", "admin", "secret123").await?;
+/// set_user_password(&client, "opencode-cloud-sandbox", "admin", "secret123").await?;
 /// ```
 pub async fn set_user_password(
     client: &DockerClient,

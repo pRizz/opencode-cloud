@@ -22,7 +22,7 @@ use super::{DockerClient, DockerError};
 ///
 /// # Example
 /// ```ignore
-/// let output = exec_command(&client, "opencode-cloud", vec!["whoami"]).await?;
+/// let output = exec_command(&client, "opencode-cloud-sandbox", vec!["whoami"]).await?;
 /// ```
 pub async fn exec_command(
     client: &DockerClient,
@@ -104,7 +104,7 @@ pub async fn exec_command(
 /// // Set password via chpasswd (secure, non-interactive)
 /// exec_command_with_stdin(
 ///     &client,
-///     "opencode-cloud",
+///     "opencode-cloud-sandbox",
 ///     vec!["chpasswd"],
 ///     "username:password\n"
 /// ).await?;

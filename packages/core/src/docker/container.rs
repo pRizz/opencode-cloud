@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use tracing::debug;
 
 /// Default container name
-pub const CONTAINER_NAME: &str = "opencode-cloud";
+pub const CONTAINER_NAME: &str = "opencode-cloud-sandbox";
 
 /// Default port for opencode web UI
 pub const OPENCODE_WEB_PORT: u16 = 3000;
@@ -38,7 +38,7 @@ pub const OPENCODE_WEB_PORT: u16 = 3000;
 /// * `env_vars` - Additional environment variables (optional)
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 /// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
-/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
+/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to false)
 /// * `bind_mounts` - User-defined bind mounts from config and CLI flags (optional)
 #[allow(clippy::too_many_arguments)]
 pub async fn create_container(
@@ -57,7 +57,7 @@ pub async fn create_container(
     let image_name = image.unwrap_or(&default_image);
     let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
     let cockpit_port_val = cockpit_port.unwrap_or(9090);
-    let cockpit_enabled_val = cockpit_enabled.unwrap_or(true);
+    let cockpit_enabled_val = cockpit_enabled.unwrap_or(false);
 
     debug!(
         "Creating container {} from image {} with port {} and cockpit_port {} (enabled: {})",
@@ -202,7 +202,7 @@ pub async fn create_container(
     let config = Config {
         image: Some(image_name.to_string()),
         hostname: Some(CONTAINER_NAME.to_string()),
-        working_dir: Some("/workspace".to_string()),
+        working_dir: Some("/home/opencode/workspace".to_string()),
         exposed_ports: Some(exposed_ports),
         env: final_env,
         host_config: Some(host_config),
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn container_constants_are_correct() {
-        assert_eq!(CONTAINER_NAME, "opencode-cloud");
+        assert_eq!(CONTAINER_NAME, "opencode-cloud-sandbox");
         assert_eq!(OPENCODE_WEB_PORT, 3000);
     }
 

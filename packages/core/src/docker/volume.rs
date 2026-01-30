@@ -8,23 +8,23 @@ use bollard::volume::CreateVolumeOptions;
 use std::collections::HashMap;
 use tracing::debug;
 
-/// Volume name for opencode session history
-pub const VOLUME_SESSION: &str = "opencode-cloud-session";
+/// Volume name for opencode data
+pub const VOLUME_SESSION: &str = "opencode-data";
 
 /// Volume name for project files
-pub const VOLUME_PROJECTS: &str = "opencode-cloud-projects";
+pub const VOLUME_PROJECTS: &str = "opencode-workspace";
 
 /// Volume name for opencode configuration
-pub const VOLUME_CONFIG: &str = "opencode-cloud-config";
+pub const VOLUME_CONFIG: &str = "opencode-config";
 
 /// All volume names as array for iteration
 pub const VOLUME_NAMES: [&str; 3] = [VOLUME_SESSION, VOLUME_PROJECTS, VOLUME_CONFIG];
 
-/// Mount point for session history inside container
-pub const MOUNT_SESSION: &str = "/home/opencode/.opencode";
+/// Mount point for opencode data inside container
+pub const MOUNT_SESSION: &str = "/home/opencode/.local/share";
 
 /// Mount point for project files inside container
-pub const MOUNT_PROJECTS: &str = "/workspace";
+pub const MOUNT_PROJECTS: &str = "/home/opencode/workspace";
 
 /// Mount point for configuration inside container
 pub const MOUNT_CONFIG: &str = "/home/opencode/.config";
@@ -122,9 +122,9 @@ mod tests {
 
     #[test]
     fn volume_constants_are_correct() {
-        assert_eq!(VOLUME_SESSION, "opencode-cloud-session");
-        assert_eq!(VOLUME_PROJECTS, "opencode-cloud-projects");
-        assert_eq!(VOLUME_CONFIG, "opencode-cloud-config");
+        assert_eq!(VOLUME_SESSION, "opencode-data");
+        assert_eq!(VOLUME_PROJECTS, "opencode-workspace");
+        assert_eq!(VOLUME_CONFIG, "opencode-config");
     }
 
     #[test]
@@ -137,8 +137,8 @@ mod tests {
 
     #[test]
     fn mount_points_are_correct() {
-        assert_eq!(MOUNT_SESSION, "/home/opencode/.opencode");
-        assert_eq!(MOUNT_PROJECTS, "/workspace");
+        assert_eq!(MOUNT_SESSION, "/home/opencode/.local/share");
+        assert_eq!(MOUNT_PROJECTS, "/home/opencode/workspace");
         assert_eq!(MOUNT_CONFIG, "/home/opencode/.config");
     }
 }
