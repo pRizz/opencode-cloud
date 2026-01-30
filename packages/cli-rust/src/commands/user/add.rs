@@ -13,6 +13,8 @@ use opencode_cloud_core::{load_config, save_config};
 use rand::Rng;
 use rand::distr::Alphanumeric;
 
+use crate::constants::password_length;
+
 /// Arguments for the user add command
 #[derive(Args)]
 pub struct UserAddArgs {
@@ -30,9 +32,10 @@ pub struct UserAddArgs {
 
 /// Generate a secure random password
 fn generate_random_password() -> String {
+    // ThreadRng is a CSPRNG seeded from the OS.
     rand::rng()
         .sample_iter(Alphanumeric)
-        .take(24)
+        .take(password_length())
         .map(char::from)
         .collect()
 }
@@ -197,7 +200,7 @@ mod tests {
     #[test]
     fn test_generate_random_password_length() {
         let password = generate_random_password();
-        assert_eq!(password.len(), 24);
+        assert_eq!(password.len(), password_length());
     }
 
     #[test]

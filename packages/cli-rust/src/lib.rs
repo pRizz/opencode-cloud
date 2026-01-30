@@ -3,6 +3,7 @@
 //! This module contains the shared CLI implementation used by all binaries.
 
 mod commands;
+mod constants;
 mod output;
 pub mod wizard;
 

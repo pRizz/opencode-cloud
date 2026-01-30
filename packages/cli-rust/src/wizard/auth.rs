@@ -12,6 +12,8 @@ use opencode_cloud_core::docker::{
 use rand::Rng;
 use rand::distr::Alphanumeric;
 
+use crate::constants::password_length;
+
 /// Handle Ctrl+C by restoring cursor and returning error
 fn handle_interrupt() -> anyhow::Error {
     let _ = Term::stdout().show_cursor();
@@ -37,9 +39,10 @@ fn validate_username(input: &str) -> Result<(), String> {
 
 /// Generate a secure random password
 fn generate_random_password() -> String {
+    // ThreadRng is a CSPRNG seeded from the OS.
     rand::rng()
         .sample_iter(Alphanumeric)
-        .take(24)
+        .take(password_length())
         .map(char::from)
         .collect()
 }
@@ -210,7 +213,7 @@ mod tests {
     #[test]
     fn test_generate_random_password_length() {
         let password = generate_random_password();
-        assert_eq!(password.len(), 24);
+        assert_eq!(password.len(), password_length());
     }
 
     #[test]
