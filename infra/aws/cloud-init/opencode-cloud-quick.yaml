@@ -96,51 +96,21 @@ write_files:
       systemctl enable --now docker
       log "opencode-cloud setup: docker enabled"
 
-      log "opencode-cloud setup: pull image ${OPENCODE_IMAGE}"
-      docker pull "${OPENCODE_IMAGE}"
-      log "opencode-cloud setup: image pulled"
+      log "opencode-cloud setup: bootstrap config"
+      opencode-cloud --quiet setup --bootstrap
+      log "opencode-cloud setup: bootstrap complete"
 
-      log "opencode-cloud setup: create volumes"
-      docker volume create opencode-config >/dev/null
-      docker volume create opencode-data >/dev/null
-      docker volume create opencode-workspace >/dev/null
-      log "opencode-cloud setup: volumes ready"
-
-      if ! docker ps -a --format '{{.Names}}' | grep -qx "${OPENCODE_CONTAINER_NAME}"; then
-        log "opencode-cloud setup: start container ${OPENCODE_CONTAINER_NAME}"
-        docker run -d \
-          --name "${OPENCODE_CONTAINER_NAME}" \
-          --restart unless-stopped \
-          -p 3000:3000 \
-          -p 9090:9090 \
-          -v opencode-config:/home/opencode/.config \
-          -v opencode-data:/home/opencode/.local/share \
-          -v opencode-workspace:/home/opencode/workspace \
-          "${OPENCODE_IMAGE}"
-        log "opencode-cloud setup: container started"
+      log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
+      user_output="$(opencode-cloud user add "${OPENCODE_USERNAME}" --generate)"
+      OPENCODE_PASSWORD="$(printf '%s\n' "$user_output" | sed -n 's/.*Password: //p' | tail -n 1)"
+      if [ -z "$OPENCODE_PASSWORD" ]; then
+        log "opencode-cloud setup: failed to read generated password"
+        exit 1
       fi
+      log "opencode-cloud setup: user created"
 
-      # Wait for the container to be ready to accept commands.
-      log "opencode-cloud setup: wait for container readiness"
-      for _ in $(seq 1 30); do
-        if docker exec "${OPENCODE_CONTAINER_NAME}" true >/dev/null 2>&1; then
-          break
-        fi
-        sleep 2
-      done
-      log "opencode-cloud setup: container ready for exec"
-
-      if ! docker exec "${OPENCODE_CONTAINER_NAME}" id -u "${OPENCODE_USERNAME}" >/dev/null 2>&1; then
-        log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
-        docker exec "${OPENCODE_CONTAINER_NAME}" useradd -m -s /bin/bash "${OPENCODE_USERNAME}"
-        docker exec "${OPENCODE_CONTAINER_NAME}" usermod -aG sudo "${OPENCODE_USERNAME}"
-        log "opencode-cloud setup: user created"
-      fi
-
-      log "opencode-cloud setup: set user password"
-      OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
-      echo "${OPENCODE_USERNAME}:${OPENCODE_PASSWORD}" | docker exec -i "${OPENCODE_CONTAINER_NAME}" chpasswd
-      log "opencode-cloud setup: user password set"
+      log "opencode-cloud setup: disable unauthenticated network"
+      opencode-cloud config set allow_unauthenticated_network false
 
       log "opencode-cloud setup: write status file"
       cat > "${STATUS_FILE}" <<EOF

@@ -622,49 +622,28 @@ Resources:
                     exit 1
                   fi
 
+                  if ! command -v cargo >/dev/null 2>&1; then
+                    log "opencode-cloud setup: install rust toolchain"
+                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+                      bash -s -- -y --profile minimal --default-toolchain 1.85.0
+                    log "opencode-cloud setup: rust toolchain installed"
+                  fi
+
+                  export PATH="$HOME/.cargo/bin:$PATH"
+
+                  if ! command -v opencode-cloud >/dev/null 2>&1; then
+                    log "opencode-cloud setup: install opencode-cloud CLI"
+                    cargo install opencode-cloud
+                    log "opencode-cloud setup: opencode-cloud CLI installed"
+                  fi
+
                   log "opencode-cloud setup: enable docker"
                   systemctl enable --now docker
                   log "opencode-cloud setup: docker enabled"
 
-                  log "opencode-cloud setup: pull image $OPENCODE_IMAGE"
-                  docker pull "$OPENCODE_IMAGE"
-                  log "opencode-cloud setup: image pulled"
-
-                  log "opencode-cloud setup: create volumes"
-                  docker volume create opencode-config >/dev/null
-                  docker volume create opencode-data >/dev/null
-                  docker volume create opencode-workspace >/dev/null
-                  log "opencode-cloud setup: volumes ready"
-
-                  if ! docker ps -a --format '{{.Names}}' | grep -qx "$OPENCODE_CONTAINER_NAME"; then
-                    log "opencode-cloud setup: start container $OPENCODE_CONTAINER_NAME"
-                    docker run -d \
-                      --name "$OPENCODE_CONTAINER_NAME" \
-                      --restart unless-stopped \
-                      -p 3000:3000 \
-                      -p 9090:9090 \
-                      -v opencode-config:/home/opencode/.config \
-                      -v opencode-data:/home/opencode/.local/share \
-                      -v opencode-workspace:/home/opencode/workspace \
-                      "$OPENCODE_IMAGE"
-                    log "opencode-cloud setup: container started"
-                  fi
-
-                  log "opencode-cloud setup: wait for container readiness"
-                  for _ in $(seq 1 30); do
-                    if docker exec "$OPENCODE_CONTAINER_NAME" true >/dev/null 2>&1; then
-                      break
-                    fi
-                    sleep 2
-                  done
-                  log "opencode-cloud setup: container ready for exec"
-
-                  if ! docker exec "$OPENCODE_CONTAINER_NAME" id -u "$OPENCODE_USERNAME" >/dev/null 2>&1; then
-                    log "opencode-cloud setup: create user $OPENCODE_USERNAME"
-                    docker exec "$OPENCODE_CONTAINER_NAME" useradd -m -s /bin/bash "$OPENCODE_USERNAME"
-                    docker exec "$OPENCODE_CONTAINER_NAME" usermod -aG sudo "$OPENCODE_USERNAME"
-                    log "opencode-cloud setup: user created"
-                  fi
+                  log "opencode-cloud setup: bootstrap config"
+                  opencode-cloud --quiet setup --bootstrap
+                  log "opencode-cloud setup: bootstrap complete"
 
                   # Wait briefly for the service to accept HTTP connections.
                   log "opencode-cloud setup: wait for service readiness"
@@ -681,17 +660,19 @@ Resources:
                     signal_result 1 "opencode-cloud service did not become reachable on port 3000"
                   fi
 
-                  log "opencode-cloud setup: create user password"
-                  OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+                  log "opencode-cloud setup: create user $OPENCODE_USERNAME"
+                  user_output="$(opencode-cloud user add "$OPENCODE_USERNAME" --generate)"
+                  OPENCODE_PASSWORD="$(printf '%s\n' "$user_output" | sed -n 's/.*Password: //p' | tail -n 1)"
+                  if [ -z "$OPENCODE_PASSWORD" ]; then
+                    log "opencode-cloud setup: failed to read generated password"
+                    signal_result 1 "opencode-cloud failed to read generated password"
+                  fi
                   pass_len="$(printf '%s' "$OPENCODE_PASSWORD" | wc -c | tr -d ' ')"
                   printf 'user=%q pass_len=%s\n' "$OPENCODE_USERNAME" "$pass_len"
-                  # Check if chpasswd hangs
-                  # docker exec -u root -i "$OPENCODE_CONTAINER_NAME" sh -lc 'echo testuser:testpass | chpasswd; echo "rc=$?"'
-                  # log "opencode-cloud setup: chpasswd test completed $?"
-                  log "opencode-cloud setup: setting user password"
-                  # echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
-                  docker exec -u root -i "$OPENCODE_CONTAINER_NAME" sh -lc "echo $OPENCODE_USERNAME:$OPENCODE_PASSWORD | chpasswd"
-                  log "opencode-cloud setup: user password set successfully"
+                  log "opencode-cloud setup: user created"
+
+                  log "opencode-cloud setup: disable unauthenticated network"
+                  opencode-cloud config set allow_unauthenticated_network false
 
                   log "opencode-cloud setup: write secrets payload"
                   secret_payload="$(jq -n \
