@@ -52,8 +52,8 @@ test-all-fast: test-rust-fast test-node
 # Run all tests (slow, includes doc-tests)
 test-all-slow: test-rust test-node
 
-# Run all tests (slow, includes doc-tests)
-test: test-all-slow
+# Run all tests (fast)
+test: test-all-fast
 
 # Run Rust tests
 test-rust:
