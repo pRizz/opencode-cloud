@@ -43,6 +43,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 29: DockerHub README Elaboration** - Elaborate README.dockerhub.md for better discoverability
 - [ ] **Phase 30: Deep Nesting Refactor** - Replace deep nesting with early returns, guard clauses, let-else, and helper functions
 - [ ] **Phase 31: Update rust and node cli READMEs with latest project features** - TBD
+- [ ] **Phase 32: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened** - TBD
 
 ## Phase Details
 
@@ -570,10 +571,22 @@ Plans:
 **Details:**
 [To be added during planning]
 
+### Phase 32: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened
+
+**Goal:** [To be planned]
+**Depends on:** Phase 31
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 32 to break down)
+
+**Details:**
+[To be added during planning]
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31
+Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 32
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -608,6 +621,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31
 | 29. DockerHub README Elaboration | 0/1 | Not started | - |
 | 30. Deep Nesting Refactor | 0/1 | Not started | - |
 | 31. Update rust and node cli READMEs with latest project features | 0/1 | Not started | - |
+| 32. Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*

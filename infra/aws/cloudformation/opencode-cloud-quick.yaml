@@ -488,9 +488,12 @@ Resources:
             packages:
               - aws-cfn-bootstrap
               - awscli
+              - build-essential
               - curl
               - docker.io
               - jq
+              - libssl-dev
+              - pkg-config
             write_files:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
@@ -639,13 +642,24 @@ Resources:
                     log "opencode-cloud setup: rust toolchain installed"
                   fi
 
-                  log current path: "$PATH"
-                  log "opencode-cloud setup: current cargo path: $(which cargo)"
-                  version="$(cargo --version)"
-                  log "opencode-cloud setup: current cargo version: $version"
                   log "opencode-cloud setup: set PATH"
                   export PATH="$HOME/.cargo/bin:$PATH"
+                  if [ -f "$HOME/.cargo/env" ]; then
+                    . "$HOME/.cargo/env"
+                  fi
                   log "opencode-cloud setup: PATH set"
+
+                  if ! command -v cargo >/dev/null 2>&1; then
+                    log "opencode-cloud setup: cargo still missing after install"
+                    signal_result 1 "opencode-cloud failed to locate cargo after rustup install"
+                    exit 1
+                  fi
+
+                  log "opencode-cloud setup: current path: $PATH"
+                  cargo_path="$(command -v cargo || true)"
+                  log "opencode-cloud setup: current cargo path: $cargo_path"
+                  version="$(cargo --version)"
+                  log "opencode-cloud setup: current cargo version: $version"
 
                   if ! command -v opencode-cloud >/dev/null 2>&1; then
                     log "opencode-cloud setup: install opencode-cloud CLI"
@@ -656,9 +670,35 @@ Resources:
                   version="$(opencode-cloud --version)"
                   log "opencode-cloud setup: current opencode-cloud version: $version"
 
+                  if ! command -v opencode-cloud >/dev/null 2>&1; then
+                    log "opencode-cloud setup: opencode-cloud still missing after install"
+                    signal_result 1 "opencode-cloud CLI not available after install"
+                    exit 1
+                  fi
+
                   log "opencode-cloud setup: enable docker"
                   systemctl enable --now docker
                   log "opencode-cloud setup: docker enabled"
+
+                  if ! command -v docker >/dev/null 2>&1; then
+                    log "opencode-cloud setup: docker CLI missing"
+                    signal_result 1 "docker CLI not available after install"
+                    exit 1
+                  fi
+
+                  log "opencode-cloud setup: wait for docker readiness"
+                  for _ in $(seq 1 30); do
+                    if docker info >/dev/null 2>&1; then
+                      break
+                    fi
+                    sleep 2
+                  done
+
+                  if ! docker info >/dev/null 2>&1; then
+                    log "opencode-cloud setup: docker did not become ready"
+                    signal_result 1 "docker did not become ready"
+                    exit 1
+                  fi
 
                   log "opencode-cloud setup: bootstrap config"
                   opencode-cloud --quiet setup --bootstrap
@@ -693,6 +733,11 @@ Resources:
                   opencode-cloud config set allow_unauthenticated_network false
 
                   log "opencode-cloud setup: write secrets payload"
+                  if ! command -v jq >/dev/null 2>&1; then
+                    log "opencode-cloud setup: jq missing"
+                    signal_result 1 "jq not available to build secrets payload"
+                    exit 1
+                  fi
                   secret_payload="$(jq -n \
                     --arg opencode_url "$OPENCODE_DOMAIN_URL" \
                     --arg opencode_alb_url "$OPENCODE_ALB_URL" \
@@ -705,6 +750,11 @@ Resources:
                     '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,cockpit_url:$cockpit_url,cockpit_alb_url:$cockpit_alb_url,username:$username,password:$password,container:$container,image:$image}')"
 
                   log "opencode-cloud setup: store secret"
+                  if ! command -v aws >/dev/null 2>&1; then
+                    log "opencode-cloud setup: aws CLI missing"
+                    signal_result 1 "aws CLI not available to store secret"
+                    exit 1
+                  fi
                   aws secretsmanager put-secret-value \
                     --region "$AWS_REGION" \
                     --secret-id "$OPENCODE_CREDENTIALS_SECRET_ARN" \

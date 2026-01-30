@@ -92,7 +92,18 @@ write_files:
         log "opencode-cloud setup: rust toolchain installed"
       fi
 
-      export PATH="$HOME/.cargo/bin:${PATH}"
+      log "opencode-cloud setup: set PATH"
+      export PATH="$HOME/.cargo/bin:$PATH"
+      if [ -f "$HOME/.cargo/env" ]; then
+        # shellcheck disable=SC1091
+        . "$HOME/.cargo/env"
+      fi
+      log "opencode-cloud setup: PATH set"
+
+      if ! command -v cargo >/dev/null 2>&1; then
+        log "opencode-cloud setup: cargo still missing after install"
+        exit 1
+      fi
 
       if ! command -v opencode-cloud >/dev/null 2>&1; then
         log "opencode-cloud setup: install opencode-cloud CLI"
@@ -102,9 +113,32 @@ write_files:
 
       OPENCODE_CLI_VERSION="$(opencode-cloud --version 2>/dev/null || true)"
 
+      if ! command -v opencode-cloud >/dev/null 2>&1; then
+        log "opencode-cloud setup: opencode-cloud still missing after install"
+        exit 1
+      fi
+
       log "opencode-cloud setup: enable docker"
       systemctl enable --now docker
       log "opencode-cloud setup: docker enabled"
+
+      if ! command -v docker >/dev/null 2>&1; then
+        log "opencode-cloud setup: docker CLI missing"
+        exit 1
+      fi
+
+      log "opencode-cloud setup: wait for docker readiness"
+      for _ in $(seq 1 30); do
+        if docker info >/dev/null 2>&1; then
+          break
+        fi
+        sleep 2
+      done
+
+      if ! docker info >/dev/null 2>&1; then
+        log "opencode-cloud setup: docker did not become ready"
+        exit 1
+      fi
 
       log "opencode-cloud setup: bootstrap config"
       opencode-cloud --quiet setup --bootstrap

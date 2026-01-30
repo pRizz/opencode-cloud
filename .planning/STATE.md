@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 Phase: 21 of 21 (Use opencode Fork with PAM Authentication)
 Plan: 2 of 2 in current phase
 Status: Phase complete
-**Next Phase:** 31 (Update rust and node cli READMEs with latest project features)
+**Next Phase:** 32 (Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened)
 Last activity: 2026-01-26 - Executed 21-01, 21-02 (Dockerfile fork installation, broker, PAM config, documentation)
 
 Progress: [##############################] 100%
@@ -237,6 +237,7 @@ Recent decisions affecting current work:
 - Phase 29 added: DockerHub README Elaboration (improve README.dockerhub.md for discoverability)
 - Phase 30 added: Deep Nesting Refactor (early returns, guard clauses, let-else, helper functions)
 - Phase 31 added: Update rust and node cli READMEs with latest project features
+- Phase 32 added: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened
 
 ### Blockers/Concerns
 
