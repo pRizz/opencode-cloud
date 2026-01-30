@@ -210,6 +210,7 @@ Recent decisions affecting current work:
 4. **Sustain opencode nginx routing** (tooling) - Replace hardcoded proxy route lists with a more robust strategy.
 5. **Investigate hanging graceful stop** (tooling) - Diagnose missing stop progress when rebuilding a running container.
 6. **Fix missing export step display** (tooling) - Ensure "exporting to image" appears as the final Docker build step.
+7. **Use occ in CloudFormation scripts** (tooling) - Replace manual bootstrap wiring with occ-driven setup.
 
 ### Roadmap Evolution
 
