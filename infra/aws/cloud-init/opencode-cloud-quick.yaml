@@ -56,7 +56,7 @@ write_files:
       fi
 
       : "${OPENCODE_IMAGE:=ghcr.io/prizz/opencode-cloud-sandbox:latest}"
-      : "${OPENCODE_CONTAINER_NAME:=opencode-cloud}"
+      : "${OPENCODE_CONTAINER_NAME:=opencode-cloud-sandbox}"
       : "${OPENCODE_USERNAME:=opencode}"
       : "${OPENCODE_DOMAIN_URL:=}"
       : "${OPENCODE_ALB_URL:=}"

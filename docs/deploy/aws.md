@@ -170,10 +170,6 @@ opencode-cloud --version
 - **HostedZoneId**: Required. Used to create ACM DNS validation records in
   Route53.
 
-### Image
-
-- **OpencodeImage**: Override the container image (defaults to GHCR latest).
-
 ## Port Architecture
 
 - **Public access**: The ALB terminates HTTPS on 443 and forwards to the

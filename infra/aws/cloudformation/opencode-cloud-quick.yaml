@@ -27,10 +27,6 @@ Metadata:
           default: "Advanced: TLS"
         Parameters:
           - HostedZoneId
-      - Label:
-          default: "Advanced: Image"
-        Parameters:
-          - OpencodeImage
 
 Parameters:
   DomainName:
@@ -71,10 +67,6 @@ Parameters:
     Type: String
     Default: opencode
     Description: "Initial opencode username created during provisioning. This is in addition to the default ubuntu user which has no password but is only accessible via SSH."
-  OpencodeImage:
-    Type: String
-    Default: ghcr.io/prizz/opencode-cloud-sandbox:latest
-    Description: "Container image to run."
   UseExistingVpc:
     Type: String
     Default: "false"
@@ -376,7 +368,7 @@ Resources:
   ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "opencode-${AWS::StackName}-alb"
+      Name: !Sub "${AWS::StackName}-alb"
       Scheme: internet-facing
       Type: application
       SecurityGroups:
@@ -390,7 +382,7 @@ Resources:
   OpencodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "opencode-${AWS::StackName}-web"
+      Name: !Sub "${AWS::StackName}-web"
       Port: 3000
       Protocol: HTTP
       VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
@@ -405,7 +397,7 @@ Resources:
   CockpitTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "opencode-${AWS::StackName}-cockpit"
+      Name: !Sub "${AWS::StackName}-cockpit"
       Port: 9090
       Protocol: HTTP
       VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
@@ -503,8 +495,8 @@ Resources:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
                 content: |
-                  OPENCODE_IMAGE=${OpencodeImage}
-                  OPENCODE_CONTAINER_NAME=opencode-cloud
+                  OPENCODE_IMAGE=ghcr.io/prizz/opencode-cloud-sandbox:latest
+                  OPENCODE_CONTAINER_NAME=opencode-cloud-sandbox
                   OPENCODE_USERNAME=${OpencodeUsername}
                   OPENCODE_DOMAIN_URL=https://${DomainName}
                   OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
@@ -574,7 +566,7 @@ Resources:
                   fi
 
                   if [ -z "$OPENCODE_CONTAINER_NAME" ]; then
-                    OPENCODE_CONTAINER_NAME="opencode-cloud"
+                    OPENCODE_CONTAINER_NAME="opencode-cloud-sandbox"
                   fi
 
                   if [ -z "$OPENCODE_USERNAME" ]; then
