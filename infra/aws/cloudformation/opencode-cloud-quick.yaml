@@ -625,7 +625,7 @@ Resources:
                   systemctl enable --now docker
                   log "opencode-cloud setup: docker enabled"
 
-                  log "opencode-cloud setup: pull image ${OPENCODE_IMAGE}"
+                  log "opencode-cloud setup: pull image $OPENCODE_IMAGE"
                   docker pull "$OPENCODE_IMAGE"
                   log "opencode-cloud setup: image pulled"
 
@@ -636,7 +636,7 @@ Resources:
                   log "opencode-cloud setup: volumes ready"
 
                   if ! docker ps -a --format '{{.Names}}' | grep -qx "$OPENCODE_CONTAINER_NAME"; then
-                    log "opencode-cloud setup: start container ${OPENCODE_CONTAINER_NAME}"
+                    log "opencode-cloud setup: start container $OPENCODE_CONTAINER_NAME"
                     docker run -d \
                       --name "$OPENCODE_CONTAINER_NAME" \
                       --restart unless-stopped \
@@ -659,7 +659,7 @@ Resources:
                   log "opencode-cloud setup: container ready for exec"
 
                   if ! docker exec "$OPENCODE_CONTAINER_NAME" id -u "$OPENCODE_USERNAME" >/dev/null 2>&1; then
-                    log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
+                    log "opencode-cloud setup: create user $OPENCODE_USERNAME"
                     docker exec "$OPENCODE_CONTAINER_NAME" useradd -m -s /bin/bash "$OPENCODE_USERNAME"
                     docker exec "$OPENCODE_CONTAINER_NAME" usermod -aG sudo "$OPENCODE_USERNAME"
                     log "opencode-cloud setup: user created"
