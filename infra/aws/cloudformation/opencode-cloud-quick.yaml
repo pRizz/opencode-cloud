@@ -492,9 +492,6 @@ Resources:
               - jq
               - libssl-dev
               - pkg-config
-              - python3-distutils
-              - python3-pip
-              - python3-setuptools
             write_files:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
@@ -535,8 +532,8 @@ Resources:
                   PROVISIONED_FILE="$STATUS_DIR/.provisioned"
                   STACK_NAME="${AWS::StackName}"
                   SIGNAL_RESOURCE="OpencodeInstance"
-                  SIGNAL_BIN="/opt/aws/bin/cfn-signal"
                   LOG_FILE="/var/log/opencode-cloud-setup.log"
+                  IMDS_BASE="http://169.254.169.254"
 
                   log() {
                     printf '%s %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$LOG_FILE"
@@ -558,15 +555,49 @@ Resources:
                   signal_result() {
                     local -r exit_code="$1"
                     local -r reason="$2"
+                    local status="SUCCESS"
 
-                    if [ -x "$SIGNAL_BIN" ]; then
-                      "$SIGNAL_BIN" \
-                        --exit-code "$exit_code" \
-                        --stack "$STACK_NAME" \
-                        --resource "$SIGNAL_RESOURCE" \
-                        --region "${AWS::Region}" \
-                        --reason "$reason"
+                    if [ "$exit_code" -ne 0 ]; then
+                      status="FAILURE"
                     fi
+
+                    if ! command -v aws >/dev/null 2>&1; then
+                      log "opencode-cloud setup: aws CLI unavailable for signal"
+                      if [ "$exit_code" -ne 0 ]; then
+                        exit "$exit_code"
+                      fi
+                      return 0
+                    fi
+
+                    log "opencode-cloud setup: request instance metadata token"
+                    token="$(curl -sS -X PUT "$IMDS_BASE/latest/api/token" \
+                      -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)"
+                    if [ -n "$token" ]; then
+                      log "opencode-cloud setup: fetch instance id with token"
+                      instance_id="$(curl -sS -H "X-aws-ec2-metadata-token: $token" \
+                        "$IMDS_BASE/latest/meta-data/instance-id" || true)"
+                    else
+                      log "opencode-cloud setup: fetch instance id without token"
+                      instance_id="$(curl -sS "$IMDS_BASE/latest/meta-data/instance-id" || true)"
+                    fi
+
+                    if [ -z "$instance_id" ]; then
+                      log "opencode-cloud setup: missing instance id for signal"
+                      if [ "$exit_code" -ne 0 ]; then
+                        exit "$exit_code"
+                      fi
+                      return 0
+                    fi
+
+                    log "opencode-cloud setup: send cloudformation signal"
+                    aws cloudformation signal-resource \
+                      --stack-name "$STACK_NAME" \
+                      --logical-resource-id "$SIGNAL_RESOURCE" \
+                      --status "$status" \
+                      --unique-id "$instance_id" \
+                      --region "${AWS::Region}" \
+                      --reason "$reason" || true
+                    log "opencode-cloud setup: cloudformation signal sent"
 
                     if [ "$exit_code" -ne 0 ]; then
                       exit "$exit_code"
@@ -649,36 +680,6 @@ Resources:
                     log "opencode-cloud setup: snapd installed"
                     snap install aws-cli --classic
                     log "opencode-cloud setup: awscli installed via snap"
-                  fi
-
-                  if ! command -v cfn-signal >/dev/null 2>&1; then
-                    log "opencode-cloud setup: install aws-cfn-bootstrap"
-                    log "opencode-cloud setup: create /opt/aws/bin"
-                    mkdir -p /opt/aws/bin
-                    log "opencode-cloud setup: /opt/aws/bin created"
-                    log "opencode-cloud setup: upgrade pip/setuptools in /opt/aws"
-                    python3 -m pip install --no-cache-dir \
-                      --break-system-packages \
-                      --no-warn-script-location \
-                      --prefix /opt/aws \
-                      --upgrade pip setuptools
-                    log "opencode-cloud setup: pip/setuptools upgraded"
-                    log "opencode-cloud setup: install aws-cfn-bootstrap in /opt/aws"
-                    python3 -m pip install --no-cache-dir \
-                      --break-system-packages \
-                      --no-warn-script-location \
-                      --prefix /opt/aws \
-                      https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
-                    log "opencode-cloud setup: aws-cfn-bootstrap installed"
-                  fi
-
-                  SIGNAL_BIN="$(command -v cfn-signal || true)"
-                  if [ -z "$SIGNAL_BIN" ] && [ -x /opt/aws/bin/cfn-signal ]; then
-                    SIGNAL_BIN="/opt/aws/bin/cfn-signal"
-                  fi
-                  if [ -z "$SIGNAL_BIN" ]; then
-                    log "opencode-cloud setup: cfn-signal still missing after install"
-                    exit 1
                   fi
 
                   if ! command -v cargo >/dev/null 2>&1; then
