@@ -177,8 +177,8 @@ write_files:
       opencode-cloud ready. (cloud-init)
       init logs:
         /var/log/opencode-cloud-setup.log
-        /var/log/cloud-init.log
         /var/log/cloud-init-output.log
+        /var/log/cloud-init.log
       Username: ${OPENCODE_USERNAME}
       Password: ${OPENCODE_PASSWORD}
       opencode: ${OPENCODE_DOMAIN_URL}

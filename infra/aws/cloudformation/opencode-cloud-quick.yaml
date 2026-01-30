@@ -511,8 +511,8 @@ Resources:
                   opencode-cloud ready. (cloudformation)
                   init logs:
                     /var/log/opencode-cloud-setup.log
-                    /var/log/cloud-init.log
                     /var/log/cloud-init-output.log
+                    /var/log/cloud-init.log
                     /var/log/cfn-init.log
                     /var/log/cfn-init-cmd.log
                   Username: ${OpencodeUsername}
