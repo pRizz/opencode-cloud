@@ -769,8 +769,8 @@ Resources:
                     signal_result 1 "opencode-cloud service did not become reachable on port 3000"
                   fi
 
-                  log "opencode-cloud setup: create user $OPENCODE_USERNAME"
-                  OPENCODE_PASSWORD="$(opencode-cloud user add "$OPENCODE_USERNAME" --generate --print-password-only)"
+                  log "opencode-cloud setup: set password for user $OPENCODE_USERNAME"
+                  OPENCODE_PASSWORD="$(opencode-cloud user passwd "$OPENCODE_USERNAME" --generate --print-password-only)"
                   if [ -z "$OPENCODE_PASSWORD" ]; then
                     log "opencode-cloud setup: failed to read generated password"
                     signal_result 1 "opencode-cloud failed to read generated password"

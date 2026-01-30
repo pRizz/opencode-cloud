@@ -144,8 +144,8 @@ write_files:
       opencode-cloud --quiet setup --bootstrap
       log "opencode-cloud setup: bootstrap complete"
 
-      log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
-      OPENCODE_PASSWORD="$(opencode-cloud user add "${OPENCODE_USERNAME}" --generate --print-password-only)"
+      log "opencode-cloud setup: set password for user ${OPENCODE_USERNAME}"
+      OPENCODE_PASSWORD="$(opencode-cloud user passwd "${OPENCODE_USERNAME}" --generate --print-password-only)"
       if [ -z "$OPENCODE_PASSWORD" ]; then
         log "opencode-cloud setup: failed to read generated password"
         exit 1
