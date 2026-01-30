@@ -71,8 +71,8 @@ jobs:
       - name: Build Rust
         run: cargo build --workspace
 
-      - name: Test Rust
-        run: cargo test --workspace
+      - name: Test All (slow)
+        run: just test-all-slow
 
       - name: Build Node packages
         run: |

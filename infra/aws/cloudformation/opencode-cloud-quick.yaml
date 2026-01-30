@@ -642,6 +642,7 @@ Resources:
                   if ! command -v aws >/dev/null 2>&1; then
                     log "opencode-cloud setup: install awscli"
                     apt-get update -y
+                    log "opencode-cloud setup: apt-get updated"
                     apt-get install -y awscli
                     log "opencode-cloud setup: awscli installed"
                   fi

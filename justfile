@@ -46,16 +46,30 @@ build-node:
     pnpm -C packages/core build
     pnpm -r --filter="!@opencode-cloud/core" build
 
-# Run all tests
-test: test-rust test-node
+# Run all tests (fast)
+test-all-fast: test-rust-fast test-node
+
+# Run all tests (slow, includes doc-tests)
+test-all-slow: test-rust test-node
+
+# Run all tests (slow, includes doc-tests)
+test: test-all-slow
 
 # Run Rust tests
 test-rust:
     cargo test --workspace
 
+# Run Rust tests without doc-tests (fast)
+test-rust-fast:
+    cargo test --workspace --tests
+
 # Run Node tests
 test-node:
     pnpm -r test
+
+# Run Rust doc-tests (slow)
+test-doc-slow:
+    cargo test --workspace --doc
 
 # Lint everything
 lint: lint-rust lint-node lint-shell
@@ -89,7 +103,7 @@ check-updates:
     ./scripts/check-dockerfile-updates.sh
 
 # Pre-commit checks
-pre-commit: fmt lint build test
+pre-commit: fmt lint build test-all-fast
 
 # Format everything
 fmt:
@@ -108,7 +122,7 @@ release:
     pnpm -C packages/core build
 
 # Publish to crates.io (core first, then cli)
-publish-crates: lint test
+publish-crates: lint test-all-slow
     @echo "Publishing opencode-cloud-core to crates.io..."
     cargo publish -p opencode-cloud-core
     @echo ""
@@ -121,7 +135,7 @@ publish-crates: lint test
     @echo "✓ crates.io publish complete!"
 
 # Publish to npm (core first, then cli)
-publish-npm: lint test build-node
+publish-npm: lint test-all-slow build-node
     @echo "Publishing @opencode-cloud/core to npm..."
     pnpm --filter @opencode-cloud/core publish --access public
     @echo ""
