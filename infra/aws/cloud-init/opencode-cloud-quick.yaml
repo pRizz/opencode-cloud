@@ -175,7 +175,10 @@ write_files:
       log "opencode-cloud setup: write motd"
       cat > /etc/motd <<EOF
       opencode-cloud ready. (cloud-init)
-      debug logs: /var/log/opencode-cloud-setup.log
+      init logs:
+        /var/log/opencode-cloud-setup.log
+        /var/log/cloud-init.log
+        /var/log/cloud-init-output.log
       Username: ${OPENCODE_USERNAME}
       Password: ${OPENCODE_PASSWORD}
       opencode: ${OPENCODE_DOMAIN_URL}

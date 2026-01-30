@@ -511,7 +511,12 @@ Resources:
                 permissions: "0644"
                 content: |
                   opencode-cloud ready. (cloudformation)
-                  debug logs: /var/log/opencode-cloud-setup.log
+                  init logs:
+                    /var/log/opencode-cloud-setup.log
+                    /var/log/cloud-init.log
+                    /var/log/cloud-init-output.log
+                    /var/log/cfn-init.log
+                    /var/log/cfn-init-cmd.log
                   Username: ${OpencodeUsername}
                   opencode: https://${DomainName}
                   Cockpit: https://${DomainName}/cockpit
