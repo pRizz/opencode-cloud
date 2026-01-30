@@ -21,7 +21,6 @@ Metadata:
           - UseExistingVpc
           - ExistingVpcId
           - ExistingPublicSubnetIds
-          - ExistingPrivateSubnetId
           - AllowSsh
       - Label:
           default: "Advanced: TLS"
@@ -81,11 +80,7 @@ Parameters:
   ExistingPublicSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Default: subnet-00000000,subnet-00000000
-    Description: "Existing public subnet IDs for the ALB (required if UseExistingVpc=true)."
-  ExistingPrivateSubnetId:
-    Type: AWS::EC2::Subnet::Id
-    Default: subnet-00000000
-    Description: "Existing private subnet ID for the EC2 instance (required if UseExistingVpc=true)."
+    Description: "Existing public subnet IDs for the ALB and instance (required if UseExistingVpc=true)."
   AllowSsh:
     Type: String
     Default: "false"
@@ -112,8 +107,6 @@ Rules:
         AssertDescription: "ExistingVpcId must be a real VPC ID when UseExistingVpc=true."
       - Assert: !Not [!Contains [!Ref ExistingPublicSubnetIds, "subnet-00000000"]]
         AssertDescription: "ExistingPublicSubnetIds must be real subnet IDs when UseExistingVpc=true."
-      - Assert: !Not [!Equals [!Ref ExistingPrivateSubnetId, "subnet-00000000"]]
-        AssertDescription: "ExistingPrivateSubnetId must be a real subnet ID when UseExistingVpc=true."
 Resources:
   CredentialsSecret:
     Type: AWS::SecretsManager::Secret
@@ -229,31 +222,32 @@ Resources:
 
   NatEip:
     Type: AWS::EC2::EIP
+    Condition: CreateVpc
     Properties:
       Domain: vpc
 
   NatGateway:
     Type: AWS::EC2::NatGateway
+    Condition: CreateVpc
     Properties:
       AllocationId: !GetAtt NatEip.AllocationId
-      SubnetId: !If
-        - UseExistingVpcCondition
-        - !Select [0, !Ref ExistingPublicSubnetIds]
-        - !Ref PublicSubnetA
+      SubnetId: !Ref PublicSubnetA
       Tags:
         - Key: Name
           Value: opencode-cloud-quick-nat
 
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
+    Condition: CreateVpc
     Properties:
-      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
+      VpcId: !Ref Vpc
       Tags:
         - Key: Name
           Value: opencode-cloud-quick-private-rt
 
   PrivateRoute:
     Type: AWS::EC2::Route
+    Condition: CreateVpc
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
@@ -271,13 +265,6 @@ Resources:
     Condition: CreateVpc
     Properties:
       SubnetId: !Ref PrivateSubnetB
-      RouteTableId: !Ref PrivateRouteTable
-
-  ExistingPrivateSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Condition: UseExistingVpcCondition
-    Properties:
-      SubnetId: !Ref ExistingPrivateSubnetId
       RouteTableId: !Ref PrivateRouteTable
 
   AlbSecurityGroup:
@@ -383,6 +370,17 @@ Resources:
         - - !Ref PublicSubnetA
           - !Ref PublicSubnetB
 
+  DomainAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApplicationLoadBalancer.DNSName
+        HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+        EvaluateTargetHealth: false
+
   OpencodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -473,10 +471,10 @@ Resources:
             DeleteOnTermination: true
       NetworkInterfaces:
         - DeviceIndex: "0"
-          AssociatePublicIpAddress: false
+          AssociatePublicIpAddress: !If [UseExistingVpcCondition, true, false]
           SubnetId: !If
             - UseExistingVpcCondition
-            - !Ref ExistingPrivateSubnetId
+            - !Select [0, !Ref ExistingPublicSubnetIds]
             - !Ref PrivateSubnetA
           GroupSet:
             - !Ref InstanceSecurityGroup
@@ -856,9 +854,12 @@ Outputs:
       - UseExistingVpcCondition
       - !Join [",", !Ref ExistingPublicSubnetIds]
       - !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
-  PrivateSubnet:
-    Description: "Private subnet ID used by the instance."
-    Value: !If [UseExistingVpcCondition, !Ref ExistingPrivateSubnetId, !Ref PrivateSubnetA]
+  InstanceSubnet:
+    Description: "Subnet ID used by the instance."
+    Value: !If
+      - UseExistingVpcCondition
+      - !Select [0, !Ref ExistingPublicSubnetIds]
+      - !Ref PrivateSubnetA
   CredentialsSecretArn:
     Description: "Secrets Manager ARN for generated credentials."
     Value: !Ref CredentialsSecret

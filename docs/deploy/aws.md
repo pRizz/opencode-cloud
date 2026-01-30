@@ -1,7 +1,8 @@
 # AWS Quick Deploy (One-Click)
 
 Deploy opencode-cloud on AWS with a public Application Load Balancer (ALB) and
-HTTPS via ACM, while keeping the EC2 instance private by default.
+HTTPS via ACM. By default the EC2 instance is private; when deploying into an
+existing VPC it runs in a public subnet.
 
 ## Prerequisites
 
@@ -18,8 +19,7 @@ HTTPS via ACM, while keeping the EC2 instance private by default.
 4. Choose a stack name (15 characters or fewer to avoid ALB/target group name
    limits) and create the stack.
 5. If ACM validation is stuck, verify the CNAME record in Route53.
-6. Point your domain to the ALB DNS name (create an ALIAS or CNAME).
-7. Wait for stack completion, then open `https://<your-domain>`.
+6. Wait for stack completion, then open `https://<your-domain>`.
 
 Cockpit is available at `https://<your-domain>/cockpit`.
 
@@ -89,7 +89,7 @@ https://YOUR_BUCKET.s3.<region>.amazonaws.com/cloudformation/opencode-cloud-quic
 - **AlbDnsName**: ALB DNS name for debugging and DNS setup.
 - **CertificateArn**: ACM certificate ARN.
 - **InstanceId**: EC2 instance ID.
-- **VpcId**, **PublicSubnets**, **PrivateSubnet**: Networking details.
+- **VpcId**, **PublicSubnets**, **InstanceSubnet**: Networking details.
 - **CredentialsSecretArn**: Secrets Manager ARN containing generated credentials.
 
 ## Retrieving Credentials
@@ -138,29 +138,22 @@ opencode-cloud --version
 - If `UseExistingVpc=false`, the stack creates a new VPC with public/private
   subnets and a NAT gateway for outbound access.
 - **ExistingVpcId**: Required if using an existing VPC.
-- **ExistingPublicSubnetIds**: Public subnets for the ALB (must allow internet).
-- **ExistingPrivateSubnetId**: Private subnet for the instance (must have NAT
-  egress so the instance can pull the container image). The stack always creates
-  a NAT gateway for outbound access.
+- **ExistingPublicSubnetIds**: Public subnets for the ALB and instance (must
+  allow internet).
 - **AllowSsh**: Enable SSH access (defaults to SSM-only).
-  When enabled, SSH allows inbound traffic from 0.0.0.0/0, but the instance
-  stays in a private subnet with no public IP. Access still requires a path
-  into the VPC (for example, via a bastion host, VPN, or SSM).
-  Note: The instance still needs outbound internet access (NAT gateway + route)
-  to install packages during bootstrap.
+  When enabled, SSH allows inbound traffic from 0.0.0.0/0. For existing VPC
+  deployments, the instance has a public IP; for new VPCs it stays private and
+  access still requires a VPC path (SSM, bastion, or VPN).
+  Note: The instance needs outbound internet access to install packages during
+  bootstrap.
 
 ### Gotchas
 
-- **Existing VPC + NAT placement**: When `UseExistingVpc=true`, the stack always
-  creates a NAT gateway in the first subnet in `ExistingPublicSubnetIds`. That
-  subnet must be public (route to an Internet Gateway) or the NAT gateway will
-  not have outbound access and package installs will fail.
-- **Private subnet egress**: The private subnet must route `0.0.0.0/0` to the NAT
-  gateway created by the stack so the instance can install packages and pull the
-  container image.
-- **No public IP by design**: The instance is always in a private subnet with
-  `AssociatePublicIpAddress=false`. SSH (when enabled) still requires a VPC path
-  such as SSM Session Manager, a bastion host, or VPN.
+- **Existing VPC subnet**: The first subnet in `ExistingPublicSubnetIds` is used
+  for the instance and must be public (route to an Internet Gateway) so
+  bootstrap can install packages and pull images.
+- **No public IP by default**: New VPC deployments keep the instance in a
+  private subnet with no public IP. Access requires SSM, bastion, or VPN.
 - **Stack name length**: The stack name is embedded in ALB and target group
   names to prevent naming collisions across stacks. Keep the stack name <= 15
   characters to avoid AWS name length limits.
