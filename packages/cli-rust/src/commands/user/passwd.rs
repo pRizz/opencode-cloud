@@ -2,15 +2,12 @@
 //!
 //! Changes a user's password.
 
+use crate::passwords::{generate_random_password, print_generated_password};
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
 use dialoguer::Password;
 use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, set_user_password, user_exists};
-use rand::Rng;
-use rand::distr::Alphanumeric;
-
-use crate::constants::password_length;
 
 /// Arguments for the user passwd command
 #[derive(Args)]
@@ -25,15 +22,6 @@ pub struct UserPasswdArgs {
     /// Print only the generated password for scripting
     #[arg(long)]
     pub print_password_only: bool,
-}
-
-fn generate_random_password() -> String {
-    // ThreadRng is a CSPRNG seeded from the OS.
-    rand::rng()
-        .sample_iter(Alphanumeric)
-        .take(password_length())
-        .map(char::from)
-        .collect()
 }
 
 /// Change a user's password
@@ -83,6 +71,13 @@ pub async fn cmd_user_passwd(
             style("Success:").green().bold(),
             username
         );
+
+        if args.generate {
+            print_generated_password(
+                &password,
+                "Save this password securely - it won't be shown again.",
+            );
+        }
     }
 
     Ok(())

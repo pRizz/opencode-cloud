@@ -5,6 +5,7 @@
 mod commands;
 mod constants;
 mod output;
+mod passwords;
 pub mod wizard;
 
 use anyhow::Result;

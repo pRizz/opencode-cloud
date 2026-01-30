@@ -2,6 +2,7 @@
 //!
 //! Creates a new user in the container with a password.
 
+use crate::passwords::{generate_random_password, print_generated_password};
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
@@ -10,10 +11,6 @@ use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, create_user, set_user_password, user_exists,
 };
 use opencode_cloud_core::{load_config, save_config};
-use rand::Rng;
-use rand::distr::Alphanumeric;
-
-use crate::constants::password_length;
 
 /// Arguments for the user add command
 #[derive(Args)]
@@ -28,16 +25,6 @@ pub struct UserAddArgs {
     /// Print only the generated password for scripting
     #[arg(long)]
     pub print_password_only: bool,
-}
-
-/// Generate a secure random password
-fn generate_random_password() -> String {
-    // ThreadRng is a CSPRNG seeded from the OS.
-    rand::rng()
-        .sample_iter(Alphanumeric)
-        .take(password_length())
-        .map(char::from)
-        .collect()
 }
 
 /// Validate username according to rules
@@ -149,12 +136,9 @@ pub async fn cmd_user_add(
         );
 
         if args.generate {
-            println!();
-            println!("  Password: {}", style(&password).cyan());
-            println!();
-            println!(
-                "{}",
-                style("Save this password securely - it won't be shown again.").yellow()
+            print_generated_password(
+                &password,
+                "Save this password securely - it won't be shown again.",
             );
         }
     }
@@ -200,7 +184,7 @@ mod tests {
     #[test]
     fn test_generate_random_password_length() {
         let password = generate_random_password();
-        assert_eq!(password.len(), password_length());
+        assert_eq!(password.len(), crate::passwords::password_length());
     }
 
     #[test]

@@ -3,16 +3,13 @@
 //! Handles username and password collection with random generation option.
 //! Also handles creating container users via PAM-based authentication.
 
+use crate::passwords::{generate_random_password, print_password_notice};
 use anyhow::{Result, anyhow};
 use console::{Term, style};
 use dialoguer::{Confirm, Input, Password, Select};
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, create_user, set_user_password, user_exists,
 };
-use rand::Rng;
-use rand::distr::Alphanumeric;
-
-use crate::constants::password_length;
 
 /// Handle Ctrl+C by restoring cursor and returning error
 fn handle_interrupt() -> anyhow::Error {
@@ -35,16 +32,6 @@ fn validate_username(input: &str) -> Result<(), String> {
         return Err("Username must contain only letters, numbers, and underscores".to_string());
     }
     Ok(())
-}
-
-/// Generate a secure random password
-fn generate_random_password() -> String {
-    // ThreadRng is a CSPRNG seeded from the OS.
-    rand::rng()
-        .sample_iter(Alphanumeric)
-        .take(password_length())
-        .map(char::from)
-        .collect()
 }
 
 /// Prompt for authentication credentials
@@ -101,10 +88,8 @@ pub fn prompt_auth(step: usize, total: usize) -> Result<(String, String)> {
                 println!("  Username: {}", style("admin").cyan());
                 println!("  Password: {}", style(&password).cyan());
                 println!();
-                println!(
-                    "{}",
-                    style("Save these credentials securely - the password won't be shown again.")
-                        .yellow()
+                print_password_notice(
+                    "Save these credentials securely - the password won't be shown again.",
                 );
                 println!();
 
@@ -213,7 +198,7 @@ mod tests {
     #[test]
     fn test_generate_random_password_length() {
         let password = generate_random_password();
-        assert_eq!(password.len(), password_length());
+        assert_eq!(password.len(), crate::passwords::password_length());
     }
 
     #[test]
