@@ -589,14 +589,15 @@ Resources:
                       return 0
                     fi
 
-                    log "opencode-cloud setup: send cloudformation signal"
+                    log "opencode-cloud setup: delaying signal 120s (reason: $reason)"
+                    sleep 120
+                    log "opencode-cloud setup: send cloudformation signal (reason: $reason)"
                     aws cloudformation signal-resource \
                       --stack-name "$STACK_NAME" \
                       --logical-resource-id "$SIGNAL_RESOURCE" \
                       --status "$status" \
                       --unique-id "$instance_id" \
-                      --region "${AWS::Region}" \
-                      --reason "$reason" || true
+                      --region "${AWS::Region}" || true
                     log "opencode-cloud setup: cloudformation signal sent"
 
                     if [ "$exit_code" -ne 0 ]; then
@@ -752,9 +753,11 @@ Resources:
                   log "opencode-cloud setup: bootstrap complete"
 
                   # Wait briefly for the service to accept HTTP connections.
-                  log "opencode-cloud setup: wait for service readiness"
-                  for _ in $(seq 1 30); do
+                  log "opencode-cloud setup: wait for service readiness (30 attempts)"
+                  for attempt in $(seq 1 30); do
+                    log "opencode-cloud setup: readiness check attempt $attempt/30"
                     if curl -sS --max-time 2 http://localhost:3000/ -o /dev/null; then
+                      log "opencode-cloud setup: service responded"
                       break
                     fi
                     sleep 2

@@ -202,11 +202,11 @@ pub fn run() -> Result<()> {
     // Store host flag for command handlers
     let target_host = cli.host.clone();
 
-    // Check if wizard needed (missing auth and not running setup/config command)
+    // Check if wizard needed (missing auth and not running setup/config/user command)
     let needs_wizard = !config.has_required_auth()
         && !matches!(
             cli.command,
-            Some(Commands::Setup(_)) | Some(Commands::Config(_))
+            Some(Commands::Setup(_)) | Some(Commands::Config(_)) | Some(Commands::User(_))
         );
 
     if needs_wizard {
