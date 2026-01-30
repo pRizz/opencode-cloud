@@ -172,7 +172,7 @@ fn build_bootstrap_config(existing_config: Option<Config>) -> Config {
     let mut config = existing_config.unwrap_or_default();
     config.bind = "0.0.0.0".to_string();
     config.bind_address = "0.0.0.0".to_string();
-    config.cockpit_enabled = true;
+    config.cockpit_enabled = false;
     config.allow_unauthenticated_network = true;
     config
 }
