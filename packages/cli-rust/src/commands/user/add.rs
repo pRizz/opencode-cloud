@@ -22,6 +22,10 @@ pub struct UserAddArgs {
     /// Generate a random secure password instead of prompting
     #[arg(long, short)]
     pub generate: bool,
+
+    /// Print only the generated password for scripting
+    #[arg(long)]
+    pub print_password_only: bool,
 }
 
 /// Generate a secure random password
@@ -60,6 +64,10 @@ pub async fn cmd_user_add(
     quiet: bool,
     _verbose: u8,
 ) -> Result<()> {
+    if args.print_password_only && !args.generate {
+        bail!("--print-password-only requires --generate");
+    }
+
     // Get username - prompt if not provided
     let username = if let Some(ref name) = args.username {
         validate_username(name).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -122,6 +130,11 @@ pub async fn cmd_user_add(
     if !config.users.contains(&username) {
         config.users.push(username.clone());
         save_config(&config)?;
+    }
+
+    if args.print_password_only {
+        println!("{password}");
+        return Ok(());
     }
 
     // Display success

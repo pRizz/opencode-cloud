@@ -111,8 +111,7 @@ write_files:
       log "opencode-cloud setup: bootstrap complete"
 
       log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
-      user_output="$(opencode-cloud user add "${OPENCODE_USERNAME}" --generate)"
-      OPENCODE_PASSWORD="$(printf '%s\n' "$user_output" | sed -n 's/.*Password: //p' | tail -n 1)"
+      OPENCODE_PASSWORD="$(opencode-cloud user add "${OPENCODE_USERNAME}" --generate --print-password-only)"
       if [ -z "$OPENCODE_PASSWORD" ]; then
         log "opencode-cloud setup: failed to read generated password"
         exit 1
