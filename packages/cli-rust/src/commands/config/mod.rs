@@ -49,6 +49,9 @@ pub enum ConfigSubcommands {
         key: String,
         /// Value to set (omit for password to prompt securely)
         value: Option<String>,
+        /// Skip confirmation prompts (use with care)
+        #[arg(long)]
+        force: bool,
     },
     /// Reset configuration to defaults
     Reset {
@@ -69,8 +72,8 @@ pub fn cmd_config(args: ConfigArgs, config: &Config, quiet: bool) -> Result<()> 
     match args.command {
         Some(ConfigSubcommands::Show { json }) => cmd_config_show(config, json, quiet),
         Some(ConfigSubcommands::Get { key }) => cmd_config_get(config, &key, quiet),
-        Some(ConfigSubcommands::Set { key, value }) => {
-            cmd_config_set(&key, value.as_deref(), quiet)
+        Some(ConfigSubcommands::Set { key, value, force }) => {
+            cmd_config_set(&key, value.as_deref(), quiet, force)
         }
         Some(ConfigSubcommands::Reset { force }) => cmd_config_reset(force, quiet),
         Some(ConfigSubcommands::Env(env_cmd)) => cmd_config_env(env_cmd, quiet),

@@ -19,6 +19,10 @@ pub struct SetupArgs {
     #[arg(long, short)]
     pub yes: bool,
 
+    /// Non-interactive bootstrap for automated environments
+    #[arg(long)]
+    pub bootstrap: bool,
+
     /// Run setup for a remote host instead of local Docker
     #[arg(long)]
     pub host: Option<String>,
@@ -28,6 +32,10 @@ pub struct SetupArgs {
 pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     // Load existing config (or create default)
     let existing_config = load_config().ok();
+
+    if args.bootstrap {
+        return run_bootstrap_setup(existing_config, args.host.as_deref(), quiet).await;
+    }
 
     // Handle --yes flag for non-interactive mode
     if args.yes {
@@ -124,6 +132,90 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     };
     cmd_start(&start_args, args.host.as_deref(), quiet, 0).await?;
 
+    Ok(())
+}
+
+async fn run_bootstrap_setup(
+    existing_config: Option<Config>,
+    host: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
+    let new_config = build_bootstrap_config(existing_config.clone());
+    save_config(&new_config)?;
+
+    if quiet {
+        return start_or_restart_after_setup(
+            existing_config.as_ref(),
+            &new_config,
+            host,
+            quiet,
+            true,
+        )
+        .await;
+    }
+
+    println!();
+    println!(
+        "{} Bootstrap configuration saved successfully!",
+        style("Success:").green().bold()
+    );
+    println!(
+        "{}",
+        style("Unauthenticated network access is enabled.").yellow()
+    );
+    println!();
+
+    start_or_restart_after_setup(existing_config.as_ref(), &new_config, host, quiet, true).await
+}
+
+fn build_bootstrap_config(existing_config: Option<Config>) -> Config {
+    let mut config = existing_config.unwrap_or_default();
+    config.bind = "0.0.0.0".to_string();
+    config.bind_address = "0.0.0.0".to_string();
+    config.cockpit_enabled = true;
+    config.allow_unauthenticated_network = true;
+    config
+}
+
+async fn start_or_restart_after_setup(
+    existing_config: Option<&Config>,
+    new_config: &Config,
+    host: Option<&str>,
+    quiet: bool,
+    non_interactive: bool,
+) -> Result<()> {
+    let (client, host_name) = crate::resolve_docker_client(host).await?;
+    let is_running = container_is_running(&client, CONTAINER_NAME)
+        .await
+        .unwrap_or(false);
+
+    let config_changed = existing_config.is_some_and(|old| requires_restart(old, new_config));
+
+    if is_running && !config_changed {
+        if !quiet {
+            show_running_status(new_config, host_name.as_deref());
+        }
+        return Ok(());
+    }
+
+    if is_running && config_changed {
+        let stop_args = crate::commands::StopArgs { timeout: 60 };
+        cmd_stop(&stop_args, host, quiet || non_interactive).await?;
+    }
+
+    let start_args = crate::commands::StartArgs {
+        port: Some(new_config.opencode_web_port),
+        open: false,
+        no_daemon: false,
+        pull_sandbox_image: false,
+        cached_rebuild_sandbox_image: false,
+        full_rebuild_sandbox_image: false,
+        ignore_version: false,
+        no_update_check: false,
+        mounts: Vec::new(),
+        no_mounts: false,
+    };
+    cmd_start(&start_args, host, quiet || non_interactive, 0).await?;
     Ok(())
 }
 

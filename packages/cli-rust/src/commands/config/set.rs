@@ -13,7 +13,7 @@ use opencode_cloud_core::{load_config, save_config};
 ///
 /// Special handling for password: prompts interactively if value is None.
 /// Returns error if password value is provided on command line (security risk).
-pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()> {
+pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) -> Result<()> {
     let mut config = load_config()?;
     let normalized_key = key.to_lowercase();
 
@@ -206,55 +206,74 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool) -> Result<()>
             })?;
 
             if allow {
-                // Double opt-in per CONTEXT.md
-                println!();
-                println!(
-                    "{}",
-                    style("WARNING: DANGEROUS SECURITY SETTING").red().bold()
-                );
-                println!();
-                println!("You are about to allow unauthenticated network access.");
-                println!("This means ANYONE on your network can access the opencode web UI");
-                println!("without logging in.");
-                println!();
-                println!("This is typically only appropriate for:");
-                println!("  - Development environments on trusted networks");
-                println!("  - Services behind an authenticating reverse proxy");
-                println!();
+                if force {
+                    config.allow_unauthenticated_network = true;
+                    display_value = "true".to_string();
 
-                // First confirmation
-                let confirm1 = Confirm::new()
-                    .with_prompt("Do you understand this risk?")
-                    .default(false)
-                    .interact()?;
+                    if !quiet {
+                        println!();
+                        println!(
+                            "{}",
+                            style("Unauthenticated network access enabled (forced).").yellow()
+                        );
+                        println!(
+                            "To disable: {}",
+                            style("occ config set allow_unauthenticated_network false").cyan()
+                        );
+                    }
+                } else {
+                    // Double opt-in per CONTEXT.md
+                    println!();
+                    println!(
+                        "{}",
+                        style("WARNING: DANGEROUS SECURITY SETTING").red().bold()
+                    );
+                    println!();
+                    println!("You are about to allow unauthenticated network access.");
+                    println!("This means ANYONE on your network can access the opencode web UI");
+                    println!("without logging in.");
+                    println!();
+                    println!("This is typically only appropriate for:");
+                    println!("  - Development environments on trusted networks");
+                    println!("  - Services behind an authenticating reverse proxy");
+                    println!();
 
-                if !confirm1 {
-                    println!("Aborted. Setting not changed.");
-                    return Ok(());
+                    // First confirmation
+                    let confirm1 = Confirm::new()
+                        .with_prompt("Do you understand this risk?")
+                        .default(false)
+                        .interact()?;
+
+                    if !confirm1 {
+                        println!("Aborted. Setting not changed.");
+                        return Ok(());
+                    }
+
+                    // Second confirmation (double opt-in)
+                    let confirm2 = Confirm::new()
+                        .with_prompt(
+                            "Are you SURE you want to enable unauthenticated network access?",
+                        )
+                        .default(false)
+                        .interact()?;
+
+                    if !confirm2 {
+                        println!("Aborted. Setting not changed.");
+                        return Ok(());
+                    }
+
+                    config.allow_unauthenticated_network = true;
+                    display_value = "true".to_string();
+                    println!();
+                    println!(
+                        "{}",
+                        style("Unauthenticated network access enabled.").yellow()
+                    );
+                    println!(
+                        "To disable: {}",
+                        style("occ config set allow_unauthenticated_network false").cyan()
+                    );
                 }
-
-                // Second confirmation (double opt-in)
-                let confirm2 = Confirm::new()
-                    .with_prompt("Are you SURE you want to enable unauthenticated network access?")
-                    .default(false)
-                    .interact()?;
-
-                if !confirm2 {
-                    println!("Aborted. Setting not changed.");
-                    return Ok(());
-                }
-
-                config.allow_unauthenticated_network = true;
-                display_value = "true".to_string();
-                println!();
-                println!(
-                    "{}",
-                    style("Unauthenticated network access enabled.").yellow()
-                );
-                println!(
-                    "To disable: {}",
-                    style("occ config set allow_unauthenticated_network false").cyan()
-                );
             } else {
                 config.allow_unauthenticated_network = false;
                 display_value = "false".to_string();
