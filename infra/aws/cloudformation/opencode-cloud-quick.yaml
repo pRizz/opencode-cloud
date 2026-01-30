@@ -522,6 +522,7 @@ Resources:
                 content: |
                   #!/usr/bin/env bash
                   set -euo pipefail
+                  HOME="/root"
 
                   STATUS_DIR="/var/lib/opencode-cloud"
                   PROVISIONED_FILE="$STATUS_DIR/.provisioned"
@@ -629,13 +630,22 @@ Resources:
                     log "opencode-cloud setup: rust toolchain installed"
                   fi
 
+                  log current path: "$PATH"
+                  log "opencode-cloud setup: current cargo path: $(which cargo)"
+                  version="$(cargo --version)"
+                  log "opencode-cloud setup: current cargo version: $version"
+                  log "opencode-cloud setup: set PATH"
                   export PATH="$HOME/.cargo/bin:$PATH"
+                  log "opencode-cloud setup: PATH set"
 
                   if ! command -v opencode-cloud >/dev/null 2>&1; then
                     log "opencode-cloud setup: install opencode-cloud CLI"
                     cargo install opencode-cloud
                     log "opencode-cloud setup: opencode-cloud CLI installed"
                   fi
+                  log "opencode-cloud setup: current opencode-cloud path: $(which opencode-cloud)"
+                  version="$(opencode-cloud --version)"
+                  log "opencode-cloud setup: current opencode-cloud version: $version"
 
                   log "opencode-cloud setup: enable docker"
                   systemctl enable --now docker

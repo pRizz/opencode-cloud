@@ -36,6 +36,7 @@ write_files:
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
+      HOME="/root"
 
       STATUS_DIR="/var/lib/opencode-cloud"
       STATUS_FILE="${STATUS_DIR}/deploy-status.json"
