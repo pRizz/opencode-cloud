@@ -515,7 +515,7 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="9b91eb17f5ca1b0ee99cfaa0b4c87da6dbe9e784" \
+RUN OPENCODE_COMMIT="c7fb116c1cf59a76b184f842ed3eb0113d93196b" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
@@ -713,7 +713,7 @@ RUN printf '%s\n' \
 # Check that opencode main page responds
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+    CMD curl -f -H "Accept: text/html" http://localhost:3000/ || exit 1
 
 # -----------------------------------------------------------------------------
 # Version File
