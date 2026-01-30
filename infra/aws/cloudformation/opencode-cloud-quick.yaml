@@ -589,8 +589,10 @@ Resources:
                       return 0
                     fi
 
-                    log "opencode-cloud setup: delaying signal 120s (reason: $reason)"
-                    sleep 120
+                    if [ "$exit_code" -ne 0 ]; then
+                      log "opencode-cloud setup: delaying failure signal 120s (reason: $reason)"
+                      sleep 120
+                    fi
                     log "opencode-cloud setup: send cloudformation signal (reason: $reason)"
                     aws cloudformation signal-resource \
                       --stack-name "$STACK_NAME" \
@@ -769,8 +771,15 @@ Resources:
                     signal_result 1 "opencode-cloud service did not become reachable on port 3000"
                   fi
 
-                  log "opencode-cloud setup: set password for user $OPENCODE_USERNAME"
-                  OPENCODE_PASSWORD="$(opencode-cloud user passwd "$OPENCODE_USERNAME" --generate --print-password-only)"
+                  # The container already ships with a default "opencode" user; set its password.
+                  # For any other username, create the user and set its password.
+                  if [ "$OPENCODE_USERNAME" = "opencode" ]; then
+                    log "opencode-cloud setup: set password for user $OPENCODE_USERNAME"
+                    OPENCODE_PASSWORD="$(opencode-cloud user passwd "$OPENCODE_USERNAME" --generate --print-password-only)"
+                  else
+                    log "opencode-cloud setup: create user $OPENCODE_USERNAME"
+                    OPENCODE_PASSWORD="$(opencode-cloud user add "$OPENCODE_USERNAME" --generate --print-password-only)"
+                  fi
                   if [ -z "$OPENCODE_PASSWORD" ]; then
                     log "opencode-cloud setup: failed to read generated password"
                     signal_result 1 "opencode-cloud failed to read generated password"
