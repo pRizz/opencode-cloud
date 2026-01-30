@@ -486,14 +486,13 @@ Resources:
             package_update: true
             package_upgrade: false
             packages:
-              - aws-cfn-bootstrap
-              - awscli
               - build-essential
               - curl
               - docker.io
               - jq
               - libssl-dev
               - pkg-config
+              - python3-pip
             write_files:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
@@ -637,6 +636,26 @@ Resources:
                     log "opencode-cloud setup: missing AWS region"
                     echo "opencode-cloud: missing AWS region"
                     signal_result 1 "opencode-cloud missing AWS region"
+                    exit 1
+                  fi
+
+                  if ! command -v aws >/dev/null 2>&1; then
+                    log "opencode-cloud setup: install awscli"
+                    apt-get update -y
+                    apt-get install -y awscli
+                    log "opencode-cloud setup: awscli installed"
+                  fi
+
+                  if ! command -v cfn-signal >/dev/null 2>&1; then
+                    log "opencode-cloud setup: install aws-cfn-bootstrap"
+                    python3 -m pip install --no-cache-dir \
+                      https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+                    log "opencode-cloud setup: aws-cfn-bootstrap installed"
+                  fi
+
+                  SIGNAL_BIN="$(command -v cfn-signal || true)"
+                  if [ -z "$SIGNAL_BIN" ]; then
+                    log "opencode-cloud setup: cfn-signal still missing after install"
                     exit 1
                   fi
 
