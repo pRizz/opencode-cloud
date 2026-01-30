@@ -36,8 +36,6 @@ write_files:
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
-      HOME="/root"
-
       STATUS_DIR="/var/lib/opencode-cloud"
       STATUS_FILE="${STATUS_DIR}/deploy-status.json"
       PROVISIONED_FILE="${STATUS_DIR}/.provisioned"
@@ -46,6 +44,17 @@ write_files:
       log() {
         printf '%s %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$*" >> "$LOG_FILE"
       }
+
+      home_value="$(printenv HOME 2>/dev/null || true)"
+      path_value="$(printenv PATH 2>/dev/null || true)"
+      if [ -z "$home_value" ]; then
+        log "opencode-cloud setup: HOME is unset"
+      else
+        log "opencode-cloud setup: HOME before set: $home_value"
+      fi
+      log "opencode-cloud setup: PATH before set: $path_value"
+
+      export HOME="/root"
 
       log "opencode-cloud setup (cloud-init): start"
 
