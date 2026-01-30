@@ -347,6 +347,10 @@ Resources:
                   - secretsmanager:PutSecretValue
                   - secretsmanager:DescribeSecret
                 Resource: !Ref CredentialsSecret
+              - Effect: Allow
+                Action:
+                  - cloudformation:SignalResource
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*"
       Path: /
 
   InstanceProfile:
