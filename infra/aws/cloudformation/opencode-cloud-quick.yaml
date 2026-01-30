@@ -680,10 +680,17 @@ Resources:
                     signal_result 1 "opencode-cloud service did not become reachable on port 3000"
                   fi
 
-                  log "opencode-cloud setup: set user password"
+                  log "opencode-cloud setup: create user password"
                   OPENCODE_PASSWORD="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
-                  echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
-                  log "opencode-cloud setup: user password set"
+                  pass_len="$(printf '%s' "$OPENCODE_PASSWORD" | wc -c | tr -d ' ')"
+                  printf 'user=%q pass_len=%s\n' "$OPENCODE_USERNAME" "$pass_len"
+                  # Check if chpasswd hangs
+                  # docker exec -u root -i "$OPENCODE_CONTAINER_NAME" sh -lc 'echo testuser:testpass | chpasswd; echo "rc=$?"'
+                  # log "opencode-cloud setup: chpasswd test completed $?"
+                  log "opencode-cloud setup: setting user password"
+                  # echo "$OPENCODE_USERNAME:$OPENCODE_PASSWORD" | docker exec -i "$OPENCODE_CONTAINER_NAME" chpasswd
+                  docker exec -u root -i "$OPENCODE_CONTAINER_NAME" sh -lc "echo $OPENCODE_USERNAME:$OPENCODE_PASSWORD | chpasswd"
+                  log "opencode-cloud setup: user password set successfully"
 
                   log "opencode-cloud setup: write secrets payload"
                   secret_payload="$(jq -n \
