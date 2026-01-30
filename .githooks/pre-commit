@@ -11,3 +11,8 @@ if [[ -f "$ROOT_README" ]]; then
     cp "$ROOT_README" packages/core/README.md
     git add packages/core/README.md
 fi
+
+# Run cfn-lint when CloudFormation templates change.
+if git diff --cached --name-only --diff-filter=ACMR | rg -q '^infra/aws/cloudformation/.*\.(ya?ml)$'; then
+    cfn-lint infra/aws/cloudformation/*.yaml
+fi

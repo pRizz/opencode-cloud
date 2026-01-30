@@ -1,0 +1,10 @@
+---
+description: Run cfn-lint for CloudFormation changes
+globs: infra/aws/cloudformation/**/*.{yml,yaml}
+alwaysApply: false
+---
+
+# CloudFormation Lint
+
+- When editing CloudFormation templates, run `cfn-lint infra/aws/cloudformation/*.yaml`.
+- If a commit includes CloudFormation template changes, ensure `cfn-lint` is run before committing.
