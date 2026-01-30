@@ -638,7 +638,7 @@ Resources:
                   if ! command -v cargo >/dev/null 2>&1; then
                     log "opencode-cloud setup: install rust toolchain"
                     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-                      bash -s -- -y --profile minimal --default-toolchain 1.85.0
+                      bash -s -- -y --profile minimal --default-toolchain 1.88.0
                     log "opencode-cloud setup: rust toolchain installed"
                   fi
 
