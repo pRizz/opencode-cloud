@@ -65,6 +65,7 @@ test-rust-fast:
 
 # Run Node tests
 test-node:
+    pnpm -C packages/cli-node build
     pnpm -r test
 
 # Run Rust doc-tests (slow)
