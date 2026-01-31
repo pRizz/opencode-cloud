@@ -158,6 +158,19 @@ async fn cmd_update_cli(
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
+    if is_dev_binary() {
+        let message = [
+            "You're running the dev build of opencode-cloud.",
+            "Nice try, but I can't update myself while I'm still in the lab!",
+            "If you meant to update a released install, use:",
+            "  - cargo install opencode-cloud",
+            "  - npm install -g opencode-cloud",
+        ]
+        .join("\n");
+
+        return Err(anyhow!(message));
+    }
+
     let install_method = match detect_install_method() {
         Some(method) => method,
         None => {
@@ -169,10 +182,6 @@ async fn cmd_update_cli(
                 "If you used another package manager, re-run its update command.",
             ]
             .join("\n");
-
-            if !quiet {
-                eprintln!("{} {guidance}", style("Error:").red().bold());
-            }
 
             return Err(anyhow!(guidance));
         }
@@ -266,6 +275,16 @@ fn detect_install_method() -> Option<InstallMethod> {
     }
 
     None
+}
+
+fn is_dev_binary() -> bool {
+    let exe_path = match std::env::current_exe() {
+        Ok(path) => path,
+        Err(_) => return false,
+    };
+    let exe_str = exe_path.to_string_lossy();
+
+    exe_str.contains("/target/debug/")
 }
 
 async fn cmd_update_opencode(
