@@ -8,6 +8,7 @@ Metadata:
           default: "Required"
         Parameters:
           - DomainName
+          - HostedZoneId
       - Label:
           default: "Advanced: Instance"
         Parameters:
@@ -23,10 +24,6 @@ Metadata:
           - ExistingPublicSubnetIdA
           - ExistingPublicSubnetIdB
           - AllowSsh
-      - Label:
-          default: "Advanced: TLS"
-        Parameters:
-          - HostedZoneId
 
 Parameters:
   DomainName:
