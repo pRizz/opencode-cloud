@@ -526,7 +526,6 @@ RUN OPENCODE_COMMIT="c7fb116c1cf59a76b184f842ed3eb0113d93196b" \
     && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
     && cd packages/opencode \
-    && export VITE_OPENCODE_SERVER_URL="http://localhost:3000" \
     && bun run build-single-ui \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
