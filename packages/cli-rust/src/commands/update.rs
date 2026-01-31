@@ -34,10 +34,20 @@ pub struct UpdateArgs {
 
 #[derive(Subcommand)]
 pub enum UpdateCommand {
+    /// Update the opencode-cloud CLI binary
+    Cli(UpdateCliArgs),
     /// Update the opencode-cloud container image
     Container,
     /// Update opencode inside the running container
     Opencode(UpdateOpencodeArgs),
+}
+
+/// Arguments for updating the opencode-cloud CLI binary
+#[derive(Args)]
+pub struct UpdateCliArgs {
+    /// Skip confirmation prompt
+    #[arg(short, long)]
+    pub yes: bool,
 }
 
 /// Arguments for updating opencode inside the container
@@ -79,6 +89,9 @@ pub async fn cmd_update(
     verbose: u8,
 ) -> Result<()> {
     match args.command.as_ref() {
+        Some(UpdateCommand::Cli(cli_args)) => {
+            return cmd_update_cli(cli_args, maybe_host, quiet, verbose).await;
+        }
         Some(UpdateCommand::Opencode(opencode_args)) => {
             return cmd_update_opencode(opencode_args, maybe_host, quiet, verbose).await;
         }
@@ -86,7 +99,7 @@ pub async fn cmd_update(
         None => {
             if !quiet {
                 eprintln!(
-                    "{} Missing subcommand. Use one of:\n  occ update container\n  occ update opencode",
+                    "{} Missing subcommand. Use one of:\n  occ update cli\n  occ update container\n  occ update opencode",
                     style("Error:").red().bold()
                 );
             }
@@ -137,6 +150,105 @@ pub async fn cmd_update(
         )
         .await
     }
+}
+
+async fn cmd_update_cli(
+    args: &UpdateCliArgs,
+    maybe_host: Option<&str>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<()> {
+    let install_method = detect_install_method()
+        .ok_or_else(|| anyhow!("Unable to detect install method for opencode-cloud"))?;
+
+    if !quiet {
+        eprintln!();
+        eprintln!(
+            "{} This will update the opencode-cloud CLI and restart the service.",
+            style("Warning:").yellow().bold()
+        );
+        eprintln!("Install:    {}", style(install_method.label()).dim());
+        eprintln!();
+    }
+
+    if !args.yes {
+        let confirmed = Confirm::new()
+            .with_prompt("Continue with opencode-cloud update?")
+            .default(true)
+            .interact()?;
+
+        if !confirmed {
+            if !quiet {
+                eprintln!("Update cancelled.");
+            }
+            return Ok(());
+        }
+    }
+
+    let spinner = CommandSpinner::new_maybe("Updating opencode-cloud...", quiet);
+    install_method.run_update().map_err(|e| anyhow!("{e}"))?;
+    spinner.success("opencode-cloud updated");
+
+    let restart_args = RestartArgs {};
+    cmd_restart(&restart_args, maybe_host, quiet, verbose).await?;
+
+    if !quiet {
+        eprintln!();
+        eprintln!(
+            "{} opencode-cloud updated successfully!",
+            style("Success:").green().bold()
+        );
+        eprintln!();
+    }
+
+    Ok(())
+}
+
+enum InstallMethod {
+    Cargo,
+    Npm,
+}
+
+impl InstallMethod {
+    fn label(&self) -> &'static str {
+        match self {
+            InstallMethod::Cargo => "cargo install",
+            InstallMethod::Npm => "npm install -g",
+        }
+    }
+
+    fn run_update(&self) -> Result<(), String> {
+        let (program, args) = match self {
+            InstallMethod::Cargo => ("cargo", vec!["install", "opencode-cloud"]),
+            InstallMethod::Npm => ("npm", vec!["install", "-g", "opencode-cloud"]),
+        };
+
+        let status = std::process::Command::new(program)
+            .args(args)
+            .status()
+            .map_err(|e| format!("Failed to execute {program}: {e}"))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("{program} update failed with status {status}"))
+        }
+    }
+}
+
+fn detect_install_method() -> Option<InstallMethod> {
+    let exe_path = std::env::current_exe().ok()?;
+    let exe_str = exe_path.to_string_lossy();
+
+    if exe_str.contains("node_modules") || exe_str.contains("@opencode-cloud") {
+        return Some(InstallMethod::Npm);
+    }
+
+    if exe_str.contains(".cargo") || exe_str.contains("cargo/bin") {
+        return Some(InstallMethod::Cargo);
+    }
+
+    None
 }
 
 async fn cmd_update_opencode(

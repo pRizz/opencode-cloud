@@ -143,6 +143,12 @@ occ stop
 # Restart the service
 occ restart
 
+# Update the opencode-cloud CLI binary
+occ update cli
+
+# Update the opencode-cloud container image
+occ update container
+
 # Update opencode inside the container
 occ update opencode
 
