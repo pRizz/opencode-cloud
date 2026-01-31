@@ -80,7 +80,7 @@ Parameters:
   ExistingPublicSubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Default: subnet-00000000,subnet-00000000
-    Description: "Existing public subnet IDs for the ALB and instance (required if UseExistingVpc=true)."
+    Description: "Existing public subnet IDs for the ALB and instance (at least two, required if UseExistingVpc=true)."
   AllowSsh:
     Type: String
     Default: "false"
@@ -107,6 +107,8 @@ Rules:
         AssertDescription: "ExistingVpcId must be a real VPC ID when UseExistingVpc=true."
       - Assert: !Not [!Contains [!Ref ExistingPublicSubnetIds, "subnet-00000000"]]
         AssertDescription: "ExistingPublicSubnetIds must be real subnet IDs when UseExistingVpc=true."
+      - Assert: !Not [!Equals [!Select [1, !Ref ExistingPublicSubnetIds], "subnet-00000000"]]
+        AssertDescription: "ExistingPublicSubnetIds must include at least two subnets when UseExistingVpc=true."
 Resources:
   CredentialsSecret:
     Type: AWS::SecretsManager::Secret
