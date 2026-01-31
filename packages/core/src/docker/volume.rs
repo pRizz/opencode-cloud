@@ -23,6 +23,9 @@ pub const VOLUME_NAMES: [&str; 3] = [VOLUME_SESSION, VOLUME_PROJECTS, VOLUME_CON
 /// Mount point for opencode data inside container
 pub const MOUNT_SESSION: &str = "/home/opencode/.local/share";
 
+/// Mount point for opencode app data inside container (XDG_DATA_HOME)
+pub const MOUNT_APP_DATA: &str = "/home/opencode/.local/share/opencode-cloud";
+
 /// Mount point for project files inside container
 pub const MOUNT_PROJECTS: &str = "/home/opencode/workspace";
 
@@ -138,6 +141,7 @@ mod tests {
     #[test]
     fn mount_points_are_correct() {
         assert_eq!(MOUNT_SESSION, "/home/opencode/.local/share");
+        assert_eq!(MOUNT_APP_DATA, "/home/opencode/.local/share/opencode-cloud");
         assert_eq!(MOUNT_PROJECTS, "/home/opencode/workspace");
         assert_eq!(MOUNT_CONFIG, "/home/opencode/.config");
     }

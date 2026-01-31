@@ -52,7 +52,6 @@ pub async fn cmd_stop(args: &StopArgs, maybe_host: Option<&str>, quiet: bool) ->
         quiet,
         false,
         args.timeout,
-        true,
         StopSpinnerMessages {
             action_message: "Stopping service...",
             update_label: "Stopping service",

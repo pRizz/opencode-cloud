@@ -14,6 +14,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use jsonc_parser::parse_to_serde_value;
 
+use crate::docker::mount::ParsedMount;
+use crate::docker::volume::MOUNT_SESSION;
 pub use paths::{get_config_dir, get_config_path, get_data_dir, get_hosts_path, get_pid_path};
 pub use schema::{Config, default_mounts, validate_bind_address};
 pub use validation::{
@@ -99,12 +101,34 @@ pub fn load_config() -> Result<Config> {
     }
 
     // Deserialize into Config struct (deny_unknown_fields will reject unknown keys)
-    let config: Config = serde_json::from_value(parsed_value).with_context(|| {
+    let mut config: Config = serde_json::from_value(parsed_value).with_context(|| {
         format!(
             "Invalid configuration in {}. Check for unknown fields or invalid values.",
             config_path.display()
         )
     })?;
+
+    let mut removed_shadowing_mounts = false;
+    config.mounts.retain(|mount_str| {
+        let parsed = match ParsedMount::parse(mount_str) {
+            Ok(parsed) => parsed,
+            Err(_) => return true,
+        };
+        if parsed.container_path == MOUNT_SESSION {
+            removed_shadowing_mounts = true;
+            tracing::warn!(
+                "Skipping bind mount that overrides opencode binaries; use {} instead: {}",
+                crate::docker::volume::MOUNT_APP_DATA,
+                mount_str
+            );
+            return false;
+        }
+        true
+    });
+
+    if removed_shadowing_mounts {
+        tracing::info!("Removed bind mounts that shadow {}", MOUNT_SESSION);
+    }
 
     ensure_default_mount_dirs(&config)?;
     Ok(config)

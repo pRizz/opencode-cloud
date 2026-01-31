@@ -3,6 +3,7 @@
 //! Guides users through first-time configuration with interactive prompts.
 
 mod auth;
+mod config_view;
 mod network;
 mod prechecks;
 mod summary;
@@ -17,6 +18,7 @@ use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_run
 use opencode_cloud_core::{Config, config::default_mounts};
 
 use auth::prompt_auth;
+use config_view::render_config_snapshot;
 use network::{prompt_hostname, prompt_port};
 use summary::display_summary;
 
@@ -119,7 +121,7 @@ fn display_mounts_info(step: usize, total: usize, mounts: &[String]) -> Result<(
         return Ok(());
     }
 
-    println!("Persist opencode data on your host using these mounts:");
+    println!("Persist opencode sessions, workspace, and config on your host using these mounts:");
     println!();
     for mount in mounts {
         println!("  {}", style(mount).cyan());
@@ -127,7 +129,7 @@ fn display_mounts_info(step: usize, total: usize, mounts: &[String]) -> Result<(
     println!();
     println!(
         "{}",
-        style("You can change these later with `occ mount add/remove` or by editing the config.")
+        style("You can change these later with `occ mount add/remove` or by editing the config.",)
             .dim()
     );
     println!();
@@ -191,6 +193,9 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
 
         if has_users || has_old_auth {
             println!("{}", style("Current configuration:").bold());
+            if let Some(config_path) = opencode_cloud_core::config::paths::get_config_path() {
+                println!("  Config:   {}", style(config_path.display()).dim());
+            }
             if has_users {
                 println!("  Users:    {}", config.users.join(", "));
             } else if has_old_auth {
@@ -202,6 +207,20 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
             }
             println!("  Port:     {}", config.opencode_web_port);
             println!("  Binding:  {}", config.bind);
+            println!("  Image:    {}", config.image_source);
+            if config.mounts.is_empty() {
+                println!("  Mounts:   {}", style("None").dim());
+            } else {
+                println!("  Mounts:");
+                for mount in &config.mounts {
+                    println!("    {}", style(mount).dim());
+                }
+            }
+            println!();
+            println!("{}", style("Full config:").bold());
+            for line in render_config_snapshot(config).lines() {
+                println!("  {}", style(line).dim());
+            }
             println!();
 
             let reconfigure = Confirm::new()

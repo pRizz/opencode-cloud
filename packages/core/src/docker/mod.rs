@@ -60,8 +60,9 @@ pub use users::{
 
 // Volume management
 pub use volume::{
-    MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_NAMES, VOLUME_PROJECTS,
-    VOLUME_SESSION, ensure_volumes_exist, remove_all_volumes, remove_volume, volume_exists,
+    MOUNT_APP_DATA, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_NAMES,
+    VOLUME_PROJECTS, VOLUME_SESSION, ensure_volumes_exist, remove_all_volumes, remove_volume,
+    volume_exists,
 };
 
 // Bind mount parsing and validation

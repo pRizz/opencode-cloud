@@ -23,7 +23,6 @@ pub async fn stop_service_with_spinner(
     quiet: bool,
     remove: bool,
     timeout_secs: i64,
-    allow_force_kill_prompt: bool,
     messages: StopSpinnerMessages<'_>,
 ) -> Result<()> {
     if quiet {
@@ -35,7 +34,7 @@ pub async fn stop_service_with_spinner(
         &crate::format_host_message(host_name, messages.action_message),
         quiet,
     );
-    let is_tty = std::io::stdin().is_terminal() && allow_force_kill_prompt;
+    let is_tty = std::io::stdin().is_terminal();
     let enter_hint = if is_tty {
         " Press Enter to force kill now."
     } else {
@@ -63,34 +62,25 @@ pub async fn stop_service_with_spinner(
 
     let stop_future = stop_service(client, remove, Some(timeout_secs));
     tokio::pin!(stop_future);
-    let mut enter_task = if is_tty {
-        Some(tokio::spawn(wait_for_enter()))
-    } else {
-        None
-    };
-    let mut enter_completed = false;
-    let outcome = if let Some(task) = enter_task.as_mut() {
-        tokio::select! {
-            result = &mut stop_future => StopOutcome::Graceful(result),
-            _ = task => {
-                enter_completed = true;
-                spinner.update(&crate::format_host_message(
-                    host_name,
-                    &format!("{} (forcing stop now)...", messages.update_label),
-                ));
-                StopOutcome::Forced(stop_service(client, remove, Some(0)).await)
+    let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
+    let mut input = String::new();
+
+    let outcome = tokio::select! {
+        result = &mut stop_future => StopOutcome::Graceful(result),
+        read_result = stdin.read_line(&mut input) => {
+            match read_result {
+                Ok(0) => StopOutcome::Graceful(stop_future.await),
+                Ok(_) => {
+                    spinner.update(&crate::format_host_message(
+                        host_name,
+                        &format!("{} (forcing stop now)...", messages.update_label),
+                    ));
+                    StopOutcome::Forced(stop_service(client, remove, Some(0)).await)
+                }
+                Err(_) => StopOutcome::Graceful(stop_future.await),
             }
         }
-    } else {
-        StopOutcome::Graceful(stop_future.await)
     };
-
-    if let Some(task) = enter_task {
-        if !enter_completed {
-            task.abort();
-            let _ = task.await;
-        }
-    }
 
     match outcome {
         StopOutcome::Graceful(result) => {
@@ -98,12 +88,6 @@ pub async fn stop_service_with_spinner(
         }
         StopOutcome::Forced(result) => handle_forced_result(result, host_name, spinner, &messages),
     }
-}
-
-async fn wait_for_enter() {
-    let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
-    let mut input = String::new();
-    let _ = stdin.read_line(&mut input).await;
 }
 
 fn handle_stop_result(

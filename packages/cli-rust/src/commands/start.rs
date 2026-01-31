@@ -303,7 +303,6 @@ async fn ensure_container_stopped_for_image_flag(
         quiet,
         true,
         DEFAULT_STOP_TIMEOUT_SECS,
-        true,
         StopSpinnerMessages {
             action_message: "Stopping container for rebuild...",
             update_label: "Stopping container",
@@ -728,12 +727,14 @@ pub async fn cmd_start(
     } else if container_is_running(&client, CONTAINER_NAME).await? {
         // Already running (idempotent behavior) - only when not rebuilding
         return show_already_running(
+            &client,
             port,
             bind_addr,
             config.is_network_exposed(),
             quiet,
             host_name.as_deref(),
-        );
+        )
+        .await;
     }
 
     // Security check: warn if network exposed without authentication
@@ -869,7 +870,6 @@ async fn handle_rebuild(
         quiet,
         true,
         DEFAULT_STOP_TIMEOUT_SECS,
-        true,
         StopSpinnerMessages {
             action_message: "Stopping container for rebuild...",
             update_label: "Stopping container",
@@ -882,7 +882,8 @@ async fn handle_rebuild(
 }
 
 /// Show message when service is already running
-fn show_already_running(
+async fn show_already_running(
+    client: &DockerClient,
     port: u16,
     bind_addr: &str,
     is_exposed: bool,
@@ -893,37 +894,21 @@ fn show_already_running(
         return Ok(());
     }
 
-    // Get remote host address if using --host
-    let maybe_remote_addr = resolve_remote_addr(host_name);
-
     let msg = crate::format_host_message(host_name, "Service is already running");
     println!("{}", style(msg).dim());
-    println!();
 
-    // Show URL - use remote address if available
-    if let Some(ref remote_addr) = maybe_remote_addr {
-        let remote_url = format!("http://{remote_addr}:{port}");
-        println!("Remote URL: {}", style(&remote_url).cyan());
-    } else {
-        let url = format!("http://{bind_addr}:{port}");
-        println!("URL:        {}", style(&url).cyan());
-    }
-
-    // Show Cockpit URL if enabled
-    if let Ok(config) = opencode_cloud_core::config::load_config() {
-        if config.cockpit_enabled {
-            let cockpit_url =
-                format_cockpit_url(maybe_remote_addr.as_deref(), bind_addr, config.cockpit_port);
-            println!("Cockpit:    {cockpit_url} (web admin)");
+    let container_id = match client.inner().inspect_container(CONTAINER_NAME, None).await {
+        Ok(info) => info.id.unwrap_or_else(|| "unknown".to_string()),
+        Err(error) => {
+            eprintln!(
+                "{} Failed to inspect running container: {error}",
+                style("Warning:").yellow()
+            );
+            "unknown".to_string()
         }
-    }
+    };
 
-    // Show security status
-    if is_exposed {
-        println!("Security:   {}", style("[NETWORK EXPOSED]").yellow().bold());
-    } else {
-        println!("Security:   {}", style("[LOCAL ONLY]").green().bold());
-    }
+    show_start_result(&container_id, port, bind_addr, is_exposed, quiet, host_name);
     Ok(())
 }
 

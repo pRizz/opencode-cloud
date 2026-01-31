@@ -3,7 +3,7 @@
 //! Defines the structure and defaults for the config.json file.
 
 use super::paths::{get_config_dir, get_data_dir};
-use crate::docker::volume::{MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION};
+use crate::docker::volume::{MOUNT_APP_DATA, MOUNT_CONFIG, MOUNT_PROJECTS};
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 /// Main configuration structure for opencode-cloud
@@ -182,12 +182,12 @@ pub fn default_mounts() -> Vec<String> {
         return Vec::new();
     };
 
-    let session_dir = data_dir.join("data");
+    let app_data_dir = data_dir.join("container-data");
     let workspace_dir = data_dir.join("workspace");
     let config_dir = config_dir.join("container");
 
     vec![
-        format!("{}:{MOUNT_SESSION}", session_dir.display()),
+        format!("{}:{MOUNT_APP_DATA}", app_data_dir.display()),
         format!("{}:{MOUNT_PROJECTS}", workspace_dir.display()),
         format!("{}:{MOUNT_CONFIG}", config_dir.display()),
     ]

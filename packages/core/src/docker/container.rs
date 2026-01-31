@@ -6,7 +6,8 @@
 use super::dockerfile::{IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 use super::mount::ParsedMount;
 use super::volume::{
-    MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION,
+    MOUNT_APP_DATA, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_PROJECTS,
+    VOLUME_SESSION,
 };
 use super::{DockerClient, DockerError};
 use bollard::container::{
@@ -16,7 +17,7 @@ use bollard::container::{
 use bollard::service::{
     HostConfig, Mount, MountPointTypeEnum, MountTypeEnum, PortBinding, PortMap,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::debug;
 
 /// Default container name
@@ -24,6 +25,11 @@ pub const CONTAINER_NAME: &str = "opencode-cloud-sandbox";
 
 /// Default port for opencode web UI
 pub const OPENCODE_WEB_PORT: u16 = 3000;
+
+fn has_env_key(env: &[String], key: &str) -> bool {
+    let prefix = format!("{key}=");
+    env.iter().any(|entry| entry.starts_with(&prefix))
+}
 
 /// Create the opencode container with volume mounts
 ///
@@ -85,30 +91,34 @@ pub async fn create_container(
         )));
     }
 
-    // Create volume mounts
-    let mut mounts = vec![
-        Mount {
-            target: Some(MOUNT_SESSION.to_string()),
-            source: Some(VOLUME_SESSION.to_string()),
+    let mut bind_targets = HashSet::new();
+    if let Some(ref user_mounts) = bind_mounts {
+        for parsed in user_mounts {
+            bind_targets.insert(parsed.container_path.clone());
+        }
+    }
+
+    // Create volume mounts (skip if overridden by bind mounts)
+    let mut mounts = Vec::new();
+    let mut add_volume_mount = |target: &str, source: &str| {
+        if bind_targets.contains(target) {
+            tracing::trace!(
+                "Skipping volume mount for {} (overridden by bind mount)",
+                target
+            );
+            return;
+        }
+        mounts.push(Mount {
+            target: Some(target.to_string()),
+            source: Some(source.to_string()),
             typ: Some(MountTypeEnum::VOLUME),
             read_only: Some(false),
             ..Default::default()
-        },
-        Mount {
-            target: Some(MOUNT_PROJECTS.to_string()),
-            source: Some(VOLUME_PROJECTS.to_string()),
-            typ: Some(MountTypeEnum::VOLUME),
-            read_only: Some(false),
-            ..Default::default()
-        },
-        Mount {
-            target: Some(MOUNT_CONFIG.to_string()),
-            source: Some(VOLUME_CONFIG.to_string()),
-            typ: Some(MountTypeEnum::VOLUME),
-            read_only: Some(false),
-            ..Default::default()
-        },
-    ];
+        });
+    };
+    add_volume_mount(MOUNT_SESSION, VOLUME_SESSION);
+    add_volume_mount(MOUNT_PROJECTS, VOLUME_PROJECTS);
+    add_volume_mount(MOUNT_CONFIG, VOLUME_CONFIG);
 
     // Add user-defined bind mounts from config/CLI
     if let Some(ref user_mounts) = bind_mounts {
@@ -189,14 +199,15 @@ pub async fn create_container(
     };
 
     // Build environment variables
+    let mut env = env_vars.unwrap_or_default();
+    if !has_env_key(&env, "XDG_DATA_HOME") {
+        env.push(format!("XDG_DATA_HOME={MOUNT_APP_DATA}"));
+    }
     // Add USE_SYSTEMD=1 when Cockpit is enabled to tell entrypoint to use systemd
-    let final_env = if cockpit_enabled_val {
-        let mut env = env_vars.unwrap_or_default();
+    if cockpit_enabled_val && !has_env_key(&env, "USE_SYSTEMD") {
         env.push("USE_SYSTEMD=1".to_string());
-        Some(env)
-    } else {
-        env_vars
-    };
+    }
+    let final_env = if env.is_empty() { None } else { Some(env) };
 
     // Create container config
     let config = Config {
