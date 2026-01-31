@@ -211,6 +211,7 @@ Recent decisions affecting current work:
 5. **Investigate hanging graceful stop** (tooling) - Diagnose missing stop progress when rebuilding a running container.
 6. **Fix missing export step display** (tooling) - Ensure "exporting to image" appears as the final Docker build step.
 7. **Use occ in CloudFormation scripts** (tooling) - Replace manual bootstrap wiring with occ-driven setup.
+8. **Fix start hang after mount recreate** (tooling) - Resolve start flow hanging until Enter after forced stop.
 
 ### Roadmap Evolution
 
