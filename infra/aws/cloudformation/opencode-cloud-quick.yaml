@@ -688,10 +688,10 @@ Resources:
 
                   log "opencode-cloud setup: configure rustup PATH for ubuntu"
                   cat <<'EOF' > /etc/profile.d/opencode-cloud.sh
-                  export CARGO_HOME="$$HOME/.cargo"
-                  export PATH="$$CARGO_HOME/bin:$$PATH"
-                  if [ -f "$$CARGO_HOME/env" ]; then
-                    . "$$CARGO_HOME/env"
+                  export CARGO_HOME="$HOME/.cargo"
+                  export PATH="$PATH:$CARGO_HOME/bin"
+                  if [ -f "$CARGO_HOME/env" ]; then
+                    . "$CARGO_HOME/env"
                   fi
                   EOF
                   chmod 0644 /etc/profile.d/opencode-cloud.sh
@@ -786,7 +786,7 @@ Resources:
                   mkdir -p "$data_dir" "$state_dir" "$cache_dir" "$config_dir" "$workspace_dir"
                   opencode_uid="$(docker run --rm --entrypoint id "$OPENCODE_IMAGE" -u opencode)"
                   opencode_gid="$(docker run --rm --entrypoint id "$OPENCODE_IMAGE" -g opencode)"
-                  chown -R "$$opencode_uid:$$opencode_gid" \
+                  chown -R "$opencode_uid:$opencode_gid" \
                     "$data_dir" \
                     "$state_dir" \
                     "$cache_dir" \
