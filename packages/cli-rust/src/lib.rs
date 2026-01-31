@@ -8,9 +8,10 @@ mod output;
 mod passwords;
 pub mod wizard;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use console::style;
+use dialoguer::Confirm;
 use opencode_cloud_core::{
     DockerClient, InstanceLock, SingletonError, config, get_version, load_config, load_hosts,
     save_config,
@@ -152,10 +153,28 @@ pub fn run() -> Result<()> {
     );
     eprintln!();
 
-    // Load config (creates default if missing)
     let config_path = config::paths::get_config_path()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine config path"))?;
+        .ok_or_else(|| anyhow!("Could not determine config path"))?;
+    let config_exists = config_path.exists();
 
+    if !config_exists {
+        eprintln!(
+            "{} First-time setup required. Running wizard...",
+            style("Note:").cyan()
+        );
+        eprintln!();
+        let rt = tokio::runtime::Runtime::new()?;
+        let new_config = rt.block_on(wizard::run_wizard(None))?;
+        save_config(&new_config)?;
+        eprintln!();
+        eprintln!(
+            "{} Setup complete! Run your command again, or use 'occ start' to begin.",
+            style("Success:").green().bold()
+        );
+        return Ok(());
+    }
+
+    // Load config
     let config = match load_config() {
         Ok(config) => {
             // If config was just created, inform the user
@@ -203,31 +222,6 @@ pub fn run() -> Result<()> {
 
     // Store host flag for command handlers
     let target_host = cli.host.clone();
-
-    // Check if wizard needed (missing auth and not running setup/config/user command)
-    let needs_wizard = !config.has_required_auth()
-        && !config.allow_unauthenticated_network
-        && !matches!(
-            cli.command,
-            Some(Commands::Setup(_)) | Some(Commands::Config(_)) | Some(Commands::User(_))
-        );
-
-    if needs_wizard {
-        eprintln!(
-            "{} First-time setup required. Running wizard...",
-            style("Note:").cyan()
-        );
-        eprintln!();
-        let rt = tokio::runtime::Runtime::new()?;
-        let new_config = rt.block_on(wizard::run_wizard(Some(&config)))?;
-        save_config(&new_config)?;
-        eprintln!();
-        eprintln!(
-            "{} Setup complete! Run your command again, or use 'occ start' to begin.",
-            style("Success:").green().bold()
-        );
-        return Ok(());
-    }
 
     match cli.command {
         Some(Commands::Start(args)) => {
@@ -313,19 +307,76 @@ pub fn run() -> Result<()> {
             rt.block_on(commands::cmd_host(&args, cli.quiet, cli.verbose))
         }
         None => {
-            // No command - show a welcome message and hint to use --help
-            if !cli.quiet {
-                println!(
-                    "{} {}",
-                    style("opencode-cloud").cyan().bold(),
-                    style(get_version()).dim()
-                );
-                println!();
-                println!("Run {} for available commands.", style("--help").green());
-            }
-            Ok(())
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(handle_no_command(
+                target_host.as_deref(),
+                cli.quiet,
+                cli.verbose,
+            ))
         }
     }
+}
+
+async fn handle_no_command(target_host: Option<&str>, quiet: bool, verbose: u8) -> Result<()> {
+    if quiet {
+        return Ok(());
+    }
+
+    let (client, host_name) = resolve_docker_client(target_host).await?;
+    client
+        .verify_connection()
+        .await
+        .map_err(|e| anyhow!("Docker connection error: {e}"))?;
+
+    let running = opencode_cloud_core::docker::container_is_running(
+        &client,
+        opencode_cloud_core::docker::CONTAINER_NAME,
+    )
+    .await
+    .map_err(|e| anyhow!("Docker error: {e}"))?;
+
+    if running {
+        let status_args = commands::StatusArgs {};
+        return commands::cmd_status(&status_args, host_name.as_deref(), quiet, verbose).await;
+    }
+
+    eprintln!("{} Service is not running.", style("Note:").yellow());
+
+    let confirmed = Confirm::new()
+        .with_prompt("Start the service now?")
+        .default(true)
+        .interact()?;
+
+    if confirmed {
+        let start_args = commands::StartArgs {
+            port: None,
+            open: false,
+            no_daemon: false,
+            pull_sandbox_image: false,
+            cached_rebuild_sandbox_image: false,
+            full_rebuild_sandbox_image: false,
+            ignore_version: false,
+            no_update_check: false,
+            mounts: Vec::new(),
+            no_mounts: false,
+        };
+        commands::cmd_start(&start_args, host_name.as_deref(), quiet, verbose).await?;
+        let status_args = commands::StatusArgs {};
+        return commands::cmd_status(&status_args, host_name.as_deref(), quiet, verbose).await;
+    }
+
+    print_help_hint();
+    Ok(())
+}
+
+fn print_help_hint() {
+    println!(
+        "{} {}",
+        style("opencode-cloud").cyan().bold(),
+        style(get_version()).dim()
+    );
+    println!();
+    println!("Run {} for available commands.", style("--help").green());
 }
 
 /// Acquire the singleton lock for service management commands
