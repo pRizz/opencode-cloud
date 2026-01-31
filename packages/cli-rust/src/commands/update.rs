@@ -34,6 +34,8 @@ pub struct UpdateArgs {
 
 #[derive(Subcommand)]
 pub enum UpdateCommand {
+    /// Update the opencode-cloud container image
+    Container,
     /// Update opencode inside the running container
     Opencode(UpdateOpencodeArgs),
 }
@@ -76,8 +78,20 @@ pub async fn cmd_update(
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
-    if let Some(UpdateCommand::Opencode(opencode_args)) = args.command.as_ref() {
-        return cmd_update_opencode(opencode_args, maybe_host, quiet, verbose).await;
+    match args.command.as_ref() {
+        Some(UpdateCommand::Opencode(opencode_args)) => {
+            return cmd_update_opencode(opencode_args, maybe_host, quiet, verbose).await;
+        }
+        Some(UpdateCommand::Container) => {}
+        None => {
+            if !quiet {
+                eprintln!(
+                    "{} Missing subcommand. Use one of:\n  occ update container\n  occ update opencode",
+                    style("Error:").red().bold()
+                );
+            }
+            return Ok(());
+        }
     }
 
     // Resolve Docker client (local or remote)
