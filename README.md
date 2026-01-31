@@ -143,6 +143,13 @@ occ stop
 # Restart the service
 occ restart
 
+# Update opencode inside the container
+occ update opencode
+
+# Update opencode using a specific branch or commit
+occ update opencode --branch dev
+occ update opencode --commit <sha>
+
 # Install as a system service (starts on login/boot)
 occ install
 
