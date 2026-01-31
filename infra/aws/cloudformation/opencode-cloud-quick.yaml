@@ -600,8 +600,8 @@ Resources:
                     fi
 
                     if [ "$exit_code" -ne 0 ]; then
-                      log "opencode-cloud setup: delaying failure signal 120s (reason: $reason)"
-                      sleep 120
+                      log "opencode-cloud setup: delaying failure signal 300s (reason: $reason)"
+                      sleep 300
                     fi
                     log "opencode-cloud setup: send cloudformation signal (reason: $reason)"
                     aws cloudformation signal-resource \
