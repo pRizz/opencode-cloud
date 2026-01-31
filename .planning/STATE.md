@@ -240,6 +240,7 @@ Recent decisions affecting current work:
 - Phase 31 added: Update rust and node cli READMEs with latest project features
 - Phase 32 added: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened
 - Phase 33 added: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container
+- Phase 34 added: Disable Cockpit user-facing surface (hide UI/CLI/docs, keep code)
 
 ### Blockers/Concerns
 
