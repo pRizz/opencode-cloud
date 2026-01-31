@@ -890,6 +890,17 @@ Outputs:
   InstanceId:
     Description: "EC2 instance ID."
     Value: !Ref OpencodeInstance
+  InstanceConsoleUrl:
+    Description: "EC2 instance in AWS console."
+    Value: !Sub "https://console.aws.amazon.com/ec2/v2/home?region=${AWS::Region}#InstanceDetails:instanceId=${OpencodeInstance}"
+  NatElasticIp:
+    Condition: CreateVpc
+    Description: "NAT Gateway Elastic IP (created with new VPC)."
+    Value: !GetAtt NatEip.PublicIp
+  NatElasticIpAllocationId:
+    Condition: CreateVpc
+    Description: "NAT Gateway Elastic IP allocation ID."
+    Value: !GetAtt NatEip.AllocationId
   VpcId:
     Description: "VPC ID (created or provided)."
     Value: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
