@@ -164,6 +164,7 @@ RUN mkdir -p \
     /home/opencode/.config \
     /home/opencode/.local/bin \
     /home/opencode/.local/share \
+    /home/opencode/.local/state \
     /home/opencode/.cache \
     /home/opencode/workspace
 
@@ -529,16 +530,15 @@ RUN OPENCODE_COMMIT="c7fb116c1cf59a76b184f842ed3eb0113d93196b" \
     && bun run build-single-ui \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
-    && mkdir -p /home/opencode/.local/share/opencode/bin \
-    && mkdir -p /home/opencode/.local/share/opencode/ui \
-    && cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /home/opencode/.local/share/opencode/bin/opencode \
-    && cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /home/opencode/.local/share/opencode/ui/ \
-    && chown -R opencode:opencode /home/opencode/.local/share/opencode \
-    && chmod +x /home/opencode/.local/share/opencode/bin/opencode \
-    && /home/opencode/.local/share/opencode/bin/opencode --version
+    && sudo mkdir -p /opt/opencode/bin /opt/opencode/ui \
+    && sudo cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode \
+    && sudo cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/ \
+    && sudo chown -R opencode:opencode /opt/opencode \
+    && sudo chmod +x /opt/opencode/bin/opencode \
+    && /opt/opencode/bin/opencode --version
 
 # Add opencode to PATH
-ENV PATH="/home/opencode/.local/share/opencode/bin:${PATH}"
+ENV PATH="/opt/opencode/bin:${PATH}"
 
 # -----------------------------------------------------------------------------
 # opencode-broker Installation
@@ -651,10 +651,10 @@ RUN printf '%s\n' \
     'Type=simple' \
     'User=opencode' \
     'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/home/opencode/.local/share/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
+    'ExecStart=/opt/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
     'Restart=always' \
     'RestartSec=5' \
-    'Environment=PATH=/home/opencode/.local/share/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+    'Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
     '' \
     '[Install]' \
     'WantedBy=multi-user.target' \
@@ -700,7 +700,7 @@ RUN printf '%s\n' \
     '    install -d -m 0755 /run/opencode' \
     '    /usr/local/bin/opencode-broker &' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /home/opencode/.local/share/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0"' \
+    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /opt/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 

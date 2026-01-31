@@ -11,6 +11,12 @@ use tracing::debug;
 /// Volume name for opencode data
 pub const VOLUME_SESSION: &str = "opencode-data";
 
+/// Volume name for opencode state
+pub const VOLUME_STATE: &str = "opencode-state";
+
+/// Volume name for opencode cache
+pub const VOLUME_CACHE: &str = "opencode-cache";
+
 /// Volume name for project files
 pub const VOLUME_PROJECTS: &str = "opencode-workspace";
 
@@ -18,19 +24,28 @@ pub const VOLUME_PROJECTS: &str = "opencode-workspace";
 pub const VOLUME_CONFIG: &str = "opencode-config";
 
 /// All volume names as array for iteration
-pub const VOLUME_NAMES: [&str; 3] = [VOLUME_SESSION, VOLUME_PROJECTS, VOLUME_CONFIG];
+pub const VOLUME_NAMES: [&str; 5] = [
+    VOLUME_SESSION,
+    VOLUME_STATE,
+    VOLUME_CACHE,
+    VOLUME_PROJECTS,
+    VOLUME_CONFIG,
+];
 
 /// Mount point for opencode data inside container
-pub const MOUNT_SESSION: &str = "/home/opencode/.local/share";
+pub const MOUNT_SESSION: &str = "/home/opencode/.local/share/opencode";
 
-/// Mount point for opencode app data inside container (XDG_DATA_HOME)
-pub const MOUNT_APP_DATA: &str = "/home/opencode/.local/share/opencode-cloud";
+/// Mount point for opencode state inside container
+pub const MOUNT_STATE: &str = "/home/opencode/.local/state/opencode";
+
+/// Mount point for opencode cache inside container
+pub const MOUNT_CACHE: &str = "/home/opencode/.cache/opencode";
 
 /// Mount point for project files inside container
 pub const MOUNT_PROJECTS: &str = "/home/opencode/workspace";
 
 /// Mount point for configuration inside container
-pub const MOUNT_CONFIG: &str = "/home/opencode/.config";
+pub const MOUNT_CONFIG: &str = "/home/opencode/.config/opencode";
 
 /// Ensure all required volumes exist
 ///
@@ -126,23 +141,28 @@ mod tests {
     #[test]
     fn volume_constants_are_correct() {
         assert_eq!(VOLUME_SESSION, "opencode-data");
+        assert_eq!(VOLUME_STATE, "opencode-state");
+        assert_eq!(VOLUME_CACHE, "opencode-cache");
         assert_eq!(VOLUME_PROJECTS, "opencode-workspace");
         assert_eq!(VOLUME_CONFIG, "opencode-config");
     }
 
     #[test]
     fn volume_names_array_has_all_volumes() {
-        assert_eq!(VOLUME_NAMES.len(), 3);
+        assert_eq!(VOLUME_NAMES.len(), 5);
         assert!(VOLUME_NAMES.contains(&VOLUME_SESSION));
+        assert!(VOLUME_NAMES.contains(&VOLUME_STATE));
+        assert!(VOLUME_NAMES.contains(&VOLUME_CACHE));
         assert!(VOLUME_NAMES.contains(&VOLUME_PROJECTS));
         assert!(VOLUME_NAMES.contains(&VOLUME_CONFIG));
     }
 
     #[test]
     fn mount_points_are_correct() {
-        assert_eq!(MOUNT_SESSION, "/home/opencode/.local/share");
-        assert_eq!(MOUNT_APP_DATA, "/home/opencode/.local/share/opencode-cloud");
+        assert_eq!(MOUNT_SESSION, "/home/opencode/.local/share/opencode");
+        assert_eq!(MOUNT_STATE, "/home/opencode/.local/state/opencode");
+        assert_eq!(MOUNT_CACHE, "/home/opencode/.cache/opencode");
         assert_eq!(MOUNT_PROJECTS, "/home/opencode/workspace");
-        assert_eq!(MOUNT_CONFIG, "/home/opencode/.config");
+        assert_eq!(MOUNT_CONFIG, "/home/opencode/.config/opencode");
     }
 }

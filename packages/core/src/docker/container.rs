@@ -6,8 +6,8 @@
 use super::dockerfile::{IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 use super::mount::ParsedMount;
 use super::volume::{
-    MOUNT_APP_DATA, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, VOLUME_CONFIG, VOLUME_PROJECTS,
-    VOLUME_SESSION,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, VOLUME_CACHE,
+    VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE,
 };
 use super::{DockerClient, DockerError};
 use bollard::container::{
@@ -117,6 +117,8 @@ pub async fn create_container(
         });
     };
     add_volume_mount(MOUNT_SESSION, VOLUME_SESSION);
+    add_volume_mount(MOUNT_STATE, VOLUME_STATE);
+    add_volume_mount(MOUNT_CACHE, VOLUME_CACHE);
     add_volume_mount(MOUNT_PROJECTS, VOLUME_PROJECTS);
     add_volume_mount(MOUNT_CONFIG, VOLUME_CONFIG);
 
@@ -201,7 +203,16 @@ pub async fn create_container(
     // Build environment variables
     let mut env = env_vars.unwrap_or_default();
     if !has_env_key(&env, "XDG_DATA_HOME") {
-        env.push(format!("XDG_DATA_HOME={MOUNT_APP_DATA}"));
+        env.push("XDG_DATA_HOME=/home/opencode/.local/share".to_string());
+    }
+    if !has_env_key(&env, "XDG_STATE_HOME") {
+        env.push("XDG_STATE_HOME=/home/opencode/.local/state".to_string());
+    }
+    if !has_env_key(&env, "XDG_CONFIG_HOME") {
+        env.push("XDG_CONFIG_HOME=/home/opencode/.config".to_string());
+    }
+    if !has_env_key(&env, "XDG_CACHE_HOME") {
+        env.push("XDG_CACHE_HOME=/home/opencode/.cache".to_string());
     }
     // Add USE_SYSTEMD=1 when Cockpit is enabled to tell entrypoint to use systemd
     if cockpit_enabled_val && !has_env_key(&env, "USE_SYSTEMD") {

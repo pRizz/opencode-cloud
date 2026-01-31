@@ -2,8 +2,10 @@
 //!
 //! Defines the structure and defaults for the config.json file.
 
-use super::paths::{get_config_dir, get_data_dir};
-use crate::docker::volume::{MOUNT_APP_DATA, MOUNT_CONFIG, MOUNT_PROJECTS};
+use crate::docker::volume::{
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE,
+};
+use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 /// Main configuration structure for opencode-cloud
@@ -176,18 +178,21 @@ fn default_update_check() -> String {
 }
 
 pub fn default_mounts() -> Vec<String> {
-    let maybe_data_dir = get_data_dir();
-    let maybe_config_dir = get_config_dir();
-    let (Some(data_dir), Some(config_dir)) = (maybe_data_dir, maybe_config_dir) else {
+    let Some(base_dirs) = BaseDirs::new() else {
         return Vec::new();
     };
+    let home_dir = base_dirs.home_dir();
 
-    let app_data_dir = data_dir.join("container-data");
+    let data_dir = home_dir.join(".local").join("share").join("opencode");
+    let state_dir = home_dir.join(".local").join("state").join("opencode");
+    let cache_dir = home_dir.join(".cache").join("opencode");
+    let config_dir = home_dir.join(".config").join("opencode");
     let workspace_dir = data_dir.join("workspace");
-    let config_dir = config_dir.join("container");
 
     vec![
-        format!("{}:{MOUNT_APP_DATA}", app_data_dir.display()),
+        format!("{}:{MOUNT_SESSION}", data_dir.display()),
+        format!("{}:{MOUNT_STATE}", state_dir.display()),
+        format!("{}:{MOUNT_CACHE}", cache_dir.display()),
         format!("{}:{MOUNT_PROJECTS}", workspace_dir.display()),
         format!("{}:{MOUNT_CONFIG}", config_dir.display()),
     ]

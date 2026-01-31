@@ -15,7 +15,6 @@ use anyhow::{Context, Result};
 use jsonc_parser::parse_to_serde_value;
 
 use crate::docker::mount::ParsedMount;
-use crate::docker::volume::MOUNT_SESSION;
 pub use paths::{get_config_dir, get_config_path, get_data_dir, get_hosts_path, get_pid_path};
 pub use schema::{Config, default_mounts, validate_bind_address};
 pub use validation::{
@@ -114,11 +113,12 @@ pub fn load_config() -> Result<Config> {
             Ok(parsed) => parsed,
             Err(_) => return true,
         };
-        if parsed.container_path == MOUNT_SESSION {
+        if parsed.container_path == "/opt/opencode"
+            || parsed.container_path.starts_with("/opt/opencode/")
+        {
             removed_shadowing_mounts = true;
             tracing::warn!(
-                "Skipping bind mount that overrides opencode binaries; use {} instead: {}",
-                crate::docker::volume::MOUNT_APP_DATA,
+                "Skipping bind mount that overrides opencode binaries: {}",
                 mount_str
             );
             return false;
@@ -127,7 +127,7 @@ pub fn load_config() -> Result<Config> {
     });
 
     if removed_shadowing_mounts {
-        tracing::info!("Removed bind mounts that shadow {}", MOUNT_SESSION);
+        tracing::info!("Removed bind mounts that shadow /opt/opencode");
     }
 
     ensure_default_mount_dirs(&config)?;
