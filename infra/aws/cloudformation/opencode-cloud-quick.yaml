@@ -695,44 +695,37 @@ Resources:
                     log "opencode-cloud setup: awscli installed via snap"
                   fi
 
-                  if ! command -v cargo >/dev/null 2>&1; then
-                    log "opencode-cloud setup: install rust toolchain"
-                    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-                      bash -s -- -y --profile minimal --default-toolchain 1.88.0
-                    log "opencode-cloud setup: rust toolchain installed"
+                  ubuntu_home="/home/ubuntu"
+                  run_as_ubuntu() {
+                    runuser -u ubuntu -- bash -lc "export HOME=\"$ubuntu_home\"; if [ -f \"$ubuntu_home/.cargo/env\" ]; then . \"$ubuntu_home/.cargo/env\"; fi; $*"
+                  }
+
+                  if ! run_as_ubuntu "command -v cargo >/dev/null 2>&1"; then
+                    log "opencode-cloud setup: install rust toolchain (ubuntu user)"
+                    run_as_ubuntu "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y --profile minimal --default-toolchain 1.88.0"
+                    log "opencode-cloud setup: rust toolchain installed (ubuntu user)"
                   fi
 
-                  log "opencode-cloud setup: set PATH"
-                  export PATH="$HOME/.cargo/bin:$PATH"
-                  if [ -f "$HOME/.cargo/env" ]; then
-                    . "$HOME/.cargo/env"
-                  fi
-                  log "opencode-cloud setup: PATH set"
-
-                  if ! command -v cargo >/dev/null 2>&1; then
-                    log "opencode-cloud setup: cargo still missing after install"
-                    signal_result 1 "opencode-cloud failed to locate cargo after rustup install"
+                  if ! run_as_ubuntu "command -v cargo >/dev/null 2>&1"; then
+                    log "opencode-cloud setup: cargo still missing after install (ubuntu user)"
+                    signal_result 1 "opencode-cloud failed to locate cargo after rustup install (ubuntu user)"
                     exit 1
                   fi
 
-                  log "opencode-cloud setup: current path: $PATH"
-                  cargo_path="$(command -v cargo || true)"
-                  log "opencode-cloud setup: current cargo path: $cargo_path"
-                  version="$(cargo --version)"
-                  log "opencode-cloud setup: current cargo version: $version"
+                  log "opencode-cloud setup: current ubuntu cargo path: $(run_as_ubuntu 'command -v cargo || true')"
+                  log "opencode-cloud setup: current ubuntu cargo version: $(run_as_ubuntu 'cargo --version')"
 
-                  if ! command -v opencode-cloud >/dev/null 2>&1; then
-                    log "opencode-cloud setup: install opencode-cloud CLI"
-                    cargo install opencode-cloud
-                    log "opencode-cloud setup: opencode-cloud CLI installed"
+                  if ! run_as_ubuntu "command -v opencode-cloud >/dev/null 2>&1"; then
+                    log "opencode-cloud setup: install opencode-cloud CLI (ubuntu user)"
+                    run_as_ubuntu "cargo install opencode-cloud"
+                    log "opencode-cloud setup: opencode-cloud CLI installed (ubuntu user)"
                   fi
-                  log "opencode-cloud setup: current opencode-cloud path: $(which opencode-cloud)"
-                  version="$(opencode-cloud --version)"
-                  log "opencode-cloud setup: current opencode-cloud version: $version"
+                  log "opencode-cloud setup: current opencode-cloud path: $(run_as_ubuntu 'command -v opencode-cloud || true')"
+                  log "opencode-cloud setup: current opencode-cloud version: $(run_as_ubuntu 'opencode-cloud --version')"
 
-                  if ! command -v opencode-cloud >/dev/null 2>&1; then
-                    log "opencode-cloud setup: opencode-cloud still missing after install"
-                    signal_result 1 "opencode-cloud CLI not available after install"
+                  if ! run_as_ubuntu "command -v opencode-cloud >/dev/null 2>&1"; then
+                    log "opencode-cloud setup: opencode-cloud still missing after install (ubuntu user)"
+                    signal_result 1 "opencode-cloud CLI not available after install (ubuntu user)"
                     exit 1
                   fi
 
@@ -744,6 +737,11 @@ Resources:
                     log "opencode-cloud setup: docker CLI missing"
                     signal_result 1 "docker CLI not available after install"
                     exit 1
+                  fi
+
+                  if getent group docker >/dev/null 2>&1; then
+                    log "opencode-cloud setup: add ubuntu to docker group"
+                    usermod -aG docker ubuntu
                   fi
 
                   log "opencode-cloud setup: wait for docker readiness"
@@ -760,9 +758,9 @@ Resources:
                     exit 1
                   fi
 
-                  log "opencode-cloud setup: bootstrap config"
-                  opencode-cloud --quiet setup --bootstrap
-                  log "opencode-cloud setup: bootstrap complete"
+                  log "opencode-cloud setup: bootstrap config (ubuntu user)"
+                  run_as_ubuntu "opencode-cloud --quiet setup --bootstrap"
+                  log "opencode-cloud setup: bootstrap complete (ubuntu user)"
 
                   # Wait briefly for the service to accept HTTP connections.
                   log "opencode-cloud setup: wait for service readiness (30 attempts)"
@@ -785,10 +783,10 @@ Resources:
                   # For any other username, create the user and set its password.
                   if [ "$OPENCODE_USERNAME" = "opencode" ]; then
                     log "opencode-cloud setup: set password for user $OPENCODE_USERNAME"
-                    OPENCODE_PASSWORD="$(opencode-cloud user passwd "$OPENCODE_USERNAME" --generate --print-password-only)"
+                    OPENCODE_PASSWORD="$(run_as_ubuntu "opencode-cloud user passwd \"$OPENCODE_USERNAME\" --generate --print-password-only")"
                   else
                     log "opencode-cloud setup: create user $OPENCODE_USERNAME"
-                    OPENCODE_PASSWORD="$(opencode-cloud user add "$OPENCODE_USERNAME" --generate --print-password-only)"
+                    OPENCODE_PASSWORD="$(run_as_ubuntu "opencode-cloud user add \"$OPENCODE_USERNAME\" --generate --print-password-only")"
                   fi
                   if [ -z "$OPENCODE_PASSWORD" ]; then
                     log "opencode-cloud setup: failed to read generated password"
@@ -799,7 +797,7 @@ Resources:
                   log "opencode-cloud setup: user created"
 
                   log "opencode-cloud setup: disable unauthenticated network"
-                  opencode-cloud config set allow_unauthenticated_network false
+                  run_as_ubuntu "opencode-cloud config set allow_unauthenticated_network false"
 
                   log "opencode-cloud setup: write secrets payload"
                   if ! command -v jq >/dev/null 2>&1; then
