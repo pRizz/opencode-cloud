@@ -214,6 +214,7 @@ Recent decisions affecting current work:
 8. **Fix start hang after mount recreate** (tooling) - Resolve start flow hanging until Enter after forced stop.
 9. **Allow force stop during restart** (tooling) - Add a restart option to force stop when shutdown hangs.
 10. **Print status after restart** (tooling) - Show the same status output as `occ status` on success.
+11. **Add update-opencode subcommand** (tooling) - Stop opencode service, pull latest fork, rebuild, restart.
 
 ### Roadmap Evolution
 
