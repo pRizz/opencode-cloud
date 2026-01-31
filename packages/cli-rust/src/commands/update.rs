@@ -158,8 +158,25 @@ async fn cmd_update_cli(
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
-    let install_method = detect_install_method()
-        .ok_or_else(|| anyhow!("Unable to detect install method for opencode-cloud"))?;
+    let install_method = match detect_install_method() {
+        Some(method) => method,
+        None => {
+            let guidance = [
+                "Unable to detect how opencode-cloud was installed.",
+                "Try one of the following:",
+                "  - cargo install opencode-cloud",
+                "  - npm install -g opencode-cloud",
+                "If you used another package manager, re-run its update command.",
+            ]
+            .join("\n");
+
+            if !quiet {
+                eprintln!("{} {guidance}", style("Error:").red().bold());
+            }
+
+            return Err(anyhow!(guidance));
+        }
+    };
 
     if !quiet {
         eprintln!();
