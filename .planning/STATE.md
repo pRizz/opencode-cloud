@@ -212,6 +212,7 @@ Recent decisions affecting current work:
 6. **Fix missing export step display** (tooling) - Ensure "exporting to image" appears as the final Docker build step.
 7. **Use occ in CloudFormation scripts** (tooling) - Replace manual bootstrap wiring with occ-driven setup.
 8. **Fix start hang after mount recreate** (tooling) - Resolve start flow hanging until Enter after forced stop.
+9. **Allow force stop during restart** (tooling) - Add a restart option to force stop when shutdown hangs.
 
 ### Roadmap Evolution
 
