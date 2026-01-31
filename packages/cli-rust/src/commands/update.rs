@@ -201,11 +201,40 @@ async fn cmd_update_opencode(
         "git checkout -B \"$OPENCODE_REF\" \"origin/$OPENCODE_REF\"".to_string()
     };
 
+    let current_version = get_current_opencode_version(&client).await;
+    let current_commit = get_current_opencode_commit(&client).await;
+    let next_commit = if let Some(commit) = args.commit.as_deref() {
+        Some(short_commit(commit))
+    } else {
+        resolve_remote_commit(&client, &target_ref).await
+    };
+
+    if current_commit.is_some() && current_commit == next_commit {
+        if !quiet {
+            let check = style("✓").green();
+            eprintln!(
+                "{} Opencode is already up to date (hash: {}).",
+                check,
+                style(current_commit.unwrap_or_else(|| "unknown".to_string())).dim()
+            );
+        }
+        return Ok(());
+    }
+
     if !quiet {
         eprintln!();
         eprintln!(
             "{} This will stop the opencode service, update from {target_ref}, rebuild, and restart.",
             style("Warning:").yellow().bold()
+        );
+        eprintln!(
+            "Current:    version={}, hash={}",
+            style(current_version.unwrap_or_else(|| "unknown".to_string())).dim(),
+            style(current_commit.unwrap_or_else(|| "unknown".to_string())).dim()
+        );
+        eprintln!(
+            "Next hash:  {}",
+            style(next_commit.unwrap_or_else(|| "unknown".to_string())).dim()
         );
         eprintln!();
     }
@@ -245,6 +274,10 @@ cd "$REPO"
 git fetch --depth 1 origin "$OPENCODE_REF"
 {checkout_cmd}
 
+mkdir -p /opt/opencode
+git rev-parse HEAD > /opt/opencode/COMMIT
+chown opencode:opencode /opt/opencode/COMMIT
+
 runuser -u opencode -- bash -lc 'export PATH="/home/opencode/.bun/bin:$PATH"; cd /tmp/opencode-repo; bun install --frozen-lockfile; cd packages/opencode; bun run build-single-ui'
 runuser -u opencode -- bash -lc '. /home/opencode/.cargo/env; cd /tmp/opencode-repo/packages/opencode-broker; cargo build --release'
 
@@ -279,6 +312,58 @@ rm -rf "$REPO"
     }
 
     Ok(())
+}
+
+async fn get_current_opencode_version(client: &DockerClient) -> Option<String> {
+    let output = exec_command(
+        client,
+        CONTAINER_NAME,
+        vec!["/opt/opencode/bin/opencode", "--version"],
+    )
+    .await
+    .ok()?;
+
+    let version = output.lines().next()?.trim();
+    if version.is_empty() {
+        None
+    } else {
+        Some(version.to_string())
+    }
+}
+
+async fn get_current_opencode_commit(client: &DockerClient) -> Option<String> {
+    let output = exec_command(client, CONTAINER_NAME, vec!["cat", "/opt/opencode/COMMIT"])
+        .await
+        .ok()?;
+
+    let commit = output.lines().next()?.trim();
+    if commit.is_empty() {
+        None
+    } else {
+        Some(short_commit(commit))
+    }
+}
+
+async fn resolve_remote_commit(client: &DockerClient, target_ref: &str) -> Option<String> {
+    let output = exec_command(
+        client,
+        CONTAINER_NAME,
+        vec![
+            "git",
+            "ls-remote",
+            "https://github.com/pRizz/opencode.git",
+            target_ref,
+        ],
+    )
+    .await
+    .ok()?;
+
+    let full = output.split_whitespace().next()?;
+    Some(short_commit(full))
+}
+
+fn short_commit(value: &str) -> String {
+    value.chars().take(7).collect()
 }
 
 /// Handle the normal update flow

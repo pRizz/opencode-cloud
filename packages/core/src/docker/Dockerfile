@@ -530,6 +530,8 @@ RUN OPENCODE_COMMIT="df9b40be451372e5473b22b33a68fb359267ca7e" \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
     && sudo mkdir -p /opt/opencode/bin /opt/opencode/ui \
+    && echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null \
+    && sudo chown opencode:opencode /opt/opencode/COMMIT \
     && sudo cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode \
     && sudo cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/ \
     && sudo chown -R opencode:opencode /opt/opencode \

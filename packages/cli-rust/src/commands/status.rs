@@ -15,8 +15,8 @@ use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, HealthError, MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION,
-    MOUNT_STATE, OPENCODE_WEB_PORT, ParsedMount, check_health, get_cli_version, get_image_version,
-    load_state,
+    MOUNT_STATE, OPENCODE_WEB_PORT, ParsedMount, check_health, exec_command, get_cli_version,
+    get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::collections::HashMap;
@@ -172,33 +172,18 @@ pub async fn cmd_status(
             println!("URL:         {}", style(&url).cyan());
         }
 
-        // Show health check status (only for local connections - can't check remote health directly)
-        if host_name.is_none() {
-            match check_health(normalize_bind_addr(bind_addr), host_port).await {
-                Ok(response) => {
-                    println!(
-                        "Health:      {} (v{})",
-                        style("Healthy").green(),
-                        response.version
-                    );
-                }
-                Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-                    println!("Health:      {}", style("Service starting...").yellow());
-                }
-                Err(HealthError::Unhealthy(code)) => {
-                    println!("Health:      {} (HTTP {})", style("Unhealthy").red(), code);
-                }
-                Err(_) => {
-                    println!("Health:      {}", style("Check failed").yellow());
-                }
-            }
+        if let Some(health_line) =
+            build_health_line(&client, host_name.is_none(), bind_addr, host_port).await
+        {
+            println!("{health_line}");
         }
     }
 
+    let container_id = format!("({id_short})");
     println!(
-        "Container:   {} ({})",
+        "Container:   {} {}",
         CONTAINER_NAME,
-        style(id_short).dim()
+        style(container_id).dim()
     );
     println!("Image:       {image}");
 
@@ -280,15 +265,17 @@ pub async fn cmd_status(
         }
     }
 
-    // Show health if available
-    if let Some(ref health_status) = health {
-        let health_styled = match health_status.as_str() {
-            "healthy" => style(health_status).green(),
-            "unhealthy" => style(health_status).red(),
-            "starting" => style(health_status).yellow(),
-            _ => style(health_status).dim(),
-        };
-        println!("Health:      {health_styled}");
+    if host_name.is_some() {
+        // Show container health if available
+        if let Some(ref health_status) = health {
+            let health_styled = match health_status.as_str() {
+                "healthy" => style(health_status).green(),
+                "unhealthy" => style(health_status).red(),
+                "starting" => style(health_status).yellow(),
+                _ => style(health_status).dim(),
+            };
+            println!("Health:      {health_styled}");
+        }
     }
 
     // Label config path - clarify it's local config when using remote host
@@ -421,6 +408,95 @@ fn format_duration(duration: Duration) -> String {
         return format!("{days}d {remaining_hours}h");
     }
     format!("{days}d")
+}
+
+async fn get_opencode_commit(client: &opencode_cloud_core::docker::DockerClient) -> Option<String> {
+    if let Ok(output) =
+        exec_command(client, CONTAINER_NAME, vec!["cat", "/opt/opencode/COMMIT"]).await
+    {
+        if let Some(commit) = extract_short_commit(&output) {
+            return Some(commit);
+        }
+    }
+    None
+}
+
+async fn get_opencode_version(
+    client: &opencode_cloud_core::docker::DockerClient,
+) -> Option<String> {
+    let output = exec_command(
+        client,
+        CONTAINER_NAME,
+        vec!["/opt/opencode/bin/opencode", "--version"],
+    )
+    .await
+    .ok()?;
+
+    let version = output.lines().next()?.trim();
+    if version.is_empty() {
+        None
+    } else {
+        Some(version.to_string())
+    }
+}
+
+async fn build_health_line(
+    client: &opencode_cloud_core::docker::DockerClient,
+    include_probe: bool,
+    bind_addr: &str,
+    host_port: u16,
+) -> Option<String> {
+    if !include_probe {
+        return None;
+    }
+
+    let status = match check_health(normalize_bind_addr(bind_addr), host_port).await {
+        Ok(_) => style("Healthy").green(),
+        Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
+            return Some(format!(
+                "Health:      {}",
+                style("Service starting...").yellow()
+            ));
+        }
+        Err(HealthError::Unhealthy(code)) => {
+            return Some(format!(
+                "Health:      {} (HTTP {})",
+                style("Unhealthy").red(),
+                code
+            ));
+        }
+        Err(_) => {
+            return Some(format!("Health:      {}", style("Check failed").yellow()));
+        }
+    };
+
+    let version = get_opencode_version(client)
+        .await
+        .unwrap_or_else(|| "unknown".to_string());
+    let commit = get_opencode_commit(client)
+        .await
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let details = format!("(version: {version}, hash: {commit})");
+    let mut line = format!("Health:      {} {}", status, style(details).dim());
+
+    if commit != "unknown" {
+        let repo_url = format!("https://github.com/pRizz/opencode/commit/{commit}");
+        line.push_str(&format!("\n             {}", style(repo_url).cyan()));
+    }
+
+    Some(line)
+}
+
+fn extract_short_commit(version_output: &str) -> Option<String> {
+    version_output
+        .split(|ch: char| !ch.is_ascii_hexdigit())
+        .find(|token| {
+            token.len() >= 7
+                && token.chars().all(|ch| ch.is_ascii_hexdigit())
+                && token.chars().any(|ch| matches!(ch, 'a'..='f' | 'A'..='F'))
+        })
+        .map(|token| token.chars().take(7).collect())
 }
 
 /// Display the Mounts section of status output
@@ -706,5 +782,29 @@ mod tests {
         let display = result.unwrap();
         assert!(display.contains("2024-01-15"));
         assert!(display.contains("10:30:00"));
+    }
+
+    #[test]
+    fn extract_short_commit_from_version_output() {
+        // Arrange
+        let output = "opencode v0.0.0 (commit df9b40be451372e5473b22b33a68fb359267ca7e)";
+
+        // Act
+        let commit = extract_short_commit(output);
+
+        // Assert
+        assert_eq!(commit.as_deref(), Some("df9b40b"));
+    }
+
+    #[test]
+    fn extract_short_commit_ignores_numeric_versions() {
+        // Arrange
+        let output = "0.0.0--202601311855";
+
+        // Act
+        let commit = extract_short_commit(output);
+
+        // Assert
+        assert!(commit.is_none());
     }
 }
