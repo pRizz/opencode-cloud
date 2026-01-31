@@ -9,11 +9,11 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 
 ## Current Position
 
-Phase: 21 of 21 (Use opencode Fork with PAM Authentication)
-Plan: 2 of 2 in current phase
+Phase: 35 of 35 (Update opencode-cloud self-update)
+Plan: 1 of 1 in current phase
 Status: Phase complete
 **Next Phase:** 33 (Investigate and implement a way for users that get created and configured in the container are persisted after we update the container)
-Last activity: 2026-01-26 - Executed 21-01, 21-02 (Dockerfile fork installation, broker, PAM config, documentation)
+Last activity: 2026-01-31 - Executed 35-01 (opencode-cloud self-update subcommand and docs)
 
 Progress: [##############################] 100%
 
@@ -22,7 +22,7 @@ Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED.
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48
+- Total plans completed: 49
 - Average duration: 5 min
 - Total execution time: ~4.5 hours
 
@@ -245,6 +245,8 @@ Recent decisions affecting current work:
 - Phase 32 added: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened
 - Phase 33 added: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container
 - Phase 34 added: Disable Cockpit user-facing surface (hide UI/CLI/docs, keep code)
+- Phase 35 added: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
+- Phase 35 completed: update cli self-update flow and docs
 
 ### Blockers/Concerns
 

@@ -46,6 +46,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 32: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened** - TBD
 - [ ] **Phase 33: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container** - TBD
 - [ ] **Phase 34: Disable Cockpit User-Facing Surface** - TBD
+- [x] **Phase 35: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary** - Add update CLI subcommand for self-updating opencode-cloud
 
 ## Phase Details
 
@@ -609,6 +610,19 @@ Plans:
 **Details:**
 [To be added during planning]
 
+### Phase 35: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
+
+**Goal:** Add a CLI update subcommand that can reinstall opencode-cloud using the detected install method (cargo or npm) and restart the service afterward.
+**Depends on:** Phase 34
+**Requirements:** None (enhancement)
+**Plans:** 1 plan
+
+Plans:
+- [x] 35-01-PLAN.md — Add update CLI subcommand and documentation
+
+**Details:**
+Implemented `occ update cli` with install detection, restart flow, and docs guidance.
+
 ## Progress
 
 **Execution Order:**
@@ -650,7 +664,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 3
 | 32. Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened | 0/0 | Not started | - |
 | 33. Investigate and implement a way for users that get created and configured in the container are persisted after we update the container | 0/0 | Not started | - |
 | 34. Disable Cockpit User-Facing Surface | 0/0 | Not started | - |
+| 35. Update opencode-cloud self-update | 1/1 | Complete | 2026-01-31 |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-25 (Phase 18 expanded with prebuilt binary distribution)*
+*Last updated: 2026-01-31 (Phase 35 complete: update cli subcommand)*
