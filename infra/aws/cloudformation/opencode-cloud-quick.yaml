@@ -24,6 +24,10 @@ Metadata:
           - ExistingPublicSubnetIdA
           - ExistingPublicSubnetIdB
           - AllowSsh
+      - Label:
+          default: "Advanced: AMI"
+        Parameters:
+          - UbuntuAmiId
 
 Parameters:
   DomainName:
