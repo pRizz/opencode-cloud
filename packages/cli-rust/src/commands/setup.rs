@@ -20,7 +20,7 @@ pub struct SetupArgs {
     pub yes: bool,
 
     /// Non-interactive bootstrap for automated environments
-    #[arg(long)]
+    #[arg(long, alias = "non-interactive", alias = "headless")]
     pub bootstrap: bool,
 
     /// Run setup for a remote host instead of local Docker

@@ -534,6 +534,9 @@ Resources:
                     aws secretsmanager get-secret-value --region ${AWS::Region} \
                       --secret-id ${CredentialsSecret} \
                       --query SecretString --output text
+                  Container shell:
+                    docker ps -q --filter "name=opencode-cloud-sandbox"
+                    docker exec -it opencode-cloud-sandbox /bin/bash
               - path: /usr/local/bin/opencode-cloud-setup.sh
                 permissions: "0755"
                 content: |

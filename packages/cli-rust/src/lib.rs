@@ -206,6 +206,7 @@ pub fn run() -> Result<()> {
 
     // Check if wizard needed (missing auth and not running setup/config/user command)
     let needs_wizard = !config.has_required_auth()
+        && !config.allow_unauthenticated_network
         && !matches!(
             cli.command,
             Some(Commands::Setup(_)) | Some(Commands::Config(_)) | Some(Commands::User(_))
