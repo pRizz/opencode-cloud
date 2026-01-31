@@ -2,25 +2,52 @@
 //!
 //! Updates the opencode image to the latest version or rolls back to previous version.
 
+use crate::commands::{RestartArgs, cmd_restart};
 use crate::output::CommandSpinner;
 use anyhow::{Result, anyhow};
-use clap::Args;
+use clap::{Args, Subcommand};
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::config::load_config;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
-    create_user, get_cli_version, has_previous_image, pull_image, rollback_image, save_state,
-    setup_and_start, stop_service,
+    container_exists, container_is_running, create_user, exec_command, get_cli_version,
+    has_previous_image, pull_image, rollback_image, save_state, setup_and_start, stop_service,
 };
 
 /// Arguments for the update command
 #[derive(Args)]
 pub struct UpdateArgs {
+    /// Update the opencode runtime inside the container
+    #[command(subcommand)]
+    pub command: Option<UpdateCommand>,
+
     /// Restore previous version instead of updating
     #[arg(long)]
     pub rollback: bool,
+
+    /// Skip confirmation prompt
+    #[arg(short, long)]
+    pub yes: bool,
+}
+
+#[derive(Subcommand)]
+pub enum UpdateCommand {
+    /// Update opencode inside the running container
+    Opencode(UpdateOpencodeArgs),
+}
+
+/// Arguments for updating opencode inside the container
+#[derive(Args)]
+pub struct UpdateOpencodeArgs {
+    /// Use a specific branch (default: dev)
+    #[arg(long, conflicts_with = "commit")]
+    pub branch: Option<String>,
+
+    /// Use a specific commit SHA
+    #[arg(long, conflicts_with = "branch")]
+    pub commit: Option<String>,
 
     /// Skip confirmation prompt
     #[arg(short, long)]
@@ -49,6 +76,10 @@ pub async fn cmd_update(
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
+    if let Some(UpdateCommand::Opencode(opencode_args)) = args.command.as_ref() {
+        return cmd_update_opencode(opencode_args, maybe_host, quiet, verbose).await;
+    }
+
     // Resolve Docker client (local or remote)
     let (client, host_name) = crate::resolve_docker_client(maybe_host).await?;
 
@@ -92,6 +123,162 @@ pub async fn cmd_update(
         )
         .await
     }
+}
+
+async fn cmd_update_opencode(
+    args: &UpdateOpencodeArgs,
+    maybe_host: Option<&str>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<()> {
+    let (client, host_name) = crate::resolve_docker_client(maybe_host).await?;
+
+    if verbose > 0 {
+        let target = host_name.as_deref().unwrap_or("local");
+        eprintln!(
+            "{} Connecting to Docker on {}...",
+            style("[info]").cyan(),
+            target
+        );
+    }
+
+    client
+        .verify_connection()
+        .await
+        .map_err(|e| anyhow!("Docker connection error: {e}"))?;
+
+    let config = load_config()?;
+
+    if !container_exists(&client, CONTAINER_NAME).await? {
+        return Err(anyhow!(
+            "Container does not exist. Start it first with:\n  occ start"
+        ));
+    }
+
+    if !container_is_running(&client, CONTAINER_NAME).await? {
+        if !quiet {
+            eprintln!();
+            eprintln!(
+                "{} Container is stopped. It must be running to update opencode.",
+                style("Note:").yellow()
+            );
+        }
+
+        if !args.yes {
+            let confirmed = Confirm::new()
+                .with_prompt("Start container now?")
+                .default(true)
+                .interact()?;
+
+            if !confirmed {
+                return Err(anyhow!(
+                    "Container not started. Run:\n  occ start\nthen retry the update."
+                ));
+            }
+        }
+
+        setup_and_start(
+            &client,
+            Some(config.opencode_web_port),
+            None,
+            Some(&config.bind_address),
+            Some(config.cockpit_port),
+            Some(config.cockpit_enabled),
+            None,
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to start container: {e}"))?;
+    }
+
+    let target_ref = args
+        .commit
+        .clone()
+        .or_else(|| args.branch.clone())
+        .unwrap_or_else(|| "dev".to_string());
+    let checkout_cmd = if args.commit.is_some() {
+        "git checkout \"$OPENCODE_REF\"".to_string()
+    } else {
+        "git checkout -B \"$OPENCODE_REF\" \"origin/$OPENCODE_REF\"".to_string()
+    };
+
+    if !quiet {
+        eprintln!();
+        eprintln!(
+            "{} This will stop the opencode service, update from {target_ref}, rebuild, and restart.",
+            style("Warning:").yellow().bold()
+        );
+        eprintln!();
+    }
+
+    if !args.yes {
+        let confirmed = Confirm::new()
+            .with_prompt("Continue with opencode update?")
+            .default(true)
+            .interact()?;
+
+        if !confirmed {
+            if !quiet {
+                eprintln!("Update cancelled.");
+            }
+            return Ok(());
+        }
+    }
+
+    let spinner = CommandSpinner::new_maybe("Updating opencode...", quiet);
+
+    // Stop opencode processes inside the container
+    let stop_cmd = r#"set -euo pipefail
+pkill -f "/opt/opencode/bin/opencode" || true
+pkill -f "opencode-broker" || true
+"#;
+    exec_command(&client, CONTAINER_NAME, vec!["bash", "-lc", stop_cmd])
+        .await
+        .map_err(|e| anyhow!("Failed to stop opencode processes: {e}"))?;
+
+    let update_script = format!(
+        r#"set -euo pipefail
+REPO="/tmp/opencode-repo"
+OPENCODE_REF="{target_ref}"
+rm -rf "$REPO"
+git clone --depth 1 https://github.com/pRizz/opencode.git "$REPO"
+cd "$REPO"
+git fetch --depth 1 origin "$OPENCODE_REF"
+{checkout_cmd}
+
+runuser -u opencode -- bash -lc 'export PATH="/home/opencode/.bun/bin:$PATH"; cd /tmp/opencode-repo; bun install --frozen-lockfile; cd packages/opencode; bun run build-single-ui'
+runuser -u opencode -- bash -lc '. /home/opencode/.cargo/env; cd /tmp/opencode-repo/packages/opencode-broker; cargo build --release'
+
+mkdir -p /opt/opencode/bin /opt/opencode/ui
+cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode
+cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/
+chown -R opencode:opencode /opt/opencode
+chmod +x /opt/opencode/bin/opencode
+cp /tmp/opencode-repo/packages/opencode-broker/target/release/opencode-broker /usr/local/bin/opencode-broker
+chmod 4755 /usr/local/bin/opencode-broker
+/opt/opencode/bin/opencode --version
+rm -rf "$REPO"
+"#
+    );
+
+    exec_command(&client, CONTAINER_NAME, vec!["bash", "-lc", &update_script])
+        .await
+        .map_err(|e| anyhow!("Failed to update opencode: {e}"))?;
+
+    spinner.success("Opencode updated, restarting service...");
+
+    let restart_args = RestartArgs {};
+    cmd_restart(&restart_args, maybe_host, quiet, verbose).await?;
+
+    if !quiet {
+        eprintln!();
+        eprintln!(
+            "{} Opencode updated successfully!",
+            style("Success:").green().bold()
+        );
+        eprintln!();
+    }
+
+    Ok(())
 }
 
 /// Handle the normal update flow
