@@ -213,6 +213,7 @@ Recent decisions affecting current work:
 7. **Use occ in CloudFormation scripts** (tooling) - Replace manual bootstrap wiring with occ-driven setup.
 8. **Fix start hang after mount recreate** (tooling) - Resolve start flow hanging until Enter after forced stop.
 9. **Allow force stop during restart** (tooling) - Add a restart option to force stop when shutdown hangs.
+10. **Print status after restart** (tooling) - Show the same status output as `occ status` on success.
 
 ### Roadmap Evolution
 
