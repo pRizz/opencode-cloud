@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 Phase: 21 of 21 (Use opencode Fork with PAM Authentication)
 Plan: 2 of 2 in current phase
 Status: Phase complete
-**Next Phase:** 32 (Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened)
+**Next Phase:** 33 (Investigate and implement a way for users that get created and configured in the container are persisted after we update the container)
 Last activity: 2026-01-26 - Executed 21-01, 21-02 (Dockerfile fork installation, broker, PAM config, documentation)
 
 Progress: [##############################] 100%
@@ -238,6 +238,7 @@ Recent decisions affecting current work:
 - Phase 30 added: Deep Nesting Refactor (early returns, guard clauses, let-else, helper functions)
 - Phase 31 added: Update rust and node cli READMEs with latest project features
 - Phase 32 added: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened
+- Phase 33 added: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container
 
 ### Blockers/Concerns
 

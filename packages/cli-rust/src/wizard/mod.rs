@@ -13,8 +13,8 @@ pub use prechecks::{verify_docker_available, verify_tty};
 use anyhow::{Result, anyhow};
 use console::{Term, style};
 use dialoguer::Confirm;
-use opencode_cloud_core::Config;
 use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
+use opencode_cloud_core::{Config, config::default_mounts};
 
 use auth::prompt_auth;
 use network::{prompt_hostname, prompt_port};
@@ -33,6 +33,8 @@ pub struct WizardState {
     pub bind: String,
     /// Image source preference: "prebuilt" or "build"
     pub image_source: String,
+    /// Default bind mounts for persistence
+    pub mounts: Vec<String>,
 }
 
 impl WizardState {
@@ -47,6 +49,7 @@ impl WizardState {
         config.opencode_web_port = self.port;
         config.bind = self.bind.clone();
         config.image_source = self.image_source.clone();
+        config.mounts = self.mounts.clone();
     }
 }
 
@@ -97,6 +100,58 @@ fn prompt_image_source(step: usize, total: usize) -> Result<String> {
     println!();
 
     Ok(if selection == 0 { "prebuilt" } else { "build" }.to_string())
+}
+
+fn display_mounts_info(step: usize, total: usize, mounts: &[String]) -> Result<()> {
+    println!(
+        "{}",
+        style(format!("Step {step}/{total}: Data Persistence"))
+            .cyan()
+            .bold()
+    );
+    println!();
+    if mounts.is_empty() {
+        println!(
+            "{}",
+            style("No default host mounts are available.").yellow()
+        );
+        println!();
+        return Ok(());
+    }
+
+    println!("Persist opencode data on your host using these mounts:");
+    println!();
+    for mount in mounts {
+        println!("  {}", style(mount).cyan());
+    }
+    println!();
+    println!(
+        "{}",
+        style("You can change these later with `occ mount add/remove` or by editing the config.")
+            .dim()
+    );
+    println!();
+    Ok(())
+}
+
+fn prompt_mounts(step: usize, total: usize, mounts: &[String]) -> Result<Vec<String>> {
+    display_mounts_info(step, total, mounts)?;
+    if mounts.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let confirmed = Confirm::new()
+        .with_prompt("Use these host mounts for persistence?")
+        .default(true)
+        .interact()
+        .map_err(|_| handle_interrupt())?;
+    println!();
+
+    if confirmed {
+        Ok(mounts.to_vec())
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 /// Run the interactive setup wizard
@@ -172,7 +227,7 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
     println!();
 
     // 4. Collect values
-    let total_steps = if quick { 2 } else { 4 };
+    let total_steps = if quick { 3 } else { 5 };
 
     let (username, password) = prompt_auth(1, total_steps)?;
     let image_source = prompt_image_source(2, total_steps)?;
@@ -185,12 +240,21 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
         (port, bind)
     };
 
+    let default_mounts = default_mounts();
+    let mounts = if quick {
+        display_mounts_info(3, total_steps, &default_mounts)?;
+        default_mounts
+    } else {
+        prompt_mounts(5, total_steps, &default_mounts)?
+    };
+
     let state = WizardState {
         auth_username: Some(username.clone()),
         auth_password: Some(password.clone()),
         port,
         bind,
         image_source,
+        mounts,
     };
 
     // 5. Summary
@@ -264,6 +328,7 @@ mod tests {
             port: 8080,
             bind: "0.0.0.0".to_string(),
             image_source: "prebuilt".to_string(),
+            mounts: default_mounts(),
         };
 
         let mut config = Config::default();
@@ -284,6 +349,7 @@ mod tests {
             port: 3000,
             bind: "localhost".to_string(),
             image_source: "build".to_string(),
+            mounts: default_mounts(),
         };
 
         let mut config = Config {

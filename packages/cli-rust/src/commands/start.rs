@@ -303,6 +303,7 @@ async fn ensure_container_stopped_for_image_flag(
         quiet,
         true,
         DEFAULT_STOP_TIMEOUT_SECS,
+        true,
         StopSpinnerMessages {
             action_message: "Stopping container for rebuild...",
             update_label: "Stopping container",
@@ -868,6 +869,7 @@ async fn handle_rebuild(
         quiet,
         true,
         DEFAULT_STOP_TIMEOUT_SECS,
+        true,
         StopSpinnerMessages {
             action_message: "Stopping container for rebuild...",
             update_label: "Stopping container",

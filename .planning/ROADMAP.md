@@ -44,6 +44,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 30: Deep Nesting Refactor** - Replace deep nesting with early returns, guard clauses, let-else, and helper functions
 - [ ] **Phase 31: Update rust and node cli READMEs with latest project features** - TBD
 - [ ] **Phase 32: Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened** - TBD
+- [ ] **Phase 33: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container** - TBD
 
 ## Phase Details
 
@@ -583,10 +584,22 @@ Plans:
 **Details:**
 [To be added during planning]
 
+### Phase 33: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container
+
+**Goal:** [To be planned]
+**Depends on:** Phase 32
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 33 to break down)
+
+**Details:**
+[To be added during planning]
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 32
+Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 32 -> 33
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -622,6 +635,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 3
 | 30. Deep Nesting Refactor | 0/1 | Not started | - |
 | 31. Update rust and node cli READMEs with latest project features | 0/1 | Not started | - |
 | 32. Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened | 0/0 | Not started | - |
+| 33. Investigate and implement a way for users that get created and configured in the container are persisted after we update the container | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-18*

@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 use jsonc_parser::parse_to_serde_value;
 
 pub use paths::{get_config_dir, get_config_path, get_data_dir, get_hosts_path, get_pid_path};
-pub use schema::{Config, validate_bind_address};
+pub use schema::{Config, default_mounts, validate_bind_address};
 pub use validation::{
     ValidationError, ValidationWarning, display_validation_error, display_validation_warning,
     validate_config,
@@ -75,6 +75,7 @@ pub fn load_config() -> Result<Config> {
             config_path.display()
         );
         let config = Config::default();
+        ensure_default_mount_dirs(&config)?;
         save_config(&config)?;
         return Ok(config);
     }
@@ -105,6 +106,7 @@ pub fn load_config() -> Result<Config> {
         )
     })?;
 
+    ensure_default_mount_dirs(&config)?;
     Ok(config)
 }
 
@@ -137,6 +139,36 @@ pub fn save_config(config: &Config) -> Result<()> {
         .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
 
     tracing::debug!("Saved config to: {}", config_path.display());
+
+    Ok(())
+}
+
+fn ensure_default_mount_dirs(config: &Config) -> Result<()> {
+    let defaults = default_mounts();
+    if defaults.is_empty() {
+        return Ok(());
+    }
+
+    for mount_str in &config.mounts {
+        if !defaults.contains(mount_str) {
+            continue;
+        }
+        let parsed = crate::docker::mount::ParsedMount::parse(mount_str)
+            .with_context(|| format!("Invalid default mount configured: {mount_str}"))?;
+        let path = parsed.host_path.as_path();
+        if path.exists() {
+            if !path.is_dir() {
+                return Err(anyhow::anyhow!(
+                    "Default mount path is not a directory: {}",
+                    path.display()
+                ));
+            }
+            continue;
+        }
+        fs::create_dir_all(path)
+            .with_context(|| format!("Failed to create mount directory: {}", path.display()))?;
+        tracing::info!("Created mount directory: {}", path.display());
+    }
 
     Ok(())
 }

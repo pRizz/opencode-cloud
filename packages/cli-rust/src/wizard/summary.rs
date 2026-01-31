@@ -35,6 +35,13 @@ pub fn display_summary(state: &WizardState) {
         Cell::new(format!("{} {}", state.image_source, image_time)),
     ]);
 
+    let mounts_summary = if state.mounts.is_empty() {
+        "None (Docker volumes only)".to_string()
+    } else {
+        state.mounts.join("\n")
+    };
+    table.add_row(vec![Cell::new("Mounts:"), Cell::new(mounts_summary)]);
+
     println!("{table}");
 
     // Show config file location

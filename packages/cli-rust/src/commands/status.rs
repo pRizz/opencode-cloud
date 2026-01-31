@@ -18,6 +18,7 @@ use opencode_cloud_core::docker::{
     get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
+use std::collections::HashMap;
 use std::time::Duration;
 
 /// Arguments for the status command
@@ -318,14 +319,12 @@ pub async fn cmd_status(
         }
     }
 
-    // Show Mounts section if container is running and has bind mounts
-    if running {
-        let config_mounts = config
-            .as_ref()
-            .map(|c| c.mounts.clone())
-            .unwrap_or_default();
-        display_mounts_section(&container_mounts, &config_mounts);
-    }
+    let config_mounts = config
+        .as_ref()
+        .map(|c| c.mounts.clone())
+        .unwrap_or_default();
+    let volume_mountpoints = resolve_volume_mountpoints(&client, &container_mounts).await;
+    display_mounts_section(&container_mounts, &config_mounts, &volume_mountpoints);
 
     // Show Security section (container exists, whether running or stopped)
     if let Some(ref cfg) = config {
@@ -427,14 +426,18 @@ fn format_duration(duration: Duration) -> String {
 fn display_mounts_section(
     mounts: &[opencode_cloud_core::bollard::service::Mount],
     config_mounts: &[String],
+    volume_mountpoints: &HashMap<String, String>,
 ) {
-    // Filter to only bind mounts (not volumes)
+    let volume_mounts: Vec<_> = mounts
+        .iter()
+        .filter(|m| m.typ == Some(MountTypeEnum::VOLUME))
+        .collect();
     let bind_mounts: Vec<_> = mounts
         .iter()
         .filter(|m| m.typ == Some(MountTypeEnum::BIND))
         .collect();
 
-    if bind_mounts.is_empty() {
+    if volume_mounts.is_empty() && bind_mounts.is_empty() {
         return;
     }
 
@@ -448,36 +451,95 @@ fn display_mounts_section(
         .filter_map(|m| ParsedMount::parse(m).ok())
         .collect();
 
-    for mount in bind_mounts {
-        let source = mount.source.as_deref().unwrap_or("unknown");
-        let target = mount.target.as_deref().unwrap_or("unknown");
-        let mode = if mount.read_only.unwrap_or(false) {
-            "ro"
-        } else {
-            "rw"
-        };
-
-        // Determine if this mount came from config or CLI
-        // Needs path matching to handle macOS translation (/tmp -> /host_mnt/private/tmp)
-        // Must match both source AND target paths to be considered from config
-        let is_from_config = config_parsed.iter().any(|conf| {
-            let conf_host = conf.host_path.to_string_lossy();
-            host_paths_match(source, &conf_host) && target == conf.container_path
-        });
-        let source_tag = if is_from_config {
-            style("(config)").dim()
-        } else {
-            style("(cli)").cyan()
-        };
-
-        println!(
-            "  {} -> {} {} {}",
-            style(source).cyan(),
-            target,
-            style(mode).dim(),
-            source_tag
-        );
+    if volume_mounts.is_empty() {
+        println!("  Volumes: {}", style("(none)").dim());
+    } else {
+        println!("  Volumes:");
+        for mount in volume_mounts {
+            let source = mount.source.as_deref().unwrap_or("unknown");
+            let target = mount.target.as_deref().unwrap_or("unknown");
+            let source_path = volume_mountpoints
+                .get(source)
+                .map(String::as_str)
+                .unwrap_or(source);
+            let mode = if mount.read_only.unwrap_or(false) {
+                "ro"
+            } else {
+                "rw"
+            };
+            let name_tag = if source_path == source {
+                ""
+            } else {
+                " (volume)"
+            };
+            println!(
+                "    {} -> {} {}{}",
+                style(source_path).cyan(),
+                target,
+                style(mode).dim(),
+                style(name_tag).dim()
+            );
+        }
     }
+
+    if bind_mounts.is_empty() {
+        println!("  Bind mounts: {}", style("(none)").dim());
+    } else {
+        println!("  Bind mounts:");
+        for mount in bind_mounts {
+            let source = mount.source.as_deref().unwrap_or("unknown");
+            let target = mount.target.as_deref().unwrap_or("unknown");
+            let mode = if mount.read_only.unwrap_or(false) {
+                "ro"
+            } else {
+                "rw"
+            };
+
+            // Determine if this mount came from config or CLI
+            // Needs path matching to handle macOS translation (/tmp -> /host_mnt/private/tmp)
+            // Must match both source AND target paths to be considered from config
+            let is_from_config = config_parsed.iter().any(|conf| {
+                let conf_host = conf.host_path.to_string_lossy();
+                host_paths_match(source, &conf_host) && target == conf.container_path
+            });
+            let source_tag = if is_from_config {
+                style("(config)").dim()
+            } else {
+                style("(cli)").cyan()
+            };
+
+            println!(
+                "    {} -> {} {} {}",
+                style(source).cyan(),
+                target,
+                style(mode).dim(),
+                source_tag
+            );
+        }
+    }
+}
+
+async fn resolve_volume_mountpoints(
+    client: &opencode_cloud_core::docker::DockerClient,
+    mounts: &[opencode_cloud_core::bollard::service::Mount],
+) -> HashMap<String, String> {
+    let volume_names: Vec<String> = mounts
+        .iter()
+        .filter(|m| m.typ == Some(MountTypeEnum::VOLUME))
+        .filter_map(|m| m.source.clone())
+        .collect();
+
+    let mut resolved = HashMap::new();
+    for name in volume_names {
+        if resolved.contains_key(&name) {
+            continue;
+        }
+        if let Ok(info) = client.inner().inspect_volume(&name).await {
+            resolved.insert(name.clone(), info.mountpoint);
+        }
+    }
+
+    resolved
 }
 
 /// Check if two host paths match, accounting for macOS path translation

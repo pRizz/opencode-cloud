@@ -2,6 +2,8 @@
 //!
 //! Defines the structure and defaults for the config.json file.
 
+use super::paths::{get_config_dir, get_data_dir};
+use crate::docker::volume::{MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION};
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 /// Main configuration structure for opencode-cloud
@@ -117,7 +119,7 @@ pub struct Config {
 
     /// Bind mounts to apply when starting the container
     /// Format: ["/host/path:/container/path", "/host:/mnt:ro"]
-    #[serde(default)]
+    #[serde(default = "default_mounts")]
     pub mounts: Vec<String>,
 }
 
@@ -173,6 +175,24 @@ fn default_update_check() -> String {
     "always".to_string()
 }
 
+pub fn default_mounts() -> Vec<String> {
+    let maybe_data_dir = get_data_dir();
+    let maybe_config_dir = get_config_dir();
+    let (Some(data_dir), Some(config_dir)) = (maybe_data_dir, maybe_config_dir) else {
+        return Vec::new();
+    };
+
+    let session_dir = data_dir.join("data");
+    let workspace_dir = data_dir.join("workspace");
+    let config_dir = config_dir.join("container");
+
+    vec![
+        format!("{}:{MOUNT_SESSION}", session_dir.display()),
+        format!("{}:{MOUNT_PROJECTS}", workspace_dir.display()),
+        format!("{}:{MOUNT_CONFIG}", config_dir.display()),
+    ]
+}
+
 /// Validate and parse a bind address string
 ///
 /// Accepts:
@@ -225,7 +245,7 @@ impl Default for Config {
             cockpit_enabled: default_cockpit_enabled(),
             image_source: default_image_source(),
             update_check: default_update_check(),
-            mounts: Vec::new(),
+            mounts: default_mounts(),
         }
     }
 }
@@ -309,7 +329,7 @@ mod tests {
         assert_eq!(config.rate_limit_attempts, 5);
         assert_eq!(config.rate_limit_window_seconds, 60);
         assert!(config.users.is_empty());
-        assert!(config.mounts.is_empty());
+        assert_eq!(config.mounts, default_mounts());
     }
 
     #[test]
@@ -693,7 +713,7 @@ mod tests {
     #[test]
     fn test_default_config_mounts_field() {
         let config = Config::default();
-        assert!(config.mounts.is_empty());
+        assert_eq!(config.mounts, default_mounts());
     }
 
     #[test]
@@ -717,9 +737,9 @@ mod tests {
 
     #[test]
     fn test_mounts_field_default_on_missing() {
-        // Old configs without mounts field should get empty vec
+        // Old configs without mounts field should get default mounts
         let json = r#"{"version": 1}"#;
         let config: Config = serde_json::from_str(json).unwrap();
-        assert!(config.mounts.is_empty());
+        assert_eq!(config.mounts, default_mounts());
     }
 }
