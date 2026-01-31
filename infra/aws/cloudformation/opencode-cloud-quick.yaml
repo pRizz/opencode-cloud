@@ -20,7 +20,8 @@ Metadata:
         Parameters:
           - UseExistingVpc
           - ExistingVpcId
-          - ExistingPublicSubnetIds
+          - ExistingPublicSubnetIdA
+          - ExistingPublicSubnetIdB
           - AllowSsh
       - Label:
           default: "Advanced: TLS"
@@ -77,10 +78,14 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     Default: vpc-00000000
     Description: "Existing VPC ID (required if UseExistingVpc=true)."
-  ExistingPublicSubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Default: subnet-00000000,subnet-00000000
-    Description: "Existing public subnet IDs for the ALB and instance (at least two, required if UseExistingVpc=true)."
+  ExistingPublicSubnetIdA:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-00000000
+    Description: "Existing public subnet ID in AZ A (required if UseExistingVpc=true)."
+  ExistingPublicSubnetIdB:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-00000000
+    Description: "Existing public subnet ID in AZ B (required if UseExistingVpc=true)."
   AllowSsh:
     Type: String
     Default: "false"
@@ -105,10 +110,10 @@ Rules:
     Assertions:
       - Assert: !Not [!Equals [!Ref ExistingVpcId, "vpc-00000000"]]
         AssertDescription: "ExistingVpcId must be a real VPC ID when UseExistingVpc=true."
-      - Assert: !Not [!Contains [!Ref ExistingPublicSubnetIds, "subnet-00000000"]]
-        AssertDescription: "ExistingPublicSubnetIds must be real subnet IDs when UseExistingVpc=true."
-      - Assert: !Not [!Equals [!Select [1, !Ref ExistingPublicSubnetIds], "subnet-00000000"]]
-        AssertDescription: "ExistingPublicSubnetIds must include at least two subnets when UseExistingVpc=true."
+      - Assert: !Not [!Equals [!Ref ExistingPublicSubnetIdA, "subnet-00000000"]]
+        AssertDescription: "ExistingPublicSubnetIdA must be a real subnet ID when UseExistingVpc=true."
+      - Assert: !Not [!Equals [!Ref ExistingPublicSubnetIdB, "subnet-00000000"]]
+        AssertDescription: "ExistingPublicSubnetIdB must be a real subnet ID when UseExistingVpc=true."
 Resources:
   CredentialsSecret:
     Type: AWS::SecretsManager::Secret
@@ -368,7 +373,8 @@ Resources:
         - !Ref AlbSecurityGroup
       Subnets: !If
         - UseExistingVpcCondition
-        - !Ref ExistingPublicSubnetIds
+        - - !Ref ExistingPublicSubnetIdA
+          - !Ref ExistingPublicSubnetIdB
         - - !Ref PublicSubnetA
           - !Ref PublicSubnetB
 
@@ -476,7 +482,7 @@ Resources:
           AssociatePublicIpAddress: !If [UseExistingVpcCondition, true, false]
           SubnetId: !If
             - UseExistingVpcCondition
-            - !Select [0, !Ref ExistingPublicSubnetIds]
+            - !Ref ExistingPublicSubnetIdA
             - !Ref PrivateSubnetA
           GroupSet:
             - !Ref InstanceSecurityGroup
@@ -854,13 +860,13 @@ Outputs:
     Description: "Public subnet IDs used by the ALB."
     Value: !If
       - UseExistingVpcCondition
-      - !Join [",", !Ref ExistingPublicSubnetIds]
+      - !Join [",", [!Ref ExistingPublicSubnetIdA, !Ref ExistingPublicSubnetIdB]]
       - !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
   InstanceSubnet:
     Description: "Subnet ID used by the instance."
     Value: !If
       - UseExistingVpcCondition
-      - !Select [0, !Ref ExistingPublicSubnetIds]
+      - !Ref ExistingPublicSubnetIdA
       - !Ref PrivateSubnetA
   CredentialsSecretArn:
     Description: "Secrets Manager ARN for generated credentials."
