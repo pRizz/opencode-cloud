@@ -235,7 +235,6 @@ fn display_mount_mismatch(
         style("This will stop and recreate the container from the existing image.").dim()
     );
     eprintln!("{}", style("Your data volumes will be preserved.").dim());
-    display_container_recreate_warning();
     eprintln!();
 }
 
@@ -360,8 +359,6 @@ async fn check_version_compatibility(
     println!("  CLI version:   {}", style(cli_version).cyan());
     println!("  Image version: {}", style(&image_version).cyan());
     println!();
-    display_container_recreate_warning();
-    println!();
 
     let selection = dialoguer::Select::new()
         .with_prompt("What would you like to do?")
@@ -484,21 +481,7 @@ fn display_port_mismatch(
         style("This will stop and recreate the container from the existing image.").dim()
     );
     eprintln!("{}", style("Your data volumes will be preserved.").dim());
-    display_container_recreate_warning();
     eprintln!();
-}
-
-fn display_container_recreate_warning() {
-    eprintln!(
-        "{} {}",
-        style("Note:").yellow().bold(),
-        style("Container users must be reconfigured after recreate.").yellow()
-    );
-    eprintln!(
-        "{}",
-        style("This is a current limitation of the sandbox image; we're exploring mitigations.")
-            .dim()
-    );
 }
 
 /// Acquire Docker image (build or pull) based on configuration
@@ -846,7 +829,6 @@ async fn handle_rebuild(
 ) -> Result<()> {
     if !quiet {
         eprintln!();
-        display_container_recreate_warning();
         eprintln!();
     }
 
