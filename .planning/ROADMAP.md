@@ -588,15 +588,15 @@ Plans:
 
 ### Phase 33: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container
 
-**Goal:** [To be planned]
+**Goal:** Persist container users and passwords across rebuilds and updates
 **Depends on:** Phase 32
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 33 to break down)
+- [x] 33-01-PLAN.md — Persist user accounts via managed volume and restore flow
 
 **Details:**
-[To be added during planning]
+User accounts persist via a dedicated Docker volume, with CLI and startup flows restoring users.
 
 ### Phase 34: Disable Cockpit User-Facing Surface
 
@@ -662,10 +662,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 28 -> 29 -> 30 -> 31 -> 3
 | 30. Deep Nesting Refactor | 0/1 | Not started | - |
 | 31. Update rust and node cli READMEs with latest project features | 0/1 | Not started | - |
 | 32. Make automated (or manually triggered) scripts/github actions in CI for generating and uploading an AWS AMI so that cloud formation/installation can be streamlined and quickened | 0/0 | Not started | - |
-| 33. Investigate and implement a way for users that get created and configured in the container are persisted after we update the container | 0/0 | Not started | - |
+| 33. Investigate and implement a way for users that get created and configured in the container are persisted after we update the container | 1/1 | In review | - |
 | 34. Disable Cockpit User-Facing Surface | 0/0 | Not started | - |
 | 35. Update opencode-cloud self-update | 1/1 | Complete | 2026-01-31 |
 
 ---
 *Roadmap created: 2026-01-18*
-*Last updated: 2026-01-31 (Phase 35 complete: update cli subcommand)*
+*Last updated: 2026-02-01 (Phase 33 executed; verification pending)*
