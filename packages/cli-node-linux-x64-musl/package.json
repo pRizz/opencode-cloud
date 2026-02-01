@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cloud/cli-node-linux-x64-musl",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "opencode-cloud CLI binary for Linux x64 (musl/Alpine)",
   "license": "MIT",
   "author": "pRizz",
