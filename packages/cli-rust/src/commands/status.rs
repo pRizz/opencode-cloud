@@ -159,32 +159,14 @@ pub async fn cmd_status(
     println!("{}", format_kv("State:", state_style(&status)));
 
     if running {
-        // For remote hosts, show both container-local and remote-accessible URLs
-        if let Some(ref remote_addr) = maybe_remote_addr {
-            let remote_url = format!("http://{remote_addr}:{host_port}");
-            println!("{}", format_kv("Remote URL:", style(&remote_url).cyan()));
-            let local_url = format!("http://127.0.0.1:{host_port}");
-            println!(
-                "{}",
-                format_kv(
-                    "Local URL:",
-                    format!(
-                        "{} {}",
-                        style(&local_url).dim(),
-                        style("(on remote host)").dim()
-                    )
-                )
-            );
-        } else {
-            let url = format!("http://{bind_addr}:{host_port}");
-            println!("{}", format_kv("URL:", style(&url).cyan()));
-        }
-
-        if let Some(health_line) =
-            build_health_line(&client, host_name.is_none(), bind_addr, host_port).await
-        {
-            println!("{health_line}");
-        }
+        print_running_header(
+            &client,
+            host_name.as_deref(),
+            maybe_remote_addr.as_deref(),
+            bind_addr,
+            host_port,
+        )
+        .await?;
     }
 
     let container_id = format!("({id_short})");
@@ -237,83 +219,21 @@ pub async fn cmd_status(
     }
 
     if running {
-        // Calculate and display uptime
-        if let Some(ref started) = started_at {
-            if let Some((uptime, started_display)) = parse_uptime(started) {
-                let uptime_str = format_duration(uptime);
-                println!(
-                    "{}",
-                    format_kv("Uptime:", format!("{uptime_str} (since {started_display})"))
-                );
-            }
-        }
-
-        println!(
-            "{}",
-            format_kv(
-                "Port:",
-                format!("{} -> container:3000", style(host_port.to_string()).cyan())
-            )
+        print_running_details(
+            maybe_remote_addr.as_deref(),
+            started_at.as_deref(),
+            host_port,
+            host_name.as_deref(),
+            config.as_ref(),
         );
-
-        // Show Cockpit info if enabled
-        if let Some(ref cfg) = config {
-            if cfg.cockpit_enabled {
-                let cockpit_url = format_cockpit_url(
-                    maybe_remote_addr.as_deref(),
-                    &cfg.bind_address,
-                    cfg.cockpit_port,
-                );
-                println!(
-                    "{}",
-                    format_kv(
-                        "Cockpit:",
-                        format!("{} -> container:9090", style(&cockpit_url).cyan())
-                    )
-                );
-                // Show tip about creating users for Cockpit login
-                let user_cmd = if let Some(ref name) = host_name {
-                    format!("occ user add <username> --host {name}")
-                } else {
-                    "occ user add <username>".to_string()
-                };
-                println!(
-                    "{}",
-                    format_continuation(
-                        style("Cockpit authenticates against container system users.").dim()
-                    )
-                );
-                println!(
-                    "{}",
-                    format_continuation(format!(
-                        "{} {}",
-                        style("Create a container user with:").dim(),
-                        style(&user_cmd).cyan()
-                    ))
-                );
-            }
-        }
     }
 
     if host_name.is_some() {
-        // Show container health if available
-        if let Some(ref health_status) = health {
-            let health_styled = match health_status.as_str() {
-                "healthy" => style(health_status).green(),
-                "unhealthy" => style(health_status).red(),
-                "starting" => style(health_status).yellow(),
-                _ => style(health_status).dim(),
-            };
-            println!("{}", format_kv("Health:", health_styled));
-        }
+        print_remote_health(health.as_deref());
     }
 
     // Label config path - clarify it's local config when using remote host
-    if host_name.is_some() {
-        println!("{}", format_kv("Local Config:", style(&config_path).dim()));
-    } else {
-        println!("{}", format_kv("Config:", style(&config_path).dim()));
-    }
+    print_config_path(host_name.as_deref(), &config_path);
 
     // Show installation status
     if is_service_registration_supported() {
@@ -351,14 +271,7 @@ pub async fn cmd_status(
 
     // If stopped, show when it stopped
     if !running {
-        if let Some(ref finished) = finished_at {
-            if let Some(display_time) = parse_timestamp_display(finished) {
-                println!();
-                println!("{}", format_kv("Last run:", style(&display_time).dim()));
-            }
-        }
-        println!();
-        println!("Run '{}' to start the service.", style("occ start").cyan());
+        print_stopped_section(finished_at.as_deref());
     }
 
     Ok(())
@@ -538,6 +451,156 @@ fn format_label(label: &str) -> String {
 
 fn format_continuation(value: impl std::fmt::Display) -> String {
     format!("{:width$}{}", "", value, width = STATUS_LABEL_WIDTH + 1)
+}
+
+async fn print_running_header(
+    client: &opencode_cloud_core::docker::DockerClient,
+    maybe_host_name: Option<&str>,
+    maybe_remote_addr: Option<&str>,
+    bind_addr: &str,
+    host_port: u16,
+) -> Result<()> {
+    print_urls(maybe_remote_addr, bind_addr, host_port);
+
+    if let Some(health_line) =
+        build_health_line(client, maybe_host_name.is_none(), bind_addr, host_port).await
+    {
+        println!("{health_line}");
+    }
+
+    Ok(())
+}
+
+fn print_urls(maybe_remote_addr: Option<&str>, bind_addr: &str, host_port: u16) {
+    let Some(remote_addr) = maybe_remote_addr else {
+        let url = format!("http://{bind_addr}:{host_port}");
+        println!("{}", format_kv("URL:", style(&url).cyan()));
+        return;
+    };
+
+    let remote_url = format!("http://{remote_addr}:{host_port}");
+    println!("{}", format_kv("Remote URL:", style(&remote_url).cyan()));
+    let local_url = format!("http://127.0.0.1:{host_port}");
+    println!(
+        "{}",
+        format_kv(
+            "Local URL:",
+            format!(
+                "{} {}",
+                style(&local_url).dim(),
+                style("(on remote host)").dim()
+            )
+        )
+    );
+}
+
+fn print_running_details(
+    maybe_remote_addr: Option<&str>,
+    started_at: Option<&str>,
+    host_port: u16,
+    maybe_host_name: Option<&str>,
+    config: Option<&Config>,
+) {
+    print_uptime(started_at);
+    print_port(host_port);
+    print_cockpit(maybe_remote_addr, maybe_host_name, config);
+}
+
+fn print_uptime(started_at: Option<&str>) {
+    let Some(started) = started_at else {
+        return;
+    };
+    let Some((uptime, started_display)) = parse_uptime(started) else {
+        return;
+    };
+    let uptime_str = format_duration(uptime);
+    println!(
+        "{}",
+        format_kv("Uptime:", format!("{uptime_str} (since {started_display})"))
+    );
+}
+
+fn print_port(host_port: u16) {
+    println!(
+        "{}",
+        format_kv(
+            "Port:",
+            format!("{} -> container:3000", style(host_port.to_string()).cyan())
+        )
+    );
+}
+
+fn print_cockpit(
+    maybe_remote_addr: Option<&str>,
+    maybe_host_name: Option<&str>,
+    config: Option<&Config>,
+) {
+    let Some(cfg) = config else {
+        return;
+    };
+    if !cfg.cockpit_enabled {
+        return;
+    }
+
+    let cockpit_url = format_cockpit_url(maybe_remote_addr, &cfg.bind_address, cfg.cockpit_port);
+    println!(
+        "{}",
+        format_kv(
+            "Cockpit:",
+            format!("{} -> container:9090", style(&cockpit_url).cyan())
+        )
+    );
+    let user_cmd = if let Some(name) = maybe_host_name {
+        format!("occ user add <username> --host {name}")
+    } else {
+        "occ user add <username>".to_string()
+    };
+    println!(
+        "{}",
+        format_continuation(style("Cockpit authenticates against container system users.").dim())
+    );
+    println!(
+        "{}",
+        format_continuation(format!(
+            "{} {}",
+            style("Create a container user with:").dim(),
+            style(&user_cmd).cyan()
+        ))
+    );
+}
+
+fn print_remote_health(maybe_health: Option<&str>) {
+    let Some(health_status) = maybe_health else {
+        return;
+    };
+
+    let health_styled = match health_status {
+        "healthy" => style(health_status).green(),
+        "unhealthy" => style(health_status).red(),
+        "starting" => style(health_status).yellow(),
+        _ => style(health_status).dim(),
+    };
+    println!("{}", format_kv("Health:", health_styled));
+}
+
+fn print_config_path(maybe_host_name: Option<&str>, config_path: &str) {
+    let label = if maybe_host_name.is_some() {
+        "Local Config:"
+    } else {
+        "Config:"
+    };
+    println!("{}", format_kv(label, style(config_path).dim()));
+}
+
+fn print_stopped_section(finished_at: Option<&str>) {
+    if let Some(finished) = finished_at {
+        if let Some(display_time) = parse_timestamp_display(finished) {
+            println!();
+            println!("{}", format_kv("Last run:", style(&display_time).dim()));
+        }
+    }
+    println!();
+    println!("Run '{}' to start the service.", style("occ start").cyan());
 }
 
 /// Display the Mounts section of status output
