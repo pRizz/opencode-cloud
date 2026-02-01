@@ -7,7 +7,7 @@ use clap::Args;
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, delete_user, list_users, user_exists,
+    CONTAINER_NAME, DockerClient, delete_user, list_users, remove_persisted_user, user_exists,
 };
 use opencode_cloud_core::{load_config, save_config};
 
@@ -83,6 +83,9 @@ pub async fn cmd_user_remove(
 
     // Delete the user
     delete_user(client, CONTAINER_NAME, username).await?;
+
+    // Remove persisted record if present
+    remove_persisted_user(client, CONTAINER_NAME, username).await?;
 
     // Update config - remove username from users array
     config.users.retain(|u| u != username);

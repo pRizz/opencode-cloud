@@ -54,15 +54,15 @@ pub use exec::{exec_command, exec_command_exit_code, exec_command_with_stdin};
 
 // User management operations
 pub use users::{
-    UserInfo, create_user, delete_user, list_users, lock_user, set_user_password, unlock_user,
-    user_exists,
+    UserInfo, create_user, delete_user, list_users, lock_user, persist_user, remove_persisted_user,
+    restore_persisted_users, set_user_password, unlock_user, user_exists,
 };
 
 // Volume management
 pub use volume::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, VOLUME_CACHE,
-    VOLUME_CONFIG, VOLUME_NAMES, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE,
-    ensure_volumes_exist, remove_all_volumes, remove_volume, volume_exists,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, MOUNT_USERS,
+    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_NAMES, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE,
+    VOLUME_USERS, ensure_volumes_exist, remove_all_volumes, remove_volume, volume_exists,
 };
 
 // Bind mount parsing and validation
@@ -135,6 +135,9 @@ pub async fn setup_and_start(
     if !container::container_is_running(client, container::CONTAINER_NAME).await? {
         container::start_container(client, container::CONTAINER_NAME).await?;
     }
+
+    // Restore persisted users after the container is running
+    users::restore_persisted_users(client, container::CONTAINER_NAME).await?;
 
     Ok(container_id)
 }

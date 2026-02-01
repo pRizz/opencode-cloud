@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, lock_user, unlock_user, user_exists,
+    CONTAINER_NAME, DockerClient, lock_user, persist_user, unlock_user, user_exists,
 };
 
 /// Arguments for the user enable command
@@ -40,6 +40,9 @@ pub async fn cmd_user_enable(
     // Unlock the user account
     unlock_user(client, CONTAINER_NAME, username).await?;
 
+    // Persist updated lock state for rebuild/update restores
+    persist_user(client, CONTAINER_NAME, username).await?;
+
     // Display success
     if !quiet {
         println!(
@@ -68,6 +71,9 @@ pub async fn cmd_user_disable(
 
     // Lock the user account
     lock_user(client, CONTAINER_NAME, username).await?;
+
+    // Persist updated lock state for rebuild/update restores
+    persist_user(client, CONTAINER_NAME, username).await?;
 
     // Display success
     if !quiet {

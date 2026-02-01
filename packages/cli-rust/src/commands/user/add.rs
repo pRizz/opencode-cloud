@@ -8,7 +8,7 @@ use clap::Args;
 use console::style;
 use dialoguer::{Input, Password};
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, create_user, set_user_password, user_exists,
+    CONTAINER_NAME, DockerClient, create_user, persist_user, set_user_password, user_exists,
 };
 use opencode_cloud_core::{load_config, save_config};
 
@@ -114,6 +114,9 @@ pub async fn cmd_user_add(
 
     // Set password
     set_user_password(client, CONTAINER_NAME, &username, &password).await?;
+
+    // Persist user credentials for rebuild/update restores
+    persist_user(client, CONTAINER_NAME, &username).await?;
 
     // Update config - add username to users array
     let mut config = load_config()?;

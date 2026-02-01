@@ -7,7 +7,9 @@ use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
 use dialoguer::Password;
-use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, set_user_password, user_exists};
+use opencode_cloud_core::docker::{
+    CONTAINER_NAME, DockerClient, persist_user, set_user_password, user_exists,
+};
 
 /// Arguments for the user passwd command
 #[derive(Args)]
@@ -58,6 +60,9 @@ pub async fn cmd_user_passwd(
 
     // Set the new password
     set_user_password(client, CONTAINER_NAME, username, &password).await?;
+
+    // Persist updated credentials for rebuild/update restores
+    persist_user(client, CONTAINER_NAME, username).await?;
 
     if args.print_password_only {
         println!("{password}");
