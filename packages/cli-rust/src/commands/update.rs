@@ -12,8 +12,8 @@ use opencode_cloud_core::config::load_config;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
-    container_exists, container_is_running, create_user, exec_command, get_cli_version,
-    has_previous_image, pull_image, rollback_image, save_state, setup_and_start, stop_service,
+    container_exists, container_is_running, exec_command, get_cli_version, has_previous_image,
+    pull_image, rollback_image, save_state, setup_and_start, stop_service,
 };
 
 /// Arguments for the update command
@@ -73,14 +73,14 @@ pub struct UpdateOpencodeArgs {
 /// 2. Backs up current image (for rollback)
 /// 3. Pulls latest image from registry
 /// 4. Recreates container with new image
-/// 5. Recreates users (passwords NOT preserved - must reset)
+/// 5. Restores persisted users and passwords
 /// 6. Starts the service
 ///
 /// Or with --rollback:
 /// 1. Stops the service
 /// 2. Restores previous image
 /// 3. Recreates container
-/// 4. Recreates users
+/// 4. Restores persisted users and passwords
 /// 5. Starts the service
 pub async fn cmd_update(
     args: &UpdateArgs,
@@ -568,7 +568,7 @@ async fn handle_update(
 
     // Step 1: Stop service
     if verbose > 0 {
-        eprintln!("{} Stopping service...", style("[1/5]").cyan());
+        eprintln!("{} Stopping service...", style("[1/4]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
     if let Err(e) = stop_service(client, true, None).await {
@@ -579,7 +579,7 @@ async fn handle_update(
 
     // Step 2: Get new image based on config.image_source
     if verbose > 0 {
-        eprintln!("{} Getting new image...", style("[2/5]").cyan());
+        eprintln!("{} Getting new image...", style("[2/4]").cyan());
     }
 
     if use_build {
@@ -657,7 +657,7 @@ async fn handle_update(
 
     // Step 3: Recreate container
     if verbose > 0 {
-        eprintln!("{} Recreating container...", style("[3/5]").cyan());
+        eprintln!("{} Recreating container...", style("[3/4]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Recreating container...", quiet);
     if let Err(e) = setup_and_start(
@@ -676,15 +676,9 @@ async fn handle_update(
     }
     spinner.success("Container recreated");
 
-    // Step 4: Recreate users
+    // Step 4: Show success
     if verbose > 0 {
-        eprintln!("{} Recreating users...", style("[4/5]").cyan());
-    }
-    recreate_users(client, config, quiet).await?;
-
-    // Step 5: Show success
-    if verbose > 0 {
-        eprintln!("{} Update complete", style("[5/5]").cyan());
+        eprintln!("{} Update complete", style("[4/4]").cyan());
     }
     if !quiet {
         eprintln!();
@@ -697,17 +691,6 @@ async fn handle_update(
             "URL:      {}",
             style(format!("http://{bind_addr}:{port}")).cyan()
         );
-        if !config.users.is_empty() {
-            eprintln!();
-            eprintln!(
-                "{} User accounts were recreated but passwords were NOT preserved.",
-                style("Note:").yellow()
-            );
-            eprintln!(
-                "      You must reset passwords with: {}",
-                style("occ user passwd <username>").cyan()
-            );
-        }
         eprintln!();
     }
 
@@ -802,12 +785,6 @@ async fn handle_rollback(
     }
     spinner.success("Container recreated");
 
-    // Step 4: Recreate users
-    if verbose > 0 {
-        eprintln!("{} Recreating users...", style("[4/4]").cyan());
-    }
-    recreate_users(client, config, quiet).await?;
-
     // Show success
     if !quiet {
         eprintln!();
@@ -820,53 +797,8 @@ async fn handle_rollback(
             "URL:      {}",
             style(format!("http://{bind_addr}:{port}")).cyan()
         );
-        if !config.users.is_empty() {
-            eprintln!();
-            eprintln!(
-                "{} User accounts were recreated but passwords were NOT preserved.",
-                style("Note:").yellow()
-            );
-            eprintln!(
-                "      You must reset passwords with: {}",
-                style("occ user passwd <username>").cyan()
-            );
-        }
         eprintln!();
     }
 
-    Ok(())
-}
-
-/// Recreate users from config
-///
-/// Note: Passwords are NOT stored in config, so they cannot be preserved.
-/// Users must reset their passwords after update/rollback.
-async fn recreate_users(
-    client: &DockerClient,
-    config: &opencode_cloud_core::config::Config,
-    quiet: bool,
-) -> Result<()> {
-    if config.users.is_empty() {
-        return Ok(());
-    }
-
-    let spinner = CommandSpinner::new_maybe(
-        &format!("Recreating {} user(s)...", config.users.len()),
-        quiet,
-    );
-
-    for username in &config.users {
-        // Create user (ignore errors if already exists)
-        if let Err(e) = create_user(client, CONTAINER_NAME, username).await {
-            // Only fail if error is not "already exists"
-            let err_msg = e.to_string();
-            if !err_msg.contains("already exists") {
-                spinner.fail(&format!("Failed to recreate user: {username}"));
-                return Err(anyhow!("Failed to recreate user {username}: {e}"));
-            }
-        }
-    }
-
-    spinner.success(&format!("{} user(s) recreated", config.users.len()));
     Ok(())
 }
