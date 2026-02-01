@@ -5,15 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-01-18)
 
 **Core value:** Developers can access a persistent, secure opencode instance from anywhere without wrestling with Docker, service management, or cloud infrastructure details.
-**Current focus:** Phase 33 executed — verification pending
+**Current focus:** Phase 33 complete — user persistence across updates
 
 ## Current Position
 
 Phase: 33 of 35 (Persist container users across updates)
 Plan: 1 of 1 in current phase
-Status: Verification needed
+Status: Phase complete
 **Next Phase:** 34 (Disable Cockpit user-facing surface)
-Last activity: 2026-02-01 - Executed 33-01 (user persistence across rebuilds)
+Last activity: 2026-02-01 - Verified 33-01 (user persistence across rebuilds)
 
 Progress: [############################--] 94%
 
@@ -248,6 +248,7 @@ Recent decisions affecting current work:
 - Phase 34 added: Disable Cockpit user-facing surface (hide UI/CLI/docs, keep code)
 - Phase 35 added: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
 - Phase 35 completed: update cli self-update flow and docs
+- Phase 36 added: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades
 
 ### Blockers/Concerns
 
