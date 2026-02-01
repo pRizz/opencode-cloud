@@ -158,17 +158,45 @@ pub async fn cmd_status(
     // Normal mode: print formatted status
     println!("{}", format_kv("State:", state_style(&status)));
 
+    // Show installation status early
+    if is_service_registration_supported() {
+        if let Ok(manager) = get_service_manager() {
+            let installed = manager.is_installed().unwrap_or(false);
+            let install_status = if installed {
+                // Load config to determine boot mode
+                let boot_mode = config::load_config()
+                    .map(|c| c.boot_mode)
+                    .unwrap_or_else(|_| "user".to_string());
+                let boot_desc = if boot_mode == "system" {
+                    "starts on boot"
+                } else {
+                    "starts on login"
+                };
+                format!("{} ({})", style("yes").green(), boot_desc)
+            } else {
+                style("no").yellow().to_string()
+            };
+            println!("{}", format_kv("Installed:", install_status));
+        }
+    }
+
+    // Label config path - clarify it's local config when using remote host
+    print_config_path(host_name.as_deref(), &config_path);
+
     if running {
-        print_running_header(
+        print_section_header("OpenCode");
+        print_opencode_section(
             &client,
             host_name.as_deref(),
             maybe_remote_addr.as_deref(),
             bind_addr,
             host_port,
+            started_at.as_deref(),
         )
         .await?;
     }
 
+    print_section_header("Sandbox");
     let container_id = format!("({id_short})");
     println!(
         "{}",
@@ -219,10 +247,8 @@ pub async fn cmd_status(
     }
 
     if running {
-        print_running_details(
+        print_cockpit(
             maybe_remote_addr.as_deref(),
-            started_at.as_deref(),
-            host_port,
             host_name.as_deref(),
             config.as_ref(),
         );
@@ -230,31 +256,6 @@ pub async fn cmd_status(
 
     if host_name.is_some() {
         print_remote_health(health.as_deref());
-    }
-
-    // Label config path - clarify it's local config when using remote host
-    print_config_path(host_name.as_deref(), &config_path);
-
-    // Show installation status
-    if is_service_registration_supported() {
-        if let Ok(manager) = get_service_manager() {
-            let installed = manager.is_installed().unwrap_or(false);
-            let install_status = if installed {
-                // Load config to determine boot mode
-                let boot_mode = config::load_config()
-                    .map(|c| c.boot_mode)
-                    .unwrap_or_else(|_| "user".to_string());
-                let boot_desc = if boot_mode == "system" {
-                    "starts on boot"
-                } else {
-                    "starts on login"
-                };
-                format!("{} ({})", style("yes").green(), boot_desc)
-            } else {
-                style("no").yellow().to_string()
-            };
-            println!("{}", format_kv("Installed:", install_status));
-        }
     }
 
     let config_mounts = config
@@ -383,51 +384,30 @@ async fn get_opencode_version(
     }
 }
 
-async fn build_health_line(
-    client: &opencode_cloud_core::docker::DockerClient,
+enum OpencodeHealthStatus {
+    Healthy,
+    Starting,
+    Unhealthy(u16),
+    Failed,
+}
+
+async fn get_opencode_health_status(
     include_probe: bool,
     bind_addr: &str,
     host_port: u16,
-) -> Option<String> {
+) -> Option<OpencodeHealthStatus> {
     if !include_probe {
         return None;
     }
 
-    let status = match check_health(normalize_bind_addr(bind_addr), host_port).await {
-        Ok(_) => style("Healthy").green(),
+    match check_health(normalize_bind_addr(bind_addr), host_port).await {
+        Ok(_) => Some(OpencodeHealthStatus::Healthy),
         Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-            return Some(format_kv("Health:", style("Service starting...").yellow()));
+            Some(OpencodeHealthStatus::Starting)
         }
-        Err(HealthError::Unhealthy(code)) => {
-            return Some(format_kv(
-                "Health:",
-                format!("{} (HTTP {})", style("Unhealthy").red(), code),
-            ));
-        }
-        Err(_) => {
-            return Some(format_kv("Health:", style("Check failed").yellow()));
-        }
-    };
-
-    let version = get_opencode_version(client)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
-    let commit = get_opencode_commit(client)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
-
-    let details = format!("(version: {version}, hash: {commit})");
-    let mut line = format_kv("Health:", format!("{} {}", status, style(details).dim()));
-
-    if commit != "unknown" {
-        let repo_url = format!("https://github.com/pRizz/opencode/commit/{commit}");
-        line.push_str(&format!(
-            "\n{}",
-            format_continuation(style(repo_url).cyan())
-        ));
+        Err(HealthError::Unhealthy(code)) => Some(OpencodeHealthStatus::Unhealthy(code)),
+        Err(_) => Some(OpencodeHealthStatus::Failed),
     }
-
-    Some(line)
 }
 
 fn extract_short_commit(version_output: &str) -> Option<String> {
@@ -453,20 +433,31 @@ fn format_continuation(value: impl std::fmt::Display) -> String {
     format!("{:width$}{}", "", value, width = STATUS_LABEL_WIDTH + 1)
 }
 
-async fn print_running_header(
+fn print_section_header(title: &str) {
+    println!();
+    println!("{}", style(title).bold());
+    println!("{}", style("------").dim());
+}
+
+async fn print_opencode_section(
     client: &opencode_cloud_core::docker::DockerClient,
     maybe_host_name: Option<&str>,
     maybe_remote_addr: Option<&str>,
     bind_addr: &str,
     host_port: u16,
+    started_at: Option<&str>,
 ) -> Result<()> {
     print_urls(maybe_remote_addr, bind_addr, host_port);
 
-    if let Some(health_line) =
-        build_health_line(client, maybe_host_name.is_none(), bind_addr, host_port).await
+    if let Some(health_status) =
+        get_opencode_health_status(maybe_host_name.is_none(), bind_addr, host_port).await
     {
-        println!("{health_line}");
+        print_opencode_health(health_status);
     }
+
+    print_opencode_version_commit(client).await;
+    print_uptime(started_at);
+    print_port(host_port);
 
     Ok(())
 }
@@ -492,18 +483,6 @@ fn print_urls(maybe_remote_addr: Option<&str>, bind_addr: &str, host_port: u16) 
             )
         )
     );
-}
-
-fn print_running_details(
-    maybe_remote_addr: Option<&str>,
-    started_at: Option<&str>,
-    host_port: u16,
-    maybe_host_name: Option<&str>,
-    config: Option<&Config>,
-) {
-    print_uptime(started_at);
-    print_port(host_port);
-    print_cockpit(maybe_remote_addr, maybe_host_name, config);
 }
 
 fn print_uptime(started_at: Option<&str>) {
@@ -580,7 +559,7 @@ fn print_remote_health(maybe_health: Option<&str>) {
         "starting" => style(health_status).yellow(),
         _ => style(health_status).dim(),
     };
-    println!("{}", format_kv("Health:", health_styled));
+    println!("{}", format_kv("Sandbox Health:", health_styled));
 }
 
 fn print_config_path(maybe_host_name: Option<&str>, config_path: &str) {
@@ -601,6 +580,35 @@ fn print_stopped_section(finished_at: Option<&str>) {
     }
     println!();
     println!("Run '{}' to start the service.", style("occ start").cyan());
+}
+
+fn print_opencode_health(status: OpencodeHealthStatus) {
+    let value = match status {
+        OpencodeHealthStatus::Healthy => style("Healthy").green().to_string(),
+        OpencodeHealthStatus::Starting => style("Service starting...").yellow().to_string(),
+        OpencodeHealthStatus::Unhealthy(code) => {
+            format!("{} (HTTP {})", style("Unhealthy").red(), code)
+        }
+        OpencodeHealthStatus::Failed => style("Check failed").yellow().to_string(),
+    };
+    println!("{}", format_kv("Health:", value));
+}
+
+async fn print_opencode_version_commit(client: &opencode_cloud_core::docker::DockerClient) {
+    let version = get_opencode_version(client)
+        .await
+        .unwrap_or_else(|| "unknown".to_string());
+    println!("{}", format_kv("Version:", &version));
+
+    let commit = get_opencode_commit(client)
+        .await
+        .unwrap_or_else(|| "unknown".to_string());
+    println!("{}", format_kv("Commit:", &commit));
+
+    if commit != "unknown" {
+        let repo_url = format!("https://github.com/pRizz/opencode/commit/{commit}");
+        println!("{}", format_kv("Commit link:", style(&repo_url).cyan()));
+    }
 }
 
 /// Display the Mounts section of status output
