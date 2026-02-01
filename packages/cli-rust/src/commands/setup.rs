@@ -112,7 +112,10 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
 
     // Stop first if restarting (use longer timeout for graceful shutdown)
     if action == Action::Restart {
-        let stop_args = crate::commands::StopArgs { timeout: 60 };
+        let stop_args = crate::commands::StopArgs {
+            timeout: 60,
+            remove: false,
+        };
         cmd_stop(&stop_args, args.host.as_deref(), quiet).await?;
         println!();
     }
@@ -199,7 +202,10 @@ async fn start_or_restart_after_setup(
     }
 
     if is_running && config_changed {
-        let stop_args = crate::commands::StopArgs { timeout: 60 };
+        let stop_args = crate::commands::StopArgs {
+            timeout: 60,
+            remove: false,
+        };
         cmd_stop(&stop_args, host, quiet || non_interactive).await?;
     }
 
