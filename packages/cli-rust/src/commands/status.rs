@@ -26,6 +26,8 @@ use std::time::Duration;
 #[derive(Args)]
 pub struct StatusArgs {}
 
+const STATUS_LABEL_WIDTH: usize = 15;
+
 /// Show the status of the opencode service
 ///
 /// In normal mode, displays a key-value formatted status including:
@@ -154,22 +156,28 @@ pub async fn cmd_status(
     let maybe_remote_addr = resolve_remote_addr(host_name.as_deref());
 
     // Normal mode: print formatted status
-    println!("State:       {}", state_style(&status));
+    println!("{}", format_kv("State:", state_style(&status)));
 
     if running {
         // For remote hosts, show both container-local and remote-accessible URLs
         if let Some(ref remote_addr) = maybe_remote_addr {
             let remote_url = format!("http://{remote_addr}:{host_port}");
-            println!("Remote URL:  {}", style(&remote_url).cyan());
+            println!("{}", format_kv("Remote URL:", style(&remote_url).cyan()));
             let local_url = format!("http://127.0.0.1:{host_port}");
             println!(
-                "Local URL:   {} {}",
-                style(&local_url).dim(),
-                style("(on remote host)").dim()
+                "{}",
+                format_kv(
+                    "Local URL:",
+                    format!(
+                        "{} {}",
+                        style(&local_url).dim(),
+                        style("(on remote host)").dim()
+                    )
+                )
             );
         } else {
             let url = format!("http://{bind_addr}:{host_port}");
-            println!("URL:         {}", style(&url).cyan());
+            println!("{}", format_kv("URL:", style(&url).cyan()));
         }
 
         if let Some(health_line) =
@@ -181,26 +189,34 @@ pub async fn cmd_status(
 
     let container_id = format!("({id_short})");
     println!(
-        "Container:   {} {}",
-        CONTAINER_NAME,
-        style(container_id).dim()
+        "{}",
+        format_kv(
+            "Container:",
+            format!("{} {}", CONTAINER_NAME, style(container_id).dim())
+        )
     );
-    println!("Image:       {image}");
+    println!("{}", format_kv("Image:", &image));
 
     // Show CLI and image versions
     let cli_version = get_cli_version();
-    println!("CLI:         v{cli_version}");
+    println!("{}", format_kv("CLI:", format!("v{cli_version}")));
 
     // Try to get image version from label
     if let Ok(Some(img_version)) = get_image_version(&client, &image).await {
         if img_version != "dev" {
             if cli_version == img_version {
-                println!("Image ver:   v{img_version}");
+                println!("{}", format_kv("Image ver:", format!("v{img_version}")));
             } else {
                 println!(
-                    "Image ver:   v{} {}",
-                    img_version,
-                    style("(differs from CLI)").yellow().dim()
+                    "{}",
+                    format_kv(
+                        "Image ver:",
+                        format!(
+                            "v{} {}",
+                            img_version,
+                            style("(differs from CLI)").yellow().dim()
+                        )
+                    )
                 );
             }
         }
@@ -217,7 +233,7 @@ pub async fn cmd_status(
         } else {
             "built from source".to_string()
         };
-        println!("Image src:   {}", style(&source_info).dim());
+        println!("{}", format_kv("Image src:", style(&source_info).dim()));
     }
 
     if running {
@@ -225,13 +241,19 @@ pub async fn cmd_status(
         if let Some(ref started) = started_at {
             if let Some((uptime, started_display)) = parse_uptime(started) {
                 let uptime_str = format_duration(uptime);
-                println!("Uptime:      {uptime_str} (since {started_display})");
+                println!(
+                    "{}",
+                    format_kv("Uptime:", format!("{uptime_str} (since {started_display})"))
+                );
             }
         }
 
         println!(
-            "Port:        {} -> container:3000",
-            style(host_port.to_string()).cyan()
+            "{}",
+            format_kv(
+                "Port:",
+                format!("{} -> container:3000", style(host_port.to_string()).cyan())
+            )
         );
 
         // Show Cockpit info if enabled
@@ -243,8 +265,11 @@ pub async fn cmd_status(
                     cfg.cockpit_port,
                 );
                 println!(
-                    "Cockpit:     {} -> container:9090",
-                    style(&cockpit_url).cyan()
+                    "{}",
+                    format_kv(
+                        "Cockpit:",
+                        format!("{} -> container:9090", style(&cockpit_url).cyan())
+                    )
                 );
                 // Show tip about creating users for Cockpit login
                 let user_cmd = if let Some(ref name) = host_name {
@@ -253,13 +278,18 @@ pub async fn cmd_status(
                     "occ user add <username>".to_string()
                 };
                 println!(
-                    "             {}",
-                    style("Cockpit authenticates against container system users.").dim()
+                    "{}",
+                    format_continuation(
+                        style("Cockpit authenticates against container system users.").dim()
+                    )
                 );
                 println!(
-                    "             {} {}",
-                    style("Create a container user with:").dim(),
-                    style(&user_cmd).cyan()
+                    "{}",
+                    format_continuation(format!(
+                        "{} {}",
+                        style("Create a container user with:").dim(),
+                        style(&user_cmd).cyan()
+                    ))
                 );
             }
         }
@@ -274,15 +304,15 @@ pub async fn cmd_status(
                 "starting" => style(health_status).yellow(),
                 _ => style(health_status).dim(),
             };
-            println!("Health:      {health_styled}");
+            println!("{}", format_kv("Health:", health_styled));
         }
     }
 
     // Label config path - clarify it's local config when using remote host
     if host_name.is_some() {
-        println!("Local Config: {}", style(&config_path).dim());
+        println!("{}", format_kv("Local Config:", style(&config_path).dim()));
     } else {
-        println!("Config:      {}", style(&config_path).dim());
+        println!("{}", format_kv("Config:", style(&config_path).dim()));
     }
 
     // Show installation status
@@ -303,7 +333,7 @@ pub async fn cmd_status(
             } else {
                 style("no").yellow().to_string()
             };
-            println!("Installed:   {install_status}");
+            println!("{}", format_kv("Installed:", install_status));
         }
     }
 
@@ -324,7 +354,7 @@ pub async fn cmd_status(
         if let Some(ref finished) = finished_at {
             if let Some(display_time) = parse_timestamp_display(finished) {
                 println!();
-                println!("Last run:    {}", style(&display_time).dim());
+                println!("{}", format_kv("Last run:", style(&display_time).dim()));
             }
         }
         println!();
@@ -453,20 +483,16 @@ async fn build_health_line(
     let status = match check_health(normalize_bind_addr(bind_addr), host_port).await {
         Ok(_) => style("Healthy").green(),
         Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-            return Some(format!(
-                "Health:      {}",
-                style("Service starting...").yellow()
-            ));
+            return Some(format_kv("Health:", style("Service starting...").yellow()));
         }
         Err(HealthError::Unhealthy(code)) => {
-            return Some(format!(
-                "Health:      {} (HTTP {})",
-                style("Unhealthy").red(),
-                code
+            return Some(format_kv(
+                "Health:",
+                format!("{} (HTTP {})", style("Unhealthy").red(), code),
             ));
         }
         Err(_) => {
-            return Some(format!("Health:      {}", style("Check failed").yellow()));
+            return Some(format_kv("Health:", style("Check failed").yellow()));
         }
     };
 
@@ -478,11 +504,14 @@ async fn build_health_line(
         .unwrap_or_else(|| "unknown".to_string());
 
     let details = format!("(version: {version}, hash: {commit})");
-    let mut line = format!("Health:      {} {}", status, style(details).dim());
+    let mut line = format_kv("Health:", format!("{} {}", status, style(details).dim()));
 
     if commit != "unknown" {
         let repo_url = format!("https://github.com/pRizz/opencode/commit/{commit}");
-        line.push_str(&format!("\n             {}", style(repo_url).cyan()));
+        line.push_str(&format!(
+            "\n{}",
+            format_continuation(style(repo_url).cyan())
+        ));
     }
 
     Some(line)
@@ -497,6 +526,18 @@ fn extract_short_commit(version_output: &str) -> Option<String> {
                 && token.chars().any(|ch| matches!(ch, 'a'..='f' | 'A'..='F'))
         })
         .map(|token| token.chars().take(7).collect())
+}
+
+fn format_kv(label: &str, value: impl std::fmt::Display) -> String {
+    format!("{} {}", format_label(label), value)
+}
+
+fn format_label(label: &str) -> String {
+    format!("{label:<STATUS_LABEL_WIDTH$}")
+}
+
+fn format_continuation(value: impl std::fmt::Display) -> String {
+    format!("{:width$}{}", "", value, width = STATUS_LABEL_WIDTH + 1)
 }
 
 /// Display the Mounts section of status output
