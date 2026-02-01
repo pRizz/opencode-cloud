@@ -23,13 +23,17 @@ pub const VOLUME_PROJECTS: &str = "opencode-workspace";
 /// Volume name for opencode configuration
 pub const VOLUME_CONFIG: &str = "opencode-config";
 
+/// Volume name for persisted user records
+pub const VOLUME_USERS: &str = "opencode-users";
+
 /// All volume names as array for iteration
-pub const VOLUME_NAMES: [&str; 5] = [
+pub const VOLUME_NAMES: [&str; 6] = [
     VOLUME_SESSION,
     VOLUME_STATE,
     VOLUME_CACHE,
     VOLUME_PROJECTS,
     VOLUME_CONFIG,
+    VOLUME_USERS,
 ];
 
 /// Mount point for opencode data inside container
@@ -46,6 +50,9 @@ pub const MOUNT_PROJECTS: &str = "/home/opencode/workspace";
 
 /// Mount point for configuration inside container
 pub const MOUNT_CONFIG: &str = "/home/opencode/.config/opencode";
+
+/// Mount point for persisted user records inside container
+pub const MOUNT_USERS: &str = "/var/lib/opencode-users";
 
 /// Ensure all required volumes exist
 ///
@@ -145,16 +152,18 @@ mod tests {
         assert_eq!(VOLUME_CACHE, "opencode-cache");
         assert_eq!(VOLUME_PROJECTS, "opencode-workspace");
         assert_eq!(VOLUME_CONFIG, "opencode-config");
+        assert_eq!(VOLUME_USERS, "opencode-users");
     }
 
     #[test]
     fn volume_names_array_has_all_volumes() {
-        assert_eq!(VOLUME_NAMES.len(), 5);
+        assert_eq!(VOLUME_NAMES.len(), 6);
         assert!(VOLUME_NAMES.contains(&VOLUME_SESSION));
         assert!(VOLUME_NAMES.contains(&VOLUME_STATE));
         assert!(VOLUME_NAMES.contains(&VOLUME_CACHE));
         assert!(VOLUME_NAMES.contains(&VOLUME_PROJECTS));
         assert!(VOLUME_NAMES.contains(&VOLUME_CONFIG));
+        assert!(VOLUME_NAMES.contains(&VOLUME_USERS));
     }
 
     #[test]
@@ -164,5 +173,6 @@ mod tests {
         assert_eq!(MOUNT_CACHE, "/home/opencode/.cache/opencode");
         assert_eq!(MOUNT_PROJECTS, "/home/opencode/workspace");
         assert_eq!(MOUNT_CONFIG, "/home/opencode/.config/opencode");
+        assert_eq!(MOUNT_USERS, "/var/lib/opencode-users");
     }
 }

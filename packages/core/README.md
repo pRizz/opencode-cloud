@@ -191,6 +191,12 @@ occ user add <username> --generate
 - Remove user: `occ user remove <username>`
 - Enable/disable account: `occ user enable <username>` / `occ user disable <username>`
 
+### User Persistence
+
+User accounts (including password hashes and lock status) persist across container updates and rebuilds.
+The CLI stores user records in a managed Docker volume mounted at `/var/lib/opencode-users` inside the container.
+No plaintext passwords are stored on the host.
+
 ### Legacy Authentication Fields
 
 The `auth_username` and `auth_password` config fields are **deprecated** and ignored. They are kept in the config schema for backward compatibility with existing deployments, but new users should be created via `occ user add` instead.

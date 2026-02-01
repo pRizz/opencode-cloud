@@ -6,8 +6,8 @@
 use super::dockerfile::{IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 use super::mount::ParsedMount;
 use super::volume::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, VOLUME_CACHE,
-    VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, MOUNT_USERS,
+    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE, VOLUME_USERS,
 };
 use super::{DockerClient, DockerError};
 use bollard::container::{
@@ -121,6 +121,7 @@ pub async fn create_container(
     add_volume_mount(MOUNT_CACHE, VOLUME_CACHE);
     add_volume_mount(MOUNT_PROJECTS, VOLUME_PROJECTS);
     add_volume_mount(MOUNT_CONFIG, VOLUME_CONFIG);
+    add_volume_mount(MOUNT_USERS, VOLUME_USERS);
 
     // Add user-defined bind mounts from config/CLI
     if let Some(ref user_mounts) = bind_mounts {
