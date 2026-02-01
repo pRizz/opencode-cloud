@@ -633,6 +633,7 @@ fn display_mounts_section(
     println!();
     println!("{}", style("Mounts").bold());
     println!("{}", style("------").dim());
+    print_mounts_hint();
 
     // Parse config mounts for source detection
     let config_parsed: Vec<ParsedMount> = config_mounts
@@ -673,6 +674,13 @@ fn display_mounts_section(
                 style(name_tag).dim(),
                 style(annotation).dim()
             );
+            println!(
+                "      {}",
+                style(format!(
+                    "docker run --rm -it -v {source}:/data -w /data alpine sh"
+                ))
+                .dim()
+            );
         }
     }
 
@@ -683,6 +691,7 @@ fn display_mounts_section(
         for mount in bind_mounts {
             let source = mount.source.as_deref().unwrap_or("unknown");
             let target = mount.target.as_deref().unwrap_or("unknown");
+            let display_source = format_bind_source_for_display(source);
             let mode = if mount.read_only.unwrap_or(false) {
                 "ro"
             } else {
@@ -708,7 +717,7 @@ fn display_mounts_section(
 
             println!(
                 "    {} -> {} {} {}{}",
-                style(source).cyan(),
+                style(display_source.as_ref()).cyan(),
                 target,
                 style(mode).dim(),
                 source_tag,
@@ -716,6 +725,15 @@ fn display_mounts_section(
             );
         }
     }
+}
+
+fn print_mounts_hint() {
+    let instruction = if std::env::consts::OS == "macos" {
+        "Hint: Docker Desktop stores volumes inside its VM. Use `docker run --rm -it -v <volume>:/data -w /data alpine sh` to inspect volumes."
+    } else {
+        "Hint: Inspect volumes with: docker run --rm -it -v <volume>:/data -w /data alpine sh"
+    };
+    println!("{}", style(instruction).dim());
 }
 
 fn mount_purpose(target: &str) -> Option<&'static str> {
@@ -727,6 +745,20 @@ fn mount_purpose(target: &str) -> Option<&'static str> {
         MOUNT_CONFIG => Some("opencode config"),
         _ => None,
     }
+}
+
+fn format_bind_source_for_display(source: &str) -> std::borrow::Cow<'_, str> {
+    if std::env::consts::OS != "macos" {
+        return std::borrow::Cow::Borrowed(source);
+    }
+
+    // Docker Desktop for macOS reports bind sources using /host_mnt
+    // inside its Linux VM; strip it to show the host path.
+    if let Some(stripped) = source.strip_prefix("/host_mnt") {
+        return std::borrow::Cow::Owned(stripped.to_string());
+    }
+
+    std::borrow::Cow::Borrowed(source)
 }
 
 async fn resolve_volume_mountpoints(
