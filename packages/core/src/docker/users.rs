@@ -8,7 +8,15 @@
 //! Instead, we use `chpasswd` which reads from stdin.
 
 use super::exec::{exec_command, exec_command_exit_code, exec_command_with_stdin};
+use super::volume::MOUNT_USERS;
 use super::{DockerClient, DockerError};
+use serde::{Deserialize, Serialize};
+
+/// User persistence store directory inside the container.
+///
+/// Format: one JSON file per user with strict permissions (root-owned, 0700 dir, 0600 files).
+/// Stored on a managed Docker volume mounted at this path.
+const USERS_STORE_DIR: &str = MOUNT_USERS;
 
 /// Information about a container user
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +31,13 @@ pub struct UserInfo {
     pub shell: String,
     /// Whether the account is locked
     pub locked: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct PersistedUserRecord {
+    username: String,
+    password_hash: String,
+    locked: bool,
 }
 
 /// Create a new user in the container
@@ -92,6 +107,31 @@ pub async fn set_user_password(
     let stdin_data = format!("{username}:{password}\n");
 
     exec_command_with_stdin(client, container, cmd, &stdin_data).await?;
+
+    Ok(())
+}
+
+/// Set a user's password hash directly (no plaintext required)
+///
+/// Uses `usermod -p` with a precomputed shadow hash.
+async fn set_user_password_hash(
+    client: &DockerClient,
+    container: &str,
+    username: &str,
+    password_hash: &str,
+) -> Result<(), DockerError> {
+    if password_hash.is_empty() {
+        return Ok(());
+    }
+
+    let cmd = vec!["usermod", "-p", password_hash, username];
+    let exit_code = exec_command_exit_code(client, container, cmd).await?;
+
+    if exit_code != 0 {
+        return Err(DockerError::Container(format!(
+            "Failed to set password hash for '{username}': usermod returned exit code {exit_code}"
+        )));
+    }
 
     Ok(())
 }
@@ -234,6 +274,81 @@ pub async fn list_users(
     Ok(users)
 }
 
+/// Persist a user's credentials and lock state to the managed volume.
+///
+/// Stores the shadow hash (not plaintext) and lock status in a JSON record.
+pub async fn persist_user(
+    client: &DockerClient,
+    container: &str,
+    username: &str,
+) -> Result<(), DockerError> {
+    ensure_users_store_dir(client, container).await?;
+
+    let shadow_hash = get_user_shadow_hash(client, container, username).await?;
+    let locked = is_user_locked(client, container, username).await?;
+
+    let record = PersistedUserRecord {
+        username: username.to_string(),
+        password_hash: shadow_hash,
+        locked,
+    };
+
+    write_user_record(client, container, &record).await?;
+    Ok(())
+}
+
+/// Remove a persisted user record from the managed volume.
+pub async fn remove_persisted_user(
+    client: &DockerClient,
+    container: &str,
+    username: &str,
+) -> Result<(), DockerError> {
+    let record_path = user_record_path(username);
+    let cmd_string = format!("rm -f {record_path}");
+    let cmd = vec!["sh", "-c", cmd_string.as_str()];
+    exec_command(client, container, cmd).await?;
+    Ok(())
+}
+
+/// Restore users from the persisted store into the container.
+///
+/// Returns the list of usernames restored or updated.
+pub async fn restore_persisted_users(
+    client: &DockerClient,
+    container: &str,
+) -> Result<Vec<String>, DockerError> {
+    let records = read_user_records(client, container).await?;
+    if records.is_empty() {
+        let users = list_users(client, container).await?;
+        let mut persisted = Vec::new();
+        for user in users {
+            persist_user(client, container, &user.username).await?;
+            persisted.push(user.username);
+        }
+        return Ok(persisted);
+    }
+
+    let mut restored = Vec::new();
+
+    for record in records {
+        if !user_exists(client, container, &record.username).await? {
+            create_user(client, container, &record.username).await?;
+        }
+
+        set_user_password_hash(client, container, &record.username, &record.password_hash).await?;
+
+        if record.locked {
+            lock_user(client, container, &record.username).await?;
+        } else {
+            unlock_user(client, container, &record.username).await?;
+        }
+
+        restored.push(record.username);
+    }
+
+    Ok(restored)
+}
+
 /// Check if a user account is locked
 ///
 /// Uses `passwd -S` to get account status.
@@ -254,6 +369,80 @@ async fn is_user_locked(
     }
 
     Ok(false)
+}
+
+async fn ensure_users_store_dir(client: &DockerClient, container: &str) -> Result<(), DockerError> {
+    let cmd_string = format!("install -d -m 700 {USERS_STORE_DIR}");
+    let cmd = vec!["sh", "-c", cmd_string.as_str()];
+    exec_command(client, container, cmd).await?;
+    Ok(())
+}
+
+async fn get_user_shadow_hash(
+    client: &DockerClient,
+    container: &str,
+    username: &str,
+) -> Result<String, DockerError> {
+    let output = exec_command(client, container, vec!["getent", "shadow", username]).await?;
+    let line = output.lines().next().unwrap_or("").trim();
+    if line.is_empty() {
+        return Err(DockerError::Container(format!(
+            "Failed to read shadow entry for '{username}'"
+        )));
+    }
+
+    let fields: Vec<&str> = line.split(':').collect();
+    if fields.len() < 2 {
+        return Err(DockerError::Container(format!(
+            "Invalid shadow entry for '{username}'"
+        )));
+    }
+
+    Ok(fields[1].to_string())
+}
+
+async fn read_user_records(
+    client: &DockerClient,
+    container: &str,
+) -> Result<Vec<PersistedUserRecord>, DockerError> {
+    let list_command =
+        format!("if [ -d {USERS_STORE_DIR} ]; then ls -1 {USERS_STORE_DIR}/*.json 2>/dev/null; fi");
+    let list_cmd = vec!["sh", "-c", list_command.as_str()];
+    let output = exec_command(client, container, list_cmd).await?;
+    let mut records = Vec::new();
+
+    for path in output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        let contents = exec_command(client, container, vec!["cat", path]).await?;
+        let record: PersistedUserRecord = serde_json::from_str(&contents).map_err(|e| {
+            DockerError::Container(format!("Failed to parse user record {path}: {e}"))
+        })?;
+        records.push(record);
+    }
+
+    Ok(records)
+}
+
+fn user_record_path(username: &str) -> String {
+    format!("{USERS_STORE_DIR}/{username}.json")
+}
+
+async fn write_user_record(
+    client: &DockerClient,
+    container: &str,
+    record: &PersistedUserRecord,
+) -> Result<(), DockerError> {
+    let payload =
+        serde_json::to_string_pretty(record).map_err(|e| DockerError::Container(e.to_string()))?;
+    let record_path = user_record_path(&record.username);
+    let write_command =
+        format!("install -d -m 700 {USERS_STORE_DIR} && umask 077 && cat > {record_path}");
+    let cmd = vec!["sh", "-c", write_command.as_str()];
+    exec_command_with_stdin(client, container, cmd, &payload).await?;
+    Ok(())
 }
 
 /// Parsed user info from /etc/passwd line (intermediate struct)
