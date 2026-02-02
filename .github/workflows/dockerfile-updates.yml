@@ -26,6 +26,7 @@ jobs:
         run: |
           # Run the update script and capture output
           ./scripts/check-dockerfile-updates.sh --apply 2>&1 | tee updates-output.txt
+          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' updates-output.txt > updates-output-plain.txt
 
           # Generate PR body markdown
           cat > updates.md << 'HEADER'
@@ -52,7 +53,7 @@ jobs:
             echo "" >> updates.md
             echo "### Version Check Output" >> updates.md
             echo '```' >> updates.md
-            cat updates-output.txt >> updates.md
+            cat updates-output-plain.txt >> updates.md
             echo '```' >> updates.md
           fi
 
