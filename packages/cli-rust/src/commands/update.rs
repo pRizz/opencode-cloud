@@ -12,8 +12,9 @@ use opencode_cloud_core::config::load_config;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
-    container_exists, container_is_running, exec_command, get_cli_version, has_previous_image,
-    pull_image, rollback_image, save_state, setup_and_start, stop_service,
+    container_exists, container_is_running, exec_command, exec_command_with_status,
+    get_cli_version, has_previous_image, pull_image, rollback_image, save_state, setup_and_start,
+    stop_service,
 };
 
 /// Arguments for the update command
@@ -394,10 +395,8 @@ pub(crate) async fn cmd_update_opencode(
             style(current_version.unwrap_or_else(|| "unknown".to_string())).dim(),
             style(current_commit.unwrap_or_else(|| "unknown".to_string())).dim()
         );
-        eprintln!(
-            "Next hash:  {}",
-            style(next_commit.unwrap_or_else(|| "unknown".to_string())).dim()
-        );
+        let next_hash = next_commit.as_deref().unwrap_or("unknown");
+        eprintln!("Next hash:  {}", style(next_hash).dim());
         eprintln!();
     }
 
@@ -422,9 +421,22 @@ pub(crate) async fn cmd_update_opencode(
 pkill -f "/opt/opencode/bin/opencode" || true
 pkill -f "opencode-broker" || true
 "#;
-    exec_command(&client, CONTAINER_NAME, vec!["bash", "-lc", stop_cmd])
-        .await
-        .map_err(|e| anyhow!("Failed to stop opencode processes: {e}"))?;
+    let (stop_output, stop_status) =
+        exec_command_with_status(&client, CONTAINER_NAME, vec!["bash", "-lc", stop_cmd])
+            .await
+            .map_err(|e| anyhow!("Failed to stop opencode processes: {e}"))?;
+    if !quiet && !stop_output.trim().is_empty() {
+        eprintln!(
+            "{} Stop output:\n{}",
+            style("[info]").cyan(),
+            stop_output.trim()
+        );
+    }
+    if stop_status != 0 {
+        return Err(anyhow!(
+            "Failed to stop opencode processes (exit {stop_status}).\n{stop_output}"
+        ));
+    }
 
     let update_script = format!(
         r#"set -euo pipefail
@@ -455,9 +467,32 @@ rm -rf "$REPO"
 "#
     );
 
-    exec_command(&client, CONTAINER_NAME, vec!["bash", "-lc", &update_script])
-        .await
-        .map_err(|e| anyhow!("Failed to update opencode: {e}"))?;
+    let (update_output, update_status) =
+        exec_command_with_status(&client, CONTAINER_NAME, vec!["bash", "-lc", &update_script])
+            .await
+            .map_err(|e| anyhow!("Failed to update opencode: {e}"))?;
+    if !quiet && !update_output.trim().is_empty() {
+        eprintln!(
+            "{} Update output:\n{}",
+            style("[info]").cyan(),
+            update_output.trim()
+        );
+    }
+    if update_status != 0 {
+        return Err(anyhow!(
+            "Opencode update failed (exit {update_status}).\n{update_output}"
+        ));
+    }
+
+    if let Some(expected) = next_commit.as_deref() {
+        let updated_commit = get_current_opencode_commit(&client).await;
+        if updated_commit.as_deref() != Some(expected) {
+            let found = updated_commit.unwrap_or_else(|| "unknown".to_string());
+            return Err(anyhow!(
+                "Opencode update did not apply (expected {expected}, found {found}).\n{update_output}"
+            ));
+        }
+    }
 
     spinner.success("Opencode updated, restarting service...");
 

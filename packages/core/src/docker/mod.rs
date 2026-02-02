@@ -50,7 +50,9 @@ pub use update::{UpdateResult, has_previous_image, rollback_image, update_image}
 pub use version::{VERSION_LABEL, get_cli_version, get_image_version, versions_compatible};
 
 // Container exec operations
-pub use exec::{exec_command, exec_command_exit_code, exec_command_with_stdin};
+pub use exec::{
+    exec_command, exec_command_exit_code, exec_command_with_status, exec_command_with_stdin,
+};
 
 // User management operations
 pub use users::{

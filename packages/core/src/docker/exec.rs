@@ -82,6 +82,76 @@ pub async fn exec_command(
     Ok(output)
 }
 
+/// Execute a command and capture output plus exit code
+///
+/// Returns a tuple of (output, exit_code). Exit code is -1 if not available.
+pub async fn exec_command_with_status(
+    client: &DockerClient,
+    container: &str,
+    cmd: Vec<&str>,
+) -> Result<(String, i64), DockerError> {
+    let exec_config = CreateExecOptions {
+        attach_stdout: Some(true),
+        attach_stderr: Some(true),
+        cmd: Some(cmd.iter().map(|s| s.to_string()).collect()),
+        user: Some("root".to_string()),
+        ..Default::default()
+    };
+
+    let exec = client
+        .inner()
+        .create_exec(container, exec_config)
+        .await
+        .map_err(|e| DockerError::Container(format!("Failed to create exec: {e}")))?;
+
+    let exec_id = exec.id.clone();
+    let start_config = StartExecOptions {
+        detach: false,
+        ..Default::default()
+    };
+
+    let mut output = String::new();
+
+    match client
+        .inner()
+        .start_exec(&exec.id, Some(start_config))
+        .await
+        .map_err(|e| DockerError::Container(format!("Failed to start exec: {e}")))?
+    {
+        StartExecResults::Attached {
+            output: mut stream, ..
+        } => {
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(log_output) => {
+                        output.push_str(&log_output.to_string());
+                    }
+                    Err(e) => {
+                        return Err(DockerError::Container(format!(
+                            "Error reading exec output: {e}"
+                        )));
+                    }
+                }
+            }
+        }
+        StartExecResults::Detached => {
+            return Err(DockerError::Container(
+                "Exec unexpectedly detached".to_string(),
+            ));
+        }
+    }
+
+    let inspect = client
+        .inner()
+        .inspect_exec(&exec_id)
+        .await
+        .map_err(|e| DockerError::Container(format!("Failed to inspect exec: {e}")))?;
+
+    let exit_code = inspect.exit_code.unwrap_or(-1);
+
+    Ok((output, exit_code))
+}
+
 /// Execute a command with stdin input and capture output
 ///
 /// Creates an exec instance with stdin attached, writes the provided data to
