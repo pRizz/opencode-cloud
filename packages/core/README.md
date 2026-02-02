@@ -25,6 +25,15 @@ opencode-cloud --version
 ## Quick install (npm)
 
 ```bash
+npx opencode-cloud@latest --version
+```
+
+```bash
+bunx opencode-cloud@latest --version
+```
+
+Or install globally:
+```bash
 npm install -g opencode-cloud
 opencode-cloud --version
 ```
@@ -107,6 +116,15 @@ occ --version
 
 ### Via npm
 
+```bash
+npx opencode-cloud@latest --version
+```
+
+```bash
+bunx opencode-cloud@latest --version
+```
+
+Or install globally:
 ```bash
 npm install -g opencode-cloud
 occ --version

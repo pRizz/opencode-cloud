@@ -5,9 +5,15 @@ Cross-platform CLI for opencode-cloud with prebuilt binaries for major platforms
 ## Installation
 
 ```bash
+npx opencode-cloud@latest --version
+```
+
+```bash
+bunx opencode-cloud@latest --version
+```
+
+```bash
 npm install -g opencode-cloud
-# or
-npx opencode-cloud --version
 ```
 
 No Rust toolchain required — npm automatically downloads the correct binary for your platform.
