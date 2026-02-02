@@ -9,13 +9,13 @@ See: .planning/PROJECT.md (updated 2026-01-18)
 
 ## Current Position
 
-Phase: 33 of 35 (Persist container users across updates)
+Phase: 37 of 37 (Extract opencode-cloud setup scripts)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-**Next Phase:** 34 (Disable Cockpit user-facing surface)
-Last activity: 2026-02-01 - Verified 33-01 (user persistence across rebuilds)
+**Next Phase:** 34 (Disable Cockpit User-Facing Surface)
+Last activity: 2026-02-02 - Completed 37-01-PLAN.md
 
-Progress: [############################--] 94%
+Progress: [##########################----] 86%
 
 Note: Phases 12 (Web Desktop UI) and 13 (Container Security Tools) are DEFERRED. Phase 19 (CI/CD Automation) merged into Phase 14. Phase 22 (Dedupe CLI Logic) merged into Phase 18.
 
@@ -202,6 +202,8 @@ Recent decisions affecting current work:
 - [18-04]: optionalDependencies pattern: Follow esbuild/swc model for platform-specific binary distribution
 - [18-04]: Six platform packages: darwin-arm64, darwin-x64, linux-x64, linux-arm64, linux-x64-musl, linux-arm64-musl
 - [33-01]: Persist users in a managed volume using per-user JSON records with shadow hashes
+- [37-01]: Split provisioning into shared core + cloudformation/cloud-init wrappers
+- [37-01]: Pin bootstrap downloads to a Git commit with sha256 verification
 
 ### Pending Todos
 
@@ -249,6 +251,7 @@ Recent decisions affecting current work:
 - Phase 35 added: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
 - Phase 35 completed: update cli self-update flow and docs
 - Phase 36 added: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades
+- Phase 37 added: extract the "/usr/local/bin/opencode-cloud-setup.sh" content from infra/aws/cloudformation/opencode-cloud-quick.yaml into a script or multiple scrips in the opencode-cloud repo and use those instead of having the content in infra/aws/cloudformation/opencode-cloud-quick.yaml; we should do the same for infra/aws/cloud-init/opencode-cloud-quick.yaml; we should do this to improve provisioning reusability for other cloud providers
 
 ### Blockers/Concerns
 
@@ -256,7 +259,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-01
-Stopped at: Executed 33-01-PLAN.md (verification pending)
+Last session: 2026-02-02 14:09:39Z
+Stopped at: Completed 37-01-PLAN.md
 Resume file: None
 Next step: /gsd:verify-work 33 (UAT) or proceed to Phase 34 planning
