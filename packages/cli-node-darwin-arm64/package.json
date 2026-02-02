@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cloud/cli-node-darwin-arm64",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "opencode-cloud CLI binary for macOS ARM64 (Apple Silicon)",
   "license": "MIT",
   "author": "pRizz",
