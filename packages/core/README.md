@@ -1,6 +1,7 @@
 # opencode-cloud
 
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
+[![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
 [![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
 [![Docker Hub](https://img.shields.io/docker/v/prizz/opencode-cloud-sandbox?label=docker&sort=semver)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
@@ -9,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > [!WARNING]
-> This tool is still a work in progress and is rapidly evolving. Expect frequent updates and breaking changes. Follow updates at https://github.com/pRizz/opencode-cloud. Stability will be announced at some point. Use with caution.
+> This tool is still a work in progress and is rapidly evolving. Expect frequent updates and breaking changes. Follow updates at https://github.com/pRizz/opencode-cloud (mirror: https://gitea.com/pRizz/opencode-cloud). Stability will be announced at some point. Use with caution.
 
 A production-ready toolkit for deploying and managing [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
@@ -71,7 +72,7 @@ The CLI manages the container lifecycle, so you don't need to interact with Dock
 
 ## Docker Images
 
-The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode-cloud`) to clearly distinguish it from the CLI tool. The preferred way to use and manage the image is via the [opencode-cloud CLI](https://github.com/pRizz/opencode-cloud). It handles image pulling, container setup, and upgrades for you.
+The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode-cloud`) to clearly distinguish it from the CLI tool. The preferred way to use and manage the image is via the opencode-cloud CLI ([GitHub](https://github.com/pRizz/opencode-cloud), mirror: https://gitea.com/pRizz/opencode-cloud). It handles image pulling, container setup, and upgrades for you.
 
 **Why use the CLI?** It configures volumes, ports, and upgrades safely, so you don’t have to manage `docker run` flags or image updates yourself.
 
@@ -143,7 +144,11 @@ occ start
 ### From source (install locally)
 
 ```bash
+# GitHub (primary)
 git clone https://github.com/pRizz/opencode-cloud.git
+
+# Gitea (mirror)
+git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 cargo install --path packages/cli-rust
 ```
@@ -151,7 +156,11 @@ cargo install --path packages/cli-rust
 ### From source (development run)
 
 ```bash
+# GitHub (primary)
 git clone https://github.com/pRizz/opencode-cloud.git
+
+# Gitea (mirror)
+git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 just build
 cargo run -p opencode-cloud -- --version

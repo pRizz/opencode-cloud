@@ -3,7 +3,7 @@
 Opinionated container image for AI-assisted coding with opencode.
 
 Preferred usage and management is via the opencode-cloud CLI, which handles image pulls, volumes, ports, and upgrades:
-https://github.com/pRizz/opencode-cloud
+https://github.com/pRizz/opencode-cloud (mirror: https://gitea.com/pRizz/opencode-cloud)
 
 ## What is included
 
@@ -66,4 +66,5 @@ The Docker image builds opencode directly from the fork and runs the web server 
 ## Source
 
 - Repository: https://github.com/pRizz/opencode-cloud
+- Mirror: https://gitea.com/pRizz/opencode-cloud
 - Dockerfile: packages/core/src/docker/Dockerfile

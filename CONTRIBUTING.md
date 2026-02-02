@@ -25,7 +25,11 @@ cargo install just
 npm install -g pnpm
 
 # Clone the repository
+# GitHub (primary)
 git clone https://github.com/pRizz/opencode-cloud.git
+
+# Gitea (mirror)
+git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
 # Install dependencies
