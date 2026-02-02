@@ -317,7 +317,7 @@ just lint
 This is a monorepo with:
 - `packages/core` - Rust core library
 - `packages/cli-rust` - Rust CLI binary (recommended)
-- `packages/cli-node` - Node.js CLI (deprecated, directs users to cargo install)
+- `packages/cli-node` - Node.js CLI (fully supported and in parity with the Rust CLI)
 
 ### Cargo.toml Sync Requirement
 
