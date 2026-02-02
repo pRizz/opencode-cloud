@@ -41,7 +41,6 @@ Credentials: `docs/deploy/aws.md#retrieving-credentials`
 - **Service lifecycle commands** - start, stop, restart, status, logs
 - **Platform service integration** - systemd (Linux) / launchd (macOS) for auto-start on boot
 - **Remote host management** - Manage opencode containers on remote servers via SSH
-- **Web-based admin** - Cockpit integration for container administration
 
 ## How it works
 
@@ -190,9 +189,7 @@ occ config show
 
 ## Authentication
 
-opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication. Users created via `occ user add` can authenticate to both:
-- **opencode web UI** - Access the coding interface
-- **Cockpit** - System administration interface
+opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication. Users created via `occ user add` authenticate to the opencode web UI.
 
 ### Creating Users
 

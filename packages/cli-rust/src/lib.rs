@@ -71,6 +71,7 @@ enum Commands {
     /// Update to the latest version or rollback
     Update(commands::UpdateArgs),
     /// Open Cockpit web console
+    #[command(hide = true)]
     Cockpit(commands::CockpitArgs),
     /// Manage remote hosts
     Host(commands::HostArgs),

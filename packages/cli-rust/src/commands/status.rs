@@ -3,6 +3,7 @@
 //! Shows the current state of the opencode service including container info,
 //! port bindings, uptime, health status, and security configuration.
 
+use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
     format_cockpit_url, format_docker_error_anyhow, normalize_bind_addr, resolve_remote_addr,
     state_style,
@@ -518,6 +519,9 @@ fn print_cockpit(
         return;
     };
     if !cfg.cockpit_enabled {
+        return;
+    }
+    if !COCKPIT_EXPOSED {
         return;
     }
 

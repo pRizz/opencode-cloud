@@ -29,8 +29,6 @@ write_files:
       OPENCODE_USERNAME=${OPENCODE_USERNAME}
       OPENCODE_DOMAIN_URL=${OPENCODE_DOMAIN_URL}
       OPENCODE_ALB_URL=${OPENCODE_ALB_URL}
-      COCKPIT_DOMAIN_URL=${COCKPIT_DOMAIN_URL}
-      COCKPIT_ALB_URL=${COCKPIT_ALB_URL}
   - path: /usr/local/bin/opencode-cloud-setup.sh
     permissions: "0755"
     content: |
@@ -82,8 +80,6 @@ write_files:
       : "${OPENCODE_USERNAME:=opencode}"
       : "${OPENCODE_DOMAIN_URL:=}"
       : "${OPENCODE_ALB_URL:=}"
-      : "${COCKPIT_DOMAIN_URL:=}"
-      : "${COCKPIT_ALB_URL:=}"
 
       if ! command -v cargo >/dev/null 2>&1; then
         log "opencode-cloud setup: install rust toolchain"
@@ -167,8 +163,6 @@ write_files:
       {
         "opencode_url": "${OPENCODE_DOMAIN_URL}",
         "opencode_alb_url": "${OPENCODE_ALB_URL}",
-        "cockpit_url": "${COCKPIT_DOMAIN_URL}",
-        "cockpit_alb_url": "${COCKPIT_ALB_URL}",
         "username": "${OPENCODE_USERNAME}",
         "password": "${OPENCODE_PASSWORD}",
         "container": "${OPENCODE_CONTAINER_NAME}",
@@ -189,7 +183,6 @@ write_files:
       Username: ${OPENCODE_USERNAME}
       Password: ${OPENCODE_PASSWORD}
       opencode: ${OPENCODE_DOMAIN_URL}
-      Cockpit: ${COCKPIT_DOMAIN_URL}
       Status file: ${STATUS_FILE}
       EOF
       log "opencode-cloud setup: motd written"

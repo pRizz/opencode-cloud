@@ -10,6 +10,7 @@ use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
 use opencode_cloud_core::{Config, load_config_or_default, save_config};
 
 use crate::commands::{cmd_start, cmd_stop};
+use crate::constants::COCKPIT_EXPOSED;
 use crate::wizard::run_wizard;
 
 /// Arguments for the setup command
@@ -233,10 +234,15 @@ enum Action {
 
 /// Check if config changes require a container restart
 fn requires_restart(old: &Config, new: &Config) -> bool {
-    old.opencode_web_port != new.opencode_web_port
-        || old.bind != new.bind
-        || old.cockpit_port != new.cockpit_port
-        || old.cockpit_enabled != new.cockpit_enabled
+    if old.opencode_web_port != new.opencode_web_port || old.bind != new.bind {
+        return true;
+    }
+    if COCKPIT_EXPOSED
+        && (old.cockpit_port != new.cockpit_port || old.cockpit_enabled != new.cockpit_enabled)
+    {
+        return true;
+    }
+    false
 }
 
 /// Show status when service is running and no restart needed
@@ -255,11 +261,4 @@ fn show_running_status(config: &Config, host: Option<&str>) {
         "URL: {}",
         style(format!("http://{}:{}", bind_addr, config.opencode_web_port)).cyan()
     );
-
-    if config.cockpit_enabled {
-        println!(
-            "Cockpit: {} (web admin) (currently disabled)",
-            style(format!("http://{}:{}", bind_addr, config.cockpit_port)).cyan()
-        );
-    }
 }

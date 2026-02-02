@@ -21,8 +21,6 @@ existing VPC it runs in a public subnet.
 5. If ACM validation is stuck, verify the CNAME record in Route53.
 6. Wait for stack completion, then open `https://<your-domain>`.
 
-Cockpit is available at `https://<your-domain>/cockpit`.
-
 ## CloudFormation Template Hosting (S3 Required)
 
 AWS CloudFormation requires `templateURL` to point to an S3-hosted file. This
@@ -85,7 +83,6 @@ https://YOUR_BUCKET.s3.<region>.amazonaws.com/cloudformation/opencode-cloud-quic
 ## Outputs
 
 - **OpencodeUrl**: Primary HTTPS URL.
-- **CockpitUrl**: Cockpit HTTPS URL (`/cockpit`).
 - **AlbDnsName**: ALB DNS name for debugging and DNS setup.
 - **CertificateArn**: ACM certificate ARN.
 - **InstanceId**: EC2 instance ID.
@@ -188,8 +185,6 @@ opencode-cloud --version
   `/var/log/cloud-init-output.log` for details.
 - **Health checks failing**: Check `/var/log/cloud-init-output.log` and run
   `docker ps` on the instance to confirm the container is running.
-- **Cockpit not loading**: Verify the `/cockpit` path and that port 9090 is
-  reachable from the ALB security group.
 
 ## Teardown / Uninstall
 

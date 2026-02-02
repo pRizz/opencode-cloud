@@ -294,12 +294,8 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) 
                 println!();
                 println!(
                     "{}",
-                    style("Note: Cockpit requires Linux host with native Docker").yellow()
+                    style("Note: This feature is currently disabled.").yellow()
                 );
-                println!("Cockpit does NOT work on macOS Docker Desktop.");
-                println!();
-                println!("When enabled, the container uses systemd as init.");
-                println!("When disabled (default), the container uses tini (works everywhere).");
                 println!();
             }
 
@@ -332,9 +328,7 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) 
                   trust_proxy / proxy\n  \
                   rate_limit_attempts / rate_attempts\n  \
                   rate_limit_window_seconds / rate_window\n  \
-                  allow_unauthenticated_network / allow_unauth\n  \
-                  cockpit_enabled / cockpit\n  \
-                  cockpit_port\n\n\
+                  allow_unauthenticated_network / allow_unauth\n\n\
                 For environment variables, use: occ config env set KEY=value"
             );
         }

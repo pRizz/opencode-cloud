@@ -303,10 +303,6 @@ Resources:
           FromPort: 3000
           ToPort: 3000
           SourceSecurityGroupId: !Ref AlbSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 9090
-          ToPort: 9090
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
         - !If
           - AllowSshCondition
           - IpProtocol: tcp
@@ -405,20 +401,6 @@ Resources:
         - Id: !Ref OpencodeInstance
           Port: 3000
 
-  CockpitTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub "${AWS::StackName}-cockpit"
-      Port: 9090
-      Protocol: HTTP
-      VpcId: !If [UseExistingVpcCondition, !Ref ExistingVpcId, !Ref Vpc]
-      TargetType: instance
-      HealthCheckPath: /cockpit
-      Matcher:
-        HttpCode: "200-399"
-      Targets:
-        - Id: !Ref OpencodeInstance
-          Port: 9090
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -445,18 +427,6 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref OpencodeTargetGroup
 
-  CockpitListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      ListenerArn: !Ref HttpsListener
-      Priority: 10
-      Conditions:
-        - Field: path-pattern
-          Values:
-            - /cockpit*
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref CockpitTargetGroup
 
   OpencodeInstance:
     Type: AWS::EC2::Instance
@@ -512,8 +482,6 @@ Resources:
                   OPENCODE_USERNAME=${OpencodeUsername}
                   OPENCODE_DOMAIN_URL=https://${DomainName}
                   OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
-                  COCKPIT_DOMAIN_URL=https://${DomainName}/cockpit
-                  COCKPIT_ALB_URL=https://${ApplicationLoadBalancer.DNSName}/cockpit
                   OPENCODE_CREDENTIALS_SECRET_ARN=${CredentialsSecret}
                   AWS_REGION=${AWS::Region}
               - path: /etc/motd
@@ -528,7 +496,6 @@ Resources:
                     /var/log/cfn-init-cmd.log
                   Username: ${OpencodeUsername}
                   opencode: https://${DomainName}
-                  Cockpit: https://${DomainName}/cockpit
                   Credentials secret: ${CredentialsSecret}
                   Fetch credentials:
                     aws secretsmanager get-secret-value --region ${AWS::Region} \
@@ -665,14 +632,6 @@ Resources:
                     echo "opencode-cloud: missing OPENCODE_ALB_URL"
                     signal_result 1 "opencode-cloud missing OPENCODE_ALB_URL"
                     exit 1
-                  fi
-
-                  if [ -z "$COCKPIT_DOMAIN_URL" ]; then
-                    COCKPIT_DOMAIN_URL=""
-                  fi
-
-                  if [ -z "$COCKPIT_ALB_URL" ]; then
-                    COCKPIT_ALB_URL=""
                   fi
 
                   if [ -z "$OPENCODE_CREDENTIALS_SECRET_ARN" ]; then
@@ -852,13 +811,11 @@ Resources:
                   secret_payload="$(jq -n \
                     --arg opencode_url "$OPENCODE_DOMAIN_URL" \
                     --arg opencode_alb_url "$OPENCODE_ALB_URL" \
-                    --arg cockpit_url "$COCKPIT_DOMAIN_URL" \
-                    --arg cockpit_alb_url "$COCKPIT_ALB_URL" \
                     --arg username "$OPENCODE_USERNAME" \
                     --arg password "$OPENCODE_PASSWORD" \
                     --arg container "$OPENCODE_CONTAINER_NAME" \
                     --arg image "$OPENCODE_IMAGE" \
-                    '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,cockpit_url:$cockpit_url,cockpit_alb_url:$cockpit_alb_url,username:$username,password:$password,container:$container,image:$image}')"
+                    '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,username:$username,password:$password,container:$container,image:$image}')"
 
                   log "opencode-cloud setup: store secret"
                   if ! command -v aws >/dev/null 2>&1; then
@@ -883,9 +840,6 @@ Outputs:
   OpencodeUrl:
     Description: "Primary opencode URL (requires DNS + ACM validation)."
     Value: !Sub "https://${DomainName}"
-  CockpitUrl:
-    Description: "Cockpit URL (requires DNS + ACM validation)."
-    Value: !Sub "https://${DomainName}/cockpit"
   AlbDnsName:
     Description: "ALB DNS name (useful for debugging before DNS cutover)."
     Value: !GetAtt ApplicationLoadBalancer.DNSName

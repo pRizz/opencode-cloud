@@ -9,7 +9,6 @@ Opinionated container image for AI-assisted coding with opencode.
 - mise-managed runtimes (Node.js LTS, Python 3.12, Go 1.24)
 - Rust toolchain via rustup
 - Core CLI utilities (ripgrep, eza, jq, git, etc.)
-- Cockpit web console for administration
 - opencode preinstalled with the GSD plugin
 
 ## Tags
@@ -28,10 +27,10 @@ docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
 Run the container:
 
 ```
-docker run --rm -it -p 3000:3000 -p 9090:9090 ghcr.io/prizz/opencode-cloud-sandbox:latest
+docker run --rm -it -p 3000:3000 ghcr.io/prizz/opencode-cloud-sandbox:latest
 ```
 
-The opencode web UI is available at `http://localhost:3000`. Cockpit runs on `http://localhost:9090`.
+The opencode web UI is available at `http://localhost:3000`.
 
 ## opencode build and serve flow
 

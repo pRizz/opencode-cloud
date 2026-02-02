@@ -26,7 +26,7 @@ impl Serialize for RedactedConfig<'_> {
         let config = self.config;
         assert_all_fields_covered(config);
 
-        let mut state = serializer.serialize_struct("Config", 22)?;
+        let mut state = serializer.serialize_struct("Config", 19)?;
         state.serialize_field("version", &config.version)?;
         state.serialize_field("opencode_web_port", &config.opencode_web_port)?;
         state.serialize_field("bind", &config.bind)?;
@@ -57,8 +57,6 @@ impl Serialize for RedactedConfig<'_> {
             &config.rate_limit_window_seconds,
         )?;
         state.serialize_field("users", &config.users)?;
-        state.serialize_field("cockpit_port", &config.cockpit_port)?;
-        state.serialize_field("cockpit_enabled", &config.cockpit_enabled)?;
         state.serialize_field("image_source", &config.image_source)?;
         state.serialize_field("update_check", &config.update_check)?;
         state.serialize_field("mounts", &config.mounts)?;

@@ -2,6 +2,7 @@
 //!
 //! Restarts the opencode service (stop + start).
 
+use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{CommandSpinner, format_docker_error, show_docker_error};
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -83,7 +84,7 @@ pub async fn cmd_restart(
         None,
         Some(bind_addr),
         Some(config.cockpit_port),
-        Some(config.cockpit_enabled),
+        Some(config.cockpit_enabled && COCKPIT_EXPOSED),
         None, // bind_mounts: restart preserves existing container mounts
     )
     .await

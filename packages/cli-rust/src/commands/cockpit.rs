@@ -2,6 +2,7 @@
 //!
 //! Opens the Cockpit web console in the default browser.
 
+use crate::constants::COCKPIT_EXPOSED;
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
@@ -19,6 +20,15 @@ pub struct CockpitArgs {}
 /// 2. Checks if the container is running
 /// 3. Opens the Cockpit URL in the default browser
 pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: bool) -> Result<()> {
+    if !COCKPIT_EXPOSED {
+        if !quiet {
+            println!(
+                "{} This command is disabled in this release.",
+                style("Note:").yellow()
+            );
+        }
+        return Ok(());
+    }
     // Load config
     let config = load_config_or_default()?;
 

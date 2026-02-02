@@ -88,7 +88,7 @@ pub async fn cmd_user_add(
             );
             println!(
                 "{}",
-                style("This will be used for Cockpit and opencode web login.").dim()
+                style("This will be used for opencode web login.").dim()
             );
             println!(
                 "{}",

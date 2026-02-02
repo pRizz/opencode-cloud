@@ -3,6 +3,7 @@
 //! Updates the opencode image to the latest version or rolls back to previous version.
 
 use crate::commands::{RestartArgs, cmd_restart};
+use crate::constants::COCKPIT_EXPOSED;
 use crate::output::CommandSpinner;
 use anyhow::{Result, anyhow};
 use clap::{Args, Subcommand};
@@ -346,7 +347,7 @@ pub(crate) async fn cmd_update_opencode(
             None,
             Some(&config.bind_address),
             Some(config.cockpit_port),
-            Some(config.cockpit_enabled),
+            Some(config.cockpit_enabled && COCKPIT_EXPOSED),
             None,
         )
         .await
@@ -708,7 +709,7 @@ async fn handle_update(
         None,
         Some(bind_addr),
         Some(config.cockpit_port),
-        Some(config.cockpit_enabled),
+        Some(config.cockpit_enabled && COCKPIT_EXPOSED),
         None, // bind_mounts: update recreates without bind mounts (user can restart with mounts)
     )
     .await
@@ -824,7 +825,7 @@ async fn handle_rollback(
         None,
         Some(bind_addr),
         Some(config.cockpit_port),
-        Some(config.cockpit_enabled),
+        Some(config.cockpit_enabled && COCKPIT_EXPOSED),
         None, // bind_mounts: rollback recreates without bind mounts (user can restart with mounts)
     )
     .await

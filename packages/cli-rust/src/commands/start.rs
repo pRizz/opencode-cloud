@@ -3,6 +3,7 @@
 //! Starts the opencode service, building the image if needed.
 
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
+use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
     CommandSpinner, format_cockpit_url, format_docker_error, normalize_bind_addr,
     resolve_remote_addr, show_docker_error,
@@ -392,7 +393,7 @@ async fn check_port_mismatch(
     let current_cockpit_port = current_ports.cockpit_port.unwrap_or(9090);
 
     let port_mismatch = current_opencode_port != port;
-    let cockpit_mismatch = current_cockpit_port != config.cockpit_port;
+    let cockpit_mismatch = COCKPIT_EXPOSED && current_cockpit_port != config.cockpit_port;
 
     if !port_mismatch && !cockpit_mismatch {
         return Ok(None);
@@ -420,14 +421,25 @@ async fn check_port_mismatch(
         ));
     }
 
-    display_port_mismatch(
-        port_mismatch,
-        cockpit_mismatch,
-        current_opencode_port,
-        port,
-        current_cockpit_port,
-        config.cockpit_port,
-    );
+    if COCKPIT_EXPOSED {
+        display_port_mismatch(
+            port_mismatch,
+            cockpit_mismatch,
+            current_opencode_port,
+            port,
+            current_cockpit_port,
+            config.cockpit_port,
+        );
+    } else {
+        display_port_mismatch(
+            port_mismatch,
+            false,
+            current_opencode_port,
+            port,
+            current_cockpit_port,
+            config.cockpit_port,
+        );
+    }
 
     let confirm = dialoguer::Confirm::new()
         .with_prompt("Recreate container with new port(s)?")
@@ -774,7 +786,7 @@ pub async fn cmd_start(
         port,
         bind_addr,
         config.cockpit_port,
-        config.cockpit_enabled,
+        config.cockpit_enabled && COCKPIT_EXPOSED,
         bind_mounts_option,
     )
     .await
@@ -1112,11 +1124,16 @@ fn show_start_result(
     println!("Port:       {port} -> 3000");
 
     // Show Cockpit availability if enabled
-    if let Ok(config) = opencode_cloud_core::config::load_config_or_default() {
-        if config.cockpit_enabled {
-            let cockpit_url =
-                format_cockpit_url(maybe_remote_addr.as_deref(), bind_addr, config.cockpit_port);
-            println!("Cockpit:    {cockpit_url} (web admin)");
+    if COCKPIT_EXPOSED {
+        if let Ok(config) = opencode_cloud_core::config::load_config_or_default() {
+            if config.cockpit_enabled {
+                let cockpit_url = format_cockpit_url(
+                    maybe_remote_addr.as_deref(),
+                    bind_addr,
+                    config.cockpit_port,
+                );
+                println!("Cockpit:    {cockpit_url} (web admin)");
+            }
         }
     }
 

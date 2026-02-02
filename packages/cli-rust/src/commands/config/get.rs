@@ -68,9 +68,7 @@ pub fn cmd_config_get(config: &Config, key: &str, _quiet: bool) -> Result<()> {
                   allow_unauthenticated_network / allow_unauth\n  \
                   rate_limit_attempts / rate_attempts\n  \
                   rate_limit_window_seconds / rate_window\n  \
-                  users\n  \
-                  cockpit_enabled / cockpit\n  \
-                  cockpit_port"
+                  users"
             );
         }
     };

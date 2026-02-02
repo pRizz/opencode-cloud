@@ -10,6 +10,8 @@ use serde_json::Value;
 
 /// Fields that should have their values masked in output
 const SENSITIVE_FIELDS: &[&str] = &["auth_password"];
+/// Fields that should be omitted from display output
+const HIDDEN_FIELDS: &[&str] = &["cockpit_enabled", "cockpit_port"];
 
 /// Fields that should be highlighted when they indicate security concerns
 const SECURITY_FIELDS: &[(&str, &str)] = &[
@@ -33,6 +35,7 @@ pub fn cmd_config_show(config: &Config, json: bool, _quiet: bool) -> Result<()> 
 
 fn show_json(config: &Config) -> Result<()> {
     let mut value = serde_json::to_value(config)?;
+    remove_hidden_fields(&mut value);
     mask_sensitive_fields(&mut value);
     println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
@@ -48,6 +51,9 @@ fn show_table(config: &Config) -> Result<()> {
     table.set_header(vec!["Key", "Value"]);
 
     for (key, val) in obj {
+        if HIDDEN_FIELDS.contains(&key.as_str()) {
+            continue;
+        }
         let display_value = format_value(key, val);
         let cell = apply_cell_styling(key, val, display_value);
         table.add_row(vec![Cell::new(key), cell]);
@@ -157,6 +163,9 @@ fn mask_sensitive_fields(value: &mut Value) {
     };
 
     for (key, val) in obj.iter_mut() {
+        if HIDDEN_FIELDS.contains(&key.as_str()) {
+            continue;
+        }
         if !SENSITIVE_FIELDS.contains(&key.as_str()) {
             continue;
         }
@@ -168,6 +177,16 @@ fn mask_sensitive_fields(value: &mut Value) {
         if !s.is_empty() {
             *val = Value::String("********".to_string());
         }
+    }
+}
+
+/// Remove hidden fields from a JSON Value (for JSON output)
+fn remove_hidden_fields(value: &mut Value) {
+    let Value::Object(obj) = value else {
+        return;
+    };
+    for hidden in HIDDEN_FIELDS {
+        obj.remove(*hidden);
     }
 }
 

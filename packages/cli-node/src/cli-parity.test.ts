@@ -99,7 +99,6 @@ describe('CLI Parity', () => {
     'user',
     'mount',
     'update',
-    'cockpit',
     'host',
   ])('should discover %s command', (command) => {
     expect(commands).toContain(command);
@@ -137,7 +136,6 @@ describe('CLI Parity', () => {
       'user --help',
       'mount --help',
       'update --help',
-      'cockpit --help',
       'host --help',
     ])('should pass "%s" through Node CLI', (commandWithArgs) => {
       const output = execSync(`node ${NODE_CLI_PATH} ${commandWithArgs}`, {
