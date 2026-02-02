@@ -1,6 +1,6 @@
 {
   "name": "opencode-cloud",
-  "version": "6.2.0",
+  "version": "6.3.0",
   "description": "Cross-platform CLI for opencode-cloud (includes prebuilt binaries)",
   "type": "module",
   "license": "MIT",
