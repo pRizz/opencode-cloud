@@ -17,6 +17,7 @@ use opencode_cloud_core::docker::{
     get_cli_version, has_previous_image, pull_image, rollback_image, save_state, setup_and_start,
     stop_service,
 };
+use std::process::Command;
 
 /// Arguments for the update command
 #[derive(Args)]
@@ -190,12 +191,20 @@ async fn cmd_update_cli(
     };
 
     if !quiet {
+        let current_version = get_cli_version();
+        let maybe_target_version = get_target_cli_version(&install_method);
         eprintln!();
         eprintln!(
             "{} This will update the opencode-cloud CLI and restart the service.",
             style("Warning:").yellow().bold()
         );
         eprintln!("Install:    {}", style(install_method.label()).dim());
+        eprintln!("Current:    {}", style(current_version).dim());
+        if let Some(target_version) = maybe_target_version {
+            eprintln!("Target:     {}", style(target_version).dim());
+        } else {
+            eprintln!("Target:     {}", style("latest").dim());
+        }
         eprintln!();
     }
 
@@ -261,6 +270,42 @@ impl InstallMethod {
         } else {
             Err(format!("{program} update failed with status {status}"))
         }
+    }
+}
+
+fn get_target_cli_version(install_method: &InstallMethod) -> Option<String> {
+    let (program, args) = match install_method {
+        InstallMethod::Cargo => ("cargo", vec!["info", "opencode-cloud"]),
+        InstallMethod::Npm => ("npm", vec!["view", "opencode-cloud", "version"]),
+    };
+
+    let output = Command::new(program).args(args).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    match install_method {
+        InstallMethod::Cargo => parse_cargo_info_version(&stdout),
+        InstallMethod::Npm => parse_npm_view_version(&stdout),
+    }
+}
+
+fn parse_cargo_info_version(output: &str) -> Option<String> {
+    output
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("version:"))
+        .and_then(|line| line.split_once(':'))
+        .map(|(_, value)| value.trim().to_string())
+}
+
+fn parse_npm_view_version(output: &str) -> Option<String> {
+    let value = output.lines().next()?.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
     }
 }
 
