@@ -6,7 +6,7 @@ use crate::output::{CommandSpinner, format_docker_error, show_docker_error};
 use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
-use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, container_is_running, setup_and_start, stop_service,
 };
@@ -48,7 +48,7 @@ pub async fn cmd_restart(
     })?;
 
     // Load config for port and bind_address
-    let config = load_config()?;
+    let config = load_config_or_default()?;
     let port = config.opencode_web_port;
     let bind_addr = &config.bind_address;
 

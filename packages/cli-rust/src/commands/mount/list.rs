@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::Args;
 use comfy_table::{Cell, Table, presets::UTF8_FULL_CONDENSED};
 use console::style;
-use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::ParsedMount;
 use std::path::Path;
 
@@ -40,7 +40,7 @@ fn resolve_docker_path(path: &Path) -> String {
 }
 
 pub async fn cmd_mount_list(args: &MountListArgs, quiet: bool, _verbose: u8) -> Result<()> {
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     if config.mounts.is_empty() {
         if !quiet && !args.names_only {

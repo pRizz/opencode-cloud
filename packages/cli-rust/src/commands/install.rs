@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use dialoguer::Confirm;
-use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::platform::{
     ServiceConfig, get_service_manager, is_service_registration_supported,
 };
@@ -91,7 +91,7 @@ pub async fn cmd_install(args: &InstallArgs, quiet: bool, _verbose: u8) -> Resul
     let executable_path = std::env::current_exe()?;
 
     // 6. Load config for restart settings
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     // 7. Build ServiceConfig
     let service_config = ServiceConfig {

@@ -13,8 +13,8 @@ use clap::{Parser, Subcommand};
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::{
-    DockerClient, InstanceLock, SingletonError, config, get_version, load_config, load_hosts,
-    save_config,
+    DockerClient, InstanceLock, SingletonError, config, get_version, load_config_or_default,
+    load_hosts, save_config,
 };
 
 /// Manage your opencode cloud service
@@ -157,7 +157,12 @@ pub fn run() -> Result<()> {
         .ok_or_else(|| anyhow!("Could not determine config path"))?;
     let config_exists = config_path.exists();
 
-    if !config_exists {
+    let skip_wizard = matches!(
+        cli.command,
+        Some(Commands::Setup(ref args)) if args.bootstrap || args.yes
+    );
+
+    if !config_exists && !skip_wizard {
         eprintln!(
             "{} First-time setup required. Running wizard...",
             style("Note:").cyan()
@@ -175,7 +180,7 @@ pub fn run() -> Result<()> {
     }
 
     // Load config
-    let config = match load_config() {
+    let config = match load_config_or_default() {
         Ok(config) => {
             // If config was just created, inform the user
             if cli.verbose > 0 {

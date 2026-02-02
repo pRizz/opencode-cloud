@@ -9,7 +9,7 @@ use dialoguer::Confirm;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, delete_user, list_users, remove_persisted_user, user_exists,
 };
-use opencode_cloud_core::{load_config, save_config};
+use opencode_cloud_core::{load_config_or_default, save_config};
 
 /// Arguments for the user remove command
 #[derive(Args)]
@@ -50,7 +50,7 @@ pub async fn cmd_user_remove(
     }
 
     // Load config for later update
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
 
     // Check if this is the last user in the container (not just tracked users)
     let container_users = list_users(client, CONTAINER_NAME).await?;

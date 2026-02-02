@@ -600,7 +600,7 @@ pub async fn cmd_start(
     })?;
 
     // Load config for port and bind_address
-    let config = opencode_cloud_core::config::load_config()?;
+    let config = opencode_cloud_core::config::load_config_or_default()?;
     let port = args.port.unwrap_or(config.opencode_web_port);
     let bind_addr = &config.bind_address;
     // Validate config before starting
@@ -1112,7 +1112,7 @@ fn show_start_result(
     println!("Port:       {port} -> 3000");
 
     // Show Cockpit availability if enabled
-    if let Ok(config) = opencode_cloud_core::config::load_config() {
+    if let Ok(config) = opencode_cloud_core::config::load_config_or_default() {
         if config.cockpit_enabled {
             let cockpit_url =
                 format_cockpit_url(maybe_remote_addr.as_deref(), bind_addr, config.cockpit_port);

@@ -14,7 +14,7 @@ pub mod version;
 pub use version::{get_version, get_version_long};
 
 // Re-export config types and functions
-pub use config::{Config, get_hosts_path, load_config, save_config};
+pub use config::{Config, get_hosts_path, load_config_or_default, save_config};
 
 // Re-export singleton types
 pub use singleton::{InstanceLock, SingletonError};

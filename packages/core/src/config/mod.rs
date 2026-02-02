@@ -65,7 +65,7 @@ pub fn ensure_data_dir() -> Result<PathBuf> {
 /// If the config file doesn't exist, creates a new one with default values.
 /// Supports JSONC (JSON with comments).
 /// Rejects unknown fields for strict validation.
-pub fn load_config() -> Result<Config> {
+pub fn load_config_or_default() -> Result<Config> {
     let config_path =
         get_config_path().ok_or_else(|| anyhow::anyhow!("Could not determine config file path"))?;
 

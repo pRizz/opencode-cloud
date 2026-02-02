@@ -5,7 +5,7 @@
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
-use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
 
 /// Arguments for the cockpit command
@@ -20,7 +20,7 @@ pub struct CockpitArgs {}
 /// 3. Opens the Cockpit URL in the default browser
 pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: bool) -> Result<()> {
     // Load config
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     // Check if Cockpit is enabled
     if !config.cockpit_enabled {

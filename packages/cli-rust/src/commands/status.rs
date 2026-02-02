@@ -146,7 +146,7 @@ pub async fn cmd_status(
         .unwrap_or_else(|| "unknown".to_string());
 
     // Load config early for reuse in multiple sections
-    let config = config::load_config().ok();
+    let config = config::load_config_or_default().ok();
     let bind_addr = config
         .as_ref()
         .map(|cfg| cfg.bind_address.as_str())
@@ -164,7 +164,7 @@ pub async fn cmd_status(
             let installed = manager.is_installed().unwrap_or(false);
             let install_status = if installed {
                 // Load config to determine boot mode
-                let boot_mode = config::load_config()
+                let boot_mode = config::load_config_or_default()
                     .map(|c| c.boot_mode)
                     .unwrap_or_else(|_| "user".to_string());
                 let boot_desc = if boot_mode == "system" {

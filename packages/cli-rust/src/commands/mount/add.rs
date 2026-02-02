@@ -3,7 +3,7 @@
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
-use opencode_cloud_core::config::{load_config, save_config};
+use opencode_cloud_core::config::{load_config_or_default, save_config};
 use opencode_cloud_core::docker::{ParsedMount, check_container_path_warning, validate_mount_path};
 
 #[derive(Args)]
@@ -43,7 +43,7 @@ pub async fn cmd_mount_add(args: &MountAddArgs, quiet: bool, _verbose: u8) -> Re
     }
 
     // Load config and add mount
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
 
     // Check for duplicate (by host path)
     let host_str = parsed.host_path.to_string_lossy();

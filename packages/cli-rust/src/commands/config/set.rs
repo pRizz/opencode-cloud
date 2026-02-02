@@ -7,14 +7,14 @@ use console::style;
 use dialoguer::{Confirm, Password};
 use opencode_cloud_core::config::validate_bind_address;
 use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
-use opencode_cloud_core::{load_config, save_config};
+use opencode_cloud_core::{load_config_or_default, save_config};
 
 /// Set a configuration value
 ///
 /// Special handling for password: prompts interactively if value is None.
 /// Returns error if password value is provided on command line (security risk).
 pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) -> Result<()> {
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
     let normalized_key = key.to_lowercase();
 
     // Display value for output (password is masked)

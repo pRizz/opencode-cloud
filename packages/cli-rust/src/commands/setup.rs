@@ -7,7 +7,7 @@ use clap::Args;
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
-use opencode_cloud_core::{Config, load_config, save_config};
+use opencode_cloud_core::{Config, load_config_or_default, save_config};
 
 use crate::commands::{cmd_start, cmd_stop};
 use crate::wizard::run_wizard;
@@ -31,7 +31,7 @@ pub struct SetupArgs {
 /// Run the setup command
 pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     // Load existing config (or create default)
-    let existing_config = load_config().ok();
+    let existing_config = load_config_or_default().ok();
 
     if args.bootstrap {
         return run_bootstrap_setup(existing_config, args.host.as_deref(), quiet).await;

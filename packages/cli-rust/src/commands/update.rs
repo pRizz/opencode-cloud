@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::{Args, Subcommand};
 use console::style;
 use dialoguer::Confirm;
-use opencode_cloud_core::config::load_config;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
@@ -126,7 +126,7 @@ pub async fn cmd_update(
         .map_err(|e| anyhow!("Docker connection error: {e}"))?;
 
     // Load config
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     if args.rollback {
         // Rollback flow
@@ -310,7 +310,7 @@ pub(crate) async fn cmd_update_opencode(
         .await
         .map_err(|e| anyhow!("Docker connection error: {e}"))?;
 
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     if !container_exists(&client, CONTAINER_NAME).await? {
         return Err(anyhow!(

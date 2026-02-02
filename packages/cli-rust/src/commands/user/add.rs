@@ -10,7 +10,7 @@ use dialoguer::{Input, Password};
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, create_user, persist_user, set_user_password, user_exists,
 };
-use opencode_cloud_core::{load_config, save_config};
+use opencode_cloud_core::{load_config_or_default, save_config};
 
 /// Arguments for the user add command
 #[derive(Args)]
@@ -119,7 +119,7 @@ pub async fn cmd_user_add(
     persist_user(client, CONTAINER_NAME, &username).await?;
 
     // Update config - add username to users array
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
     if !config.users.contains(&username) {
         config.users.push(username.clone());
         save_config(&config)?;

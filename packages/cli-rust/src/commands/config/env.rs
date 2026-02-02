@@ -5,7 +5,7 @@
 use anyhow::{Result, bail};
 use clap::Subcommand;
 use console::style;
-use opencode_cloud_core::{load_config, save_config};
+use opencode_cloud_core::{load_config_or_default, save_config};
 
 /// Environment variable management subcommands
 #[derive(Subcommand)]
@@ -49,7 +49,7 @@ fn cmd_env_set(env_var: &str, quiet: bool) -> Result<()> {
     }
 
     // Load config
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
 
     // Remove any existing entry with the same key
     let key_prefix = format!("{key}=");
@@ -74,7 +74,7 @@ fn cmd_env_set(env_var: &str, quiet: bool) -> Result<()> {
 
 /// List all configured environment variables
 fn cmd_env_list(quiet: bool) -> Result<()> {
-    let config = load_config()?;
+    let config = load_config_or_default()?;
 
     if config.container_env.is_empty() {
         if !quiet {
@@ -97,7 +97,7 @@ fn cmd_env_list(quiet: bool) -> Result<()> {
 
 /// Remove an environment variable
 fn cmd_env_remove(key: &str, quiet: bool) -> Result<()> {
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
 
     // Check if any entry matches
     let key_prefix = format!("{key}=");

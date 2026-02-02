@@ -3,7 +3,7 @@
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
-use opencode_cloud_core::config::{load_config, save_config};
+use opencode_cloud_core::config::{load_config_or_default, save_config};
 use opencode_cloud_core::docker::ParsedMount;
 
 #[derive(Args)]
@@ -13,7 +13,7 @@ pub struct MountRemoveArgs {
 }
 
 pub async fn cmd_mount_remove(args: &MountRemoveArgs, quiet: bool, _verbose: u8) -> Result<()> {
-    let mut config = load_config()?;
+    let mut config = load_config_or_default()?;
 
     // Find and remove mount by host path
     let original_len = config.mounts.len();
