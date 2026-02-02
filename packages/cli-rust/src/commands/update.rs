@@ -2,6 +2,10 @@
 //!
 //! Updates the opencode image to the latest version or rolls back to previous version.
 
+use crate::commands::disk_usage::{
+    format_bytes_i64, format_disk_usage_report, format_host_disk_report, get_disk_usage_report,
+    get_host_disk_report,
+};
 use crate::commands::{RestartArgs, cmd_restart};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::CommandSpinner;
@@ -624,6 +628,41 @@ fn short_commit(value: &str) -> String {
     value.chars().take(7).collect()
 }
 
+async fn purge_unused_docker_resources(client: &DockerClient, quiet: bool) -> Result<Option<i64>> {
+    let spinner = CommandSpinner::new_maybe("Pruning unused Docker resources...", quiet);
+    let mut reclaimed = 0i64;
+    let mut has_reclaimed = false;
+
+    let container_prune = client
+        .inner()
+        .prune_containers::<String>(None)
+        .await
+        .map_err(|e| anyhow!("Failed to prune containers: {e}"))?;
+    if let Some(value) = container_prune.space_reclaimed {
+        reclaimed += value;
+        has_reclaimed = true;
+    }
+
+    let image_prune = client
+        .inner()
+        .prune_images::<String>(None)
+        .await
+        .map_err(|e| anyhow!("Failed to prune images: {e}"))?;
+    if let Some(value) = image_prune.space_reclaimed {
+        reclaimed += value;
+        has_reclaimed = true;
+    }
+
+    client
+        .inner()
+        .prune_networks::<String>(None)
+        .await
+        .map_err(|e| anyhow!("Failed to prune networks: {e}"))?;
+
+    spinner.success("Docker resources pruned");
+    Ok(has_reclaimed.then_some(reclaimed))
+}
+
 /// Handle the normal update flow
 async fn handle_update(
     client: &DockerClient,
@@ -638,6 +677,37 @@ async fn handle_update(
     let use_build = config.image_source == "build";
     let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
     let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
+    let maybe_usage_before = if quiet {
+        None
+    } else {
+        match get_disk_usage_report(client).await {
+            Ok(report) => Some(report),
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+    let maybe_host_before = if quiet {
+        None
+    } else {
+        match get_host_disk_report(client) {
+            Ok(Some(report)) => Some(report),
+            Ok(None) => {
+                if client.is_remote() {
+                    eprintln!(
+                        "{} Host disk stats unavailable for remote Docker hosts.",
+                        style("Note:").yellow()
+                    );
+                }
+                None
+            }
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
 
     // Show warning about downtime
     if !quiet {
@@ -654,6 +724,18 @@ async fn handle_update(
             eprintln!("Target:     {}", style("latest (registry)").dim());
         }
         eprintln!();
+        if let Some(report) = maybe_usage_before {
+            for line in format_disk_usage_report("before update", report, None) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
+        if let Some(report) = maybe_host_before {
+            for line in format_host_disk_report("before update", report, None) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
     }
 
     // Confirm with user unless --yes
@@ -838,6 +920,87 @@ async fn handle_update(
         return Err(anyhow!("Failed to recreate container: {e}"));
     }
     spinner.success("Container recreated");
+
+    let maybe_usage_after_update = if quiet {
+        None
+    } else {
+        match get_disk_usage_report(client).await {
+            Ok(report) => Some(report),
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+    let maybe_host_after_update = if quiet {
+        None
+    } else {
+        match get_host_disk_report(client) {
+            Ok(report) => report,
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+
+    let maybe_reclaimed = purge_unused_docker_resources(client, quiet).await?;
+    let maybe_usage_after_purge = if quiet {
+        None
+    } else {
+        match get_disk_usage_report(client).await {
+            Ok(report) => Some(report),
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+    let maybe_host_after_purge = if quiet {
+        None
+    } else {
+        match get_host_disk_report(client) {
+            Ok(report) => report,
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+
+    if !quiet {
+        eprintln!();
+        if let Some(report) = maybe_usage_after_update {
+            for line in format_disk_usage_report("after update", report, maybe_usage_before) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
+        if let Some(report) = maybe_host_after_update {
+            for line in format_host_disk_report("after update", report, maybe_host_before) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
+        if let Some(reclaimed) = maybe_reclaimed {
+            eprintln!(
+                "Docker purge reclaimed: {}",
+                style(format_bytes_i64(reclaimed)).dim()
+            );
+        }
+        if let Some(report) = maybe_usage_after_purge {
+            for line in format_disk_usage_report("after purge", report, maybe_usage_before) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
+        if let Some(report) = maybe_host_after_purge {
+            for line in format_host_disk_report("after purge", report, maybe_host_before) {
+                eprintln!("{line}");
+            }
+            eprintln!();
+        }
+    }
 
     // Step 4: Show success
     if verbose > 0 {

@@ -4,6 +4,7 @@
 
 mod cockpit;
 mod config;
+mod disk_usage;
 mod host;
 mod install;
 mod logs;

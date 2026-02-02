@@ -57,3 +57,4 @@ comfy-table = "7"
 
 # Random generation
 rand = "0.9"
+sysinfo = "0.30"

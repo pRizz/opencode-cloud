@@ -3,6 +3,9 @@
 //! Shows the current state of the opencode service including container info,
 //! port bindings, uptime, health status, and security configuration.
 
+use crate::commands::disk_usage::{
+    format_disk_usage_report, format_host_disk_report, get_disk_usage_report, get_host_disk_report,
+};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
     format_cockpit_url, format_docker_error_anyhow, normalize_bind_addr, resolve_remote_addr,
@@ -247,6 +250,8 @@ pub async fn cmd_status(
         println!("{}", format_kv("Image src:", style(&source_info).dim()));
     }
 
+    print_disk_usage_section(&client, host_name.as_deref()).await;
+
     if running {
         print_cockpit(
             maybe_remote_addr.as_deref(),
@@ -277,6 +282,46 @@ pub async fn cmd_status(
     }
 
     Ok(())
+}
+
+async fn print_disk_usage_section(
+    client: &opencode_cloud_core::docker::DockerClient,
+    maybe_host_name: Option<&str>,
+) {
+    print_section_header("Disk");
+    match get_disk_usage_report(client).await {
+        Ok(report) => {
+            for line in format_disk_usage_report("current", report, None) {
+                println!("{line}");
+            }
+        }
+        Err(err) => {
+            println!("{} {err}", style("Warning:").yellow().bold());
+        }
+    }
+
+    match get_host_disk_report(client) {
+        Ok(Some(report)) => {
+            println!();
+            for line in format_host_disk_report("current", report, None) {
+                println!("{line}");
+            }
+        }
+        Ok(None) => {
+            if maybe_host_name.is_some() {
+                println!(
+                    "{}",
+                    format_kv(
+                        "Note:",
+                        style("Host disk stats unavailable for remote Docker hosts.").dim()
+                    )
+                );
+            }
+        }
+        Err(err) => {
+            println!("{} {err}", style("Warning:").yellow().bold());
+        }
+    }
 }
 
 /// Parse uptime from ISO8601 started_at timestamp
