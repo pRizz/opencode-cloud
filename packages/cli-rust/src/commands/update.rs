@@ -10,12 +10,13 @@ use clap::{Args, Subcommand};
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::config::load_config_or_default;
+use opencode_cloud_core::docker::update::PREVIOUS_TAG;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, build_image,
-    container_exists, container_is_running, exec_command, exec_command_with_status,
-    get_cli_version, has_previous_image, pull_image, rollback_image, save_state, setup_and_start,
-    stop_service,
+    CONTAINER_NAME, DockerClient, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
+    build_image, container_exists, container_is_running, exec_command, exec_command_with_status,
+    get_cli_version, get_image_version, has_previous_image, pull_image, rollback_image, save_state,
+    setup_and_start, stop_service,
 };
 use std::process::Command;
 
@@ -635,6 +636,8 @@ async fn handle_update(
     let port = config.opencode_web_port;
     let bind_addr = &config.bind_address;
     let use_build = config.image_source == "build";
+    let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
 
     // Show warning about downtime
     if !quiet {
@@ -643,6 +646,13 @@ async fn handle_update(
             "{} This will briefly stop the service to apply the update.",
             style("Warning:").yellow().bold()
         );
+        let current = maybe_current_image_version.as_deref().unwrap_or("unknown");
+        eprintln!("Current:    {}", style(current).dim());
+        if use_build {
+            eprintln!("Target:     {}", style("build from source").dim());
+        } else {
+            eprintln!("Target:     {}", style("latest (registry)").dim());
+        }
         eprintln!();
     }
 
@@ -656,6 +666,50 @@ async fn handle_update(
         if !confirmed {
             if !quiet {
                 eprintln!("Update cancelled.");
+            }
+            return Ok(());
+        }
+    }
+
+    let mut prebuilt_pulled = false;
+    let mut maybe_target_version = None;
+    if !use_build {
+        if verbose > 0 {
+            eprintln!(
+                "{} Checking for image updates...",
+                style("[preflight]").cyan()
+            );
+        }
+        tag_current_as_previous(client)
+            .await
+            .map_err(|e| anyhow!("Failed to backup current image: {e}"))?;
+
+        let mut progress = if quiet {
+            ProgressReporter::new()
+        } else {
+            ProgressReporter::with_context("Checking image")
+        };
+
+        let full_image = pull_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress)
+            .await
+            .map_err(|e| anyhow!("Failed to pull image: {e}"))?;
+        prebuilt_pulled = true;
+        maybe_target_version = get_image_version(client, &full_image).await.ok().flatten();
+
+        let previous_image = format!("{IMAGE_NAME_GHCR}:{PREVIOUS_TAG}");
+        let maybe_previous_version = get_image_version(client, &previous_image)
+            .await
+            .ok()
+            .flatten();
+        if maybe_previous_version.is_some() && maybe_target_version == maybe_previous_version {
+            if !quiet {
+                let check = style("✓").green();
+                let version = maybe_target_version.as_deref().unwrap_or("unknown");
+                eprintln!(
+                    "{} Container image is already up to date (version {}).",
+                    check,
+                    style(version).dim()
+                );
             }
             return Ok(());
         }
@@ -732,21 +786,25 @@ async fn handle_update(
             println!();
         }
 
-        // First, tag current as previous for rollback
-        tag_current_as_previous(client)
-            .await
-            .map_err(|e| anyhow!("Failed to backup current image: {e}"))?;
-
-        // Then pull new image
-        let mut progress = if quiet {
-            ProgressReporter::new()
+        let full_image = if prebuilt_pulled {
+            image_name.clone()
         } else {
-            ProgressReporter::with_context("Updating image")
-        };
+            // First, tag current as previous for rollback
+            tag_current_as_previous(client)
+                .await
+                .map_err(|e| anyhow!("Failed to backup current image: {e}"))?;
 
-        let full_image = pull_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress)
-            .await
-            .map_err(|e| anyhow!("Failed to pull image: {e}"))?;
+            // Then pull new image
+            let mut progress = if quiet {
+                ProgressReporter::new()
+            } else {
+                ProgressReporter::with_context("Updating image")
+            };
+
+            pull_image(client, Some(IMAGE_TAG_DEFAULT), &mut progress)
+                .await
+                .map_err(|e| anyhow!("Failed to pull image: {e}"))?
+        };
 
         // Determine registry and save provenance
         let registry = if full_image.starts_with("ghcr.io") {
@@ -754,7 +812,10 @@ async fn handle_update(
         } else {
             "docker.io"
         };
-        save_state(&ImageState::prebuilt(get_cli_version(), registry)).ok();
+        let version = maybe_target_version
+            .as_deref()
+            .unwrap_or_else(|| get_cli_version());
+        save_state(&ImageState::prebuilt(version, registry)).ok();
     }
 
     // Step 3: Recreate container
