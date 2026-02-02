@@ -28,7 +28,7 @@ jobs:
       ref: ${{ steps.tag.outputs.ref }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Need full history for version detection
           token: ${{ secrets.GITHUB_TOKEN }}

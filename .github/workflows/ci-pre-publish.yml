@@ -22,7 +22,7 @@ jobs:
     name: Pre-publish Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # If ref is not provided, checkout defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
@@ -37,13 +37,13 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v3
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'pnpm'

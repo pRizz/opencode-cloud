@@ -38,7 +38,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install build dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -146,7 +146,7 @@ jobs:
           chmod +x packages/${{ matrix.package }}/bin/occ
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.package }}
           path: packages/${{ matrix.package }}/bin/occ

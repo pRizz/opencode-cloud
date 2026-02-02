@@ -19,7 +19,7 @@ jobs:
       S3_BUCKET: ${{ vars.AWS_CFN_BUCKET }}
       S3_PREFIX: ${{ vars.AWS_CFN_PREFIX || 'cloudformation' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate S3 configuration
         run: |
@@ -35,7 +35,7 @@ jobs:
         run: cfn-lint infra/aws/cloudformation/*.yaml
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
