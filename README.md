@@ -22,6 +22,13 @@ cargo install opencode-cloud
 opencode-cloud --version
 ```
 
+## Quick install (npm)
+
+```bash
+npm install -g opencode-cloud
+opencode-cloud --version
+```
+
 ## Deploy to AWS
 
 [![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://opencode-cloud-templates.s3.us-east-2.amazonaws.com/cloudformation/opencode-cloud-quick.yaml)
@@ -55,7 +62,9 @@ The CLI manages the container lifecycle, so you don't need to interact with Dock
 
 ## Docker Images
 
-The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode-cloud`) to clearly distinguish it from the CLI tool. The CLI (`opencode-cloud` / `occ`) deploys and manages this sandbox container.
+The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode-cloud`) to clearly distinguish it from the CLI tool. The preferred way to use and manage the image is via the [opencode-cloud CLI](https://github.com/pRizz/opencode-cloud). It handles image pulling, container setup, and upgrades for you.
+
+**Why use the CLI?** It configures volumes, ports, and upgrades safely, so you don’t have to manage `docker run` flags or image updates yourself.
 
 The image is published to both registries:
 
@@ -85,6 +94,7 @@ occ start  # Pulls or builds the image as needed
 
 - **Rust 1.85+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Docker** - For running the opencode container
+- **Supported platforms** - Linux and macOS
 
 ## Installation
 
@@ -93,6 +103,23 @@ occ start  # Pulls or builds the image as needed
 ```bash
 cargo install opencode-cloud
 occ --version
+```
+
+### Via npm
+
+```bash
+npm install -g opencode-cloud
+occ --version
+```
+
+## First run
+
+```bash
+# Install as a system service (recommended for background use)
+occ install
+
+# Start the service
+occ start
 ```
 
 ### From source (install locally)

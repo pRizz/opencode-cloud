@@ -2,6 +2,9 @@
 
 Opinionated container image for AI-assisted coding with opencode.
 
+Preferred usage and management is via the opencode-cloud CLI, which handles image pulls, volumes, ports, and upgrades:
+https://github.com/pRizz/opencode-cloud
+
 ## What is included
 
 - Ubuntu 24.04 (noble)
@@ -31,6 +34,26 @@ docker run --rm -it -p 3000:3000 ghcr.io/prizz/opencode-cloud-sandbox:latest
 ```
 
 The opencode web UI is available at `http://localhost:3000`.
+
+## Install the opencode-cloud CLI
+
+Cargo:
+
+```
+cargo install opencode-cloud
+```
+
+NPM:
+
+```
+npm install -g opencode-cloud
+```
+
+Then start the service (recommended):
+
+```
+occ start
+```
 
 ## opencode build and serve flow
 
