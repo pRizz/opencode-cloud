@@ -50,7 +50,7 @@ jobs:
           echo "After:"
           df -h
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # If ref is not provided: when triggered by tag push, checkout uses the tag automatically;
           # when called via workflow_call, defaults to the commit that triggered the workflow
@@ -95,6 +95,8 @@ jobs:
             OPENCODE_CLOUD_VERSION=${{ steps.version.outputs.version }}
           tags: |
             ${{ env.IMAGE_NAME_GHCR }}:test
+          cache-from: type=gha,scope=opencode-cloud-sandbox-test,version=2
+          cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=max,version=2
 
       # Temporary disabled smoke test
       # - name: Smoke test - verify container starts and becomes healthy
@@ -180,8 +182,8 @@ jobs:
             ${{ env.IMAGE_NAME_GHCR }}:latest
             ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME_DOCKERHUB }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=opencode-cloud-sandbox,version=2
+          cache-to: type=gha,scope=opencode-cloud-sandbox,mode=max,version=2
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5
