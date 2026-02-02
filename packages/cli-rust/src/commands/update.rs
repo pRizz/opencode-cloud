@@ -190,9 +190,23 @@ async fn cmd_update_cli(
         }
     };
 
+    let current_version = get_cli_version();
+    let maybe_target_version = get_target_cli_version(&install_method);
+    if let Some(target_version) = maybe_target_version.as_deref() {
+        if target_version == current_version {
+            if !quiet {
+                let check = style("✓").green();
+                eprintln!(
+                    "{} opencode-cloud CLI is already up to date (version {}).",
+                    check,
+                    style(current_version).dim()
+                );
+            }
+            return Ok(());
+        }
+    }
+
     if !quiet {
-        let current_version = get_cli_version();
-        let maybe_target_version = get_target_cli_version(&install_method);
         eprintln!();
         eprintln!(
             "{} This will update the opencode-cloud CLI and restart the service.",
