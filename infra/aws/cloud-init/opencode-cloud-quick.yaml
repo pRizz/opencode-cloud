@@ -34,30 +34,23 @@ write_files:
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
-      OPENCODE_SETUP_REF="3f950953c1140b709dd332d8c11134906f6f5353"
-      OPENCODE_SETUP_BASE_URL="https://raw.githubusercontent.com/pRizz/opencode-cloud/$OPENCODE_SETUP_REF/scripts/provisioning"
+      OPENCODE_SETUP_BASE_URL="https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/provisioning"
       OPENCODE_SETUP_DEST="/usr/local/bin"
 
       fetch_script() {
         local name="$1"
-        local checksum="$2"
         local tmp_path
 
         tmp_path="$(mktemp)"
         curl -sSfL "$OPENCODE_SETUP_BASE_URL/$name" -o "$tmp_path"
-        if command -v sha256sum >/dev/null 2>&1; then
-          echo "$checksum  $tmp_path" | sha256sum -c - >/dev/null
-        else
-          echo "opencode-cloud setup: sha256sum not available, skipping checksum"
-        fi
         install -m 0755 "$tmp_path" "$OPENCODE_SETUP_DEST/$name"
         chown root:root "$OPENCODE_SETUP_DEST/$name"
         rm -f "$tmp_path"
       }
 
-      fetch_script "opencode-cloud-setup.sh" "fec7f9885cf790cc9e131ed921a6c0bd3bab9691d84c83b4d68cf7672483ff17"
-      fetch_script "opencode-cloud-setup-cloudformation.sh" "78cac8e088201f41ee6779f8b8eb22eed0afe057b93a707f26194989370dd3c5"
-      fetch_script "opencode-cloud-setup-cloud-init.sh" "7857df803b212d0b2967287760c7223a3ecbd0a46d4b62b21676060f5a76a21d"
+      fetch_script "opencode-cloud-setup.sh"
+      fetch_script "opencode-cloud-setup-cloudformation.sh"
+      fetch_script "opencode-cloud-setup-cloud-init.sh"
 
       exec "$OPENCODE_SETUP_DEST/opencode-cloud-setup-cloud-init.sh"
 
