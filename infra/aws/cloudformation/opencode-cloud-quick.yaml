@@ -57,7 +57,7 @@ Parameters:
     Description: "EC2 instance type for opencode-cloud. Smaller sizes (t3/t3a micro or small) may be unstable under load."
   RootVolumeSize:
     Type: Number
-    Default: 30
+    Default: 50
     MinValue: 16
     Description: "Root EBS volume size in GiB."
   KeyPairName:
