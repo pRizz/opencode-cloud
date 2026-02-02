@@ -287,7 +287,7 @@ fn is_dev_binary() -> bool {
     exe_str.contains("/target/debug/")
 }
 
-async fn cmd_update_opencode(
+pub(crate) async fn cmd_update_opencode(
     args: &UpdateOpencodeArgs,
     maybe_host: Option<&str>,
     quiet: bool,

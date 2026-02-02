@@ -780,6 +780,11 @@ Resources:
                   run_as_ubuntu "opencode-cloud --quiet setup --bootstrap"
                   log "opencode-cloud setup: bootstrap complete (ubuntu user)"
 
+                  # Install the service so occ runs in foreground and listens for update commands.
+                  log "opencode-cloud setup: install service (ubuntu user)"
+                  run_as_ubuntu "opencode-cloud install --force"
+                  log "opencode-cloud setup: service install complete (ubuntu user)"
+
                   log "opencode-cloud setup: align host mount ownership"
                   data_dir="$ubuntu_home/.local/share/opencode"
                   state_dir="$ubuntu_home/.local/state/opencode"

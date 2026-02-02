@@ -156,6 +156,28 @@ occ update opencode
 occ update opencode --branch dev
 occ update opencode --commit <sha>
 
+### Webapp-triggered update (command file)
+
+When running in foreground mode (for example via `occ install`, which uses `occ start --no-daemon`),
+the host listens for a command file on a bind mount. The webapp can write a simple JSON payload
+to request an update.
+
+Default paths (with default bind mounts enabled):
+- Host: `~/.local/state/opencode/opencode-cloud/commands/update-command.json`
+- Container: `/home/opencode/.local/state/opencode/opencode-cloud/commands/update-command.json`
+
+Example payload:
+```json
+{
+  "command": "update_opencode",
+  "request_id": "webapp-1234",
+  "branch": "dev"
+}
+```
+
+The host writes the result to:
+`~/.local/state/opencode/opencode-cloud/commands/update-command.result.json`
+
 # Install as a system service (starts on login/boot)
 occ install
 

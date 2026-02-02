@@ -16,6 +16,7 @@ mod status;
 mod stop;
 mod uninstall;
 mod update;
+mod update_signal;
 mod user;
 
 pub use cockpit::{CockpitArgs, cmd_cockpit};

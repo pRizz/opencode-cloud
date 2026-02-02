@@ -23,6 +23,8 @@ use opencode_cloud_core::docker::{
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
+use super::update_signal::run_update_command_listener;
+
 /// Arguments for the start command
 #[derive(Args)]
 pub struct StartArgs {
@@ -35,7 +37,7 @@ pub struct StartArgs {
     pub open: bool,
 
     /// Run in foreground (for service managers like systemd/launchd)
-    /// Note: This is the default behavior; flag exists for compatibility
+    /// Keeps the process running and listens for update commands
     #[arg(long)]
     pub no_daemon: bool,
 
@@ -816,6 +818,10 @@ pub async fn cmd_start(
         host_name.as_deref(),
     );
     open_browser_if_requested(args.open, port, bind_addr);
+
+    if args.no_daemon {
+        run_update_command_listener(&client, &config, maybe_host, quiet, verbose).await?;
+    }
 
     Ok(())
 }
