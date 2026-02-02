@@ -605,12 +605,19 @@ async fn handle_update(
     if verbose > 0 {
         eprintln!("{} Stopping service...", style("[1/4]").cyan());
     }
-    let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
-    if let Err(e) = stop_service(client, true, None).await {
-        spinner.fail("Failed to stop service");
-        return Err(anyhow!("Failed to stop service: {e}"));
+    if container_exists(client, CONTAINER_NAME).await? {
+        let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
+        if let Err(e) = stop_service(client, true, None).await {
+            spinner.fail("Failed to stop service");
+            return Err(anyhow!("Failed to stop service: {e}"));
+        }
+        spinner.success("Service stopped");
+    } else if !quiet {
+        eprintln!(
+            "{} Container not found, skipping stop.",
+            style("Note:").yellow()
+        );
     }
-    spinner.success("Service stopped");
 
     // Step 2: Get new image based on config.image_source
     if verbose > 0 {
@@ -781,12 +788,19 @@ async fn handle_rollback(
     if verbose > 0 {
         eprintln!("{} Stopping service...", style("[1/4]").cyan());
     }
-    let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
-    if let Err(e) = stop_service(client, true, None).await {
-        spinner.fail("Failed to stop service");
-        return Err(anyhow!("Failed to stop service: {e}"));
+    if container_exists(client, CONTAINER_NAME).await? {
+        let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
+        if let Err(e) = stop_service(client, true, None).await {
+            spinner.fail("Failed to stop service");
+            return Err(anyhow!("Failed to stop service: {e}"));
+        }
+        spinner.success("Service stopped");
+    } else if !quiet {
+        eprintln!(
+            "{} Container not found, skipping stop.",
+            style("Note:").yellow()
+        );
     }
-    spinner.success("Service stopped");
 
     // Step 2: Rollback image
     if verbose > 0 {
