@@ -477,11 +477,12 @@ Resources:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
                 content: |
-                  OPENCODE_IMAGE=ghcr.io/prizz/opencode-cloud-sandbox:latest
-                  OPENCODE_CONTAINER_NAME=opencode-cloud-sandbox
-                  OPENCODE_USERNAME=${OpencodeUsername}
-                  OPENCODE_DOMAIN_URL=https://${DomainName}
-                  OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
+                  HOST_CONTAINER_IMAGE=ghcr.io/prizz/opencode-cloud-sandbox:latest
+                  HOST_CONTAINER_NAME=opencode-cloud-sandbox
+                  CONTAINER_USERNAME=${OpencodeUsername}
+                  PUBLIC_OPENCODE_DOMAIN_URL=https://${DomainName}
+                  PUBLIC_OPENCODE_ALB_URL=https://${ApplicationLoadBalancer.DNSName}
+                  PRIVATE_CREDENTIALS_SECRET_NAME=opencode-cloud/${AWS::StackName}/credentials
                   OPENCODE_CREDENTIALS_SECRET_ARN=${CredentialsSecret}
                   AWS_REGION=${AWS::Region}
               - path: /etc/motd
@@ -501,6 +502,8 @@ Resources:
                     aws secretsmanager get-secret-value --region ${AWS::Region} \
                       --secret-id ${CredentialsSecret} \
                       --query SecretString --output text
+                  AWS Secrets Manager:
+                    https://console.aws.amazon.com/secretsmanager/secret?name=opencode-cloud%2F${AWS::StackName}%2Fcredentials&region=${AWS::Region}
                   Container shell:
                     docker ps -q --filter "name=opencode-cloud-sandbox"
                     docker exec -it opencode-cloud-sandbox /bin/bash

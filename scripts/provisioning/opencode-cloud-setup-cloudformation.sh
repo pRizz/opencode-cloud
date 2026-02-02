@@ -84,17 +84,17 @@ opencode_setup_prepare_status_dir
 opencode_setup_load_stack_env
 opencode_setup_apply_defaults
 
-if [ -z "$OPENCODE_DOMAIN_URL" ]; then
-  opencode_setup_log "opencode-cloud setup: missing OPENCODE_DOMAIN_URL"
-  echo "opencode-cloud: missing OPENCODE_DOMAIN_URL"
-  signal_result 1 "opencode-cloud missing OPENCODE_DOMAIN_URL"
+if [ -z "$PUBLIC_OPENCODE_DOMAIN_URL" ]; then
+  opencode_setup_log "opencode-cloud setup: missing PUBLIC_OPENCODE_DOMAIN_URL"
+  echo "opencode-cloud: missing PUBLIC_OPENCODE_DOMAIN_URL"
+  signal_result 1 "opencode-cloud missing PUBLIC_OPENCODE_DOMAIN_URL"
   exit 1
 fi
 
-if [ -z "$OPENCODE_ALB_URL" ]; then
-  opencode_setup_log "opencode-cloud setup: missing OPENCODE_ALB_URL"
-  echo "opencode-cloud: missing OPENCODE_ALB_URL"
-  signal_result 1 "opencode-cloud missing OPENCODE_ALB_URL"
+if [ -z "$PUBLIC_OPENCODE_ALB_URL" ]; then
+  opencode_setup_log "opencode-cloud setup: missing PUBLIC_OPENCODE_ALB_URL"
+  echo "opencode-cloud: missing PUBLIC_OPENCODE_ALB_URL"
+  signal_result 1 "opencode-cloud missing PUBLIC_OPENCODE_ALB_URL"
   exit 1
 fi
 
@@ -147,8 +147,8 @@ cache_dir="$ubuntu_home/.cache/opencode"
 config_dir="$ubuntu_home/.config/opencode"
 workspace_dir="$data_dir/workspace"
 mkdir -p "$data_dir" "$state_dir" "$cache_dir" "$config_dir" "$workspace_dir"
-opencode_uid="$(docker run --rm --entrypoint id "$OPENCODE_IMAGE" -u opencode)"
-opencode_gid="$(docker run --rm --entrypoint id "$OPENCODE_IMAGE" -g opencode)"
+opencode_uid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -u opencode)"
+opencode_gid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -g opencode)"
 chown -R "$opencode_uid:$opencode_gid" \
   "$data_dir" \
   "$state_dir" \
@@ -187,13 +187,13 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 secret_payload="$(jq -n \
-  --arg opencode_url "$OPENCODE_DOMAIN_URL" \
-  --arg opencode_alb_url "$OPENCODE_ALB_URL" \
-  --arg username "$OPENCODE_USERNAME" \
-  --arg password "$OPENCODE_PASSWORD" \
-  --arg container "$OPENCODE_CONTAINER_NAME" \
-  --arg image "$OPENCODE_IMAGE" \
-  '{opencode_url:$opencode_url,opencode_alb_url:$opencode_alb_url,username:$username,password:$password,container:$container,image:$image}')"
+  --arg public_opencode_url "$PUBLIC_OPENCODE_DOMAIN_URL" \
+  --arg public_opencode_alb_url "$PUBLIC_OPENCODE_ALB_URL" \
+  --arg container_username "$CONTAINER_USERNAME" \
+  --arg container_password "$CONTAINER_PASSWORD" \
+  --arg host_container_name "$HOST_CONTAINER_NAME" \
+  --arg host_container_image "$HOST_CONTAINER_IMAGE" \
+  '{public_opencode_url:$public_opencode_url,public_opencode_alb_url:$public_opencode_alb_url,container_username:$container_username,container_password:$container_password,host_container_name:$host_container_name,host_container_image:$host_container_image}')"
 
 opencode_setup_log "opencode-cloud setup: store secret"
 aws secretsmanager put-secret-value \

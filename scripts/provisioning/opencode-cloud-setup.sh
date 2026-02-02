@@ -27,6 +27,12 @@ OPENCODE_SETUP_LOG_FILE="/var/log/opencode-cloud-setup.log"
 OPENCODE_SETUP_STACK_ENV="/etc/opencode-cloud/stack.env"
 OPENCODE_SETUP_USER="${OPENCODE_SETUP_USER:-}"
 OPENCODE_SETUP_HOME="${OPENCODE_SETUP_HOME:-}"
+HOST_CONTAINER_IMAGE="${HOST_CONTAINER_IMAGE:-}"
+HOST_CONTAINER_NAME="${HOST_CONTAINER_NAME:-}"
+CONTAINER_USERNAME="${CONTAINER_USERNAME:-}"
+PUBLIC_OPENCODE_DOMAIN_URL="${PUBLIC_OPENCODE_DOMAIN_URL:-}"
+PUBLIC_OPENCODE_ALB_URL="${PUBLIC_OPENCODE_ALB_URL:-}"
+HOST_OPENCODE_CLI_VERSION="${HOST_OPENCODE_CLI_VERSION:-}"
 
 if [ -n "$OPENCODE_SETUP_USER" ] && [ -z "$OPENCODE_SETUP_HOME" ]; then
   OPENCODE_SETUP_HOME="/home/${OPENCODE_SETUP_USER}"
@@ -72,11 +78,15 @@ opencode_setup_load_stack_env() {
 }
 
 opencode_setup_apply_defaults() {
-  : "${OPENCODE_IMAGE:=ghcr.io/prizz/opencode-cloud-sandbox:latest}"
-  : "${OPENCODE_CONTAINER_NAME:=opencode-cloud-sandbox}"
-  : "${OPENCODE_USERNAME:=opencode}"
-  : "${OPENCODE_DOMAIN_URL:=}"
-  : "${OPENCODE_ALB_URL:=}"
+  # Host vs container scoping:
+  # - HOST_CONTAINER_* applies to the Ubuntu host (Docker image/name)
+  # - CONTAINER_* applies inside the opencode container (user credentials)
+  # - PUBLIC_* applies to public URLs used in outputs/secrets
+  : "${HOST_CONTAINER_IMAGE:=${OPENCODE_IMAGE:-ghcr.io/prizz/opencode-cloud-sandbox:latest}}"
+  : "${HOST_CONTAINER_NAME:=${OPENCODE_CONTAINER_NAME:-opencode-cloud-sandbox}}"
+  : "${CONTAINER_USERNAME:=${OPENCODE_USERNAME:-opencode}}"
+  : "${PUBLIC_OPENCODE_DOMAIN_URL:=${OPENCODE_DOMAIN_URL:-}}"
+  : "${PUBLIC_OPENCODE_ALB_URL:=${OPENCODE_ALB_URL:-}}"
 }
 
 opencode_setup_is_provisioned() {
@@ -156,9 +166,9 @@ opencode_setup_ensure_cli() {
     opencode_setup_log "opencode-cloud setup: opencode-cloud CLI installed"
   fi
 
-  OPENCODE_CLI_VERSION="$(opencode_setup_run_as_user "opencode-cloud --version 2>/dev/null || true")"
-  opencode_setup_log "opencode-cloud setup: current opencode-cloud path: $(opencode_setup_run_as_user 'command -v opencode-cloud || true')"
-  opencode_setup_log "opencode-cloud setup: current opencode-cloud version: ${OPENCODE_CLI_VERSION}"
+  HOST_OPENCODE_CLOUD_CLI_VERSION="$(opencode_setup_run_as_user "opencode-cloud --version 2>/dev/null || true")"
+  opencode_setup_log "opencode-cloud setup: current opencode-cloud CLI path: $(opencode_setup_run_as_user 'command -v opencode-cloud || true')"
+  opencode_setup_log "opencode-cloud setup: current opencode-cloud CLI version: ${HOST_OPENCODE_CLOUD_CLI_VERSION}"
 
   if ! opencode_setup_run_as_user "command -v opencode-cloud >/dev/null 2>&1"; then
     opencode_setup_log "opencode-cloud setup: opencode-cloud still missing after install"
@@ -204,23 +214,23 @@ opencode_setup_bootstrap_config() {
 }
 
 opencode_setup_create_user() {
-  if [ "${OPENCODE_USERNAME}" = "opencode" ]; then
-    opencode_setup_log "opencode-cloud setup: set password for user ${OPENCODE_USERNAME}"
-    OPENCODE_PASSWORD="$(opencode_setup_run_as_user \
-      "opencode-cloud user passwd \"${OPENCODE_USERNAME}\" --generate --print-password-only")"
+  if [ "${CONTAINER_USERNAME}" = "opencode" ]; then
+    opencode_setup_log "opencode-cloud setup: set password for user ${CONTAINER_USERNAME}"
+    CONTAINER_PASSWORD="$(opencode_setup_run_as_user \
+      "opencode-cloud user passwd \"${CONTAINER_USERNAME}\" --generate --print-password-only")"
   else
-    opencode_setup_log "opencode-cloud setup: create user ${OPENCODE_USERNAME}"
-    OPENCODE_PASSWORD="$(opencode_setup_run_as_user \
-      "opencode-cloud user add \"${OPENCODE_USERNAME}\" --generate --print-password-only")"
+    opencode_setup_log "opencode-cloud setup: create user ${CONTAINER_USERNAME}"
+    CONTAINER_PASSWORD="$(opencode_setup_run_as_user \
+      "opencode-cloud user add \"${CONTAINER_USERNAME}\" --generate --print-password-only")"
   fi
 
-  if [ -z "$OPENCODE_PASSWORD" ]; then
+  if [ -z "$CONTAINER_PASSWORD" ]; then
     opencode_setup_log "opencode-cloud setup: failed to read generated password"
     return 1
   fi
 
-  pass_len="$(printf '%s' "$OPENCODE_PASSWORD" | wc -c | tr -d ' ')"
-  printf 'user=%q pass_len=%s\n' "$OPENCODE_USERNAME" "$pass_len"
+  pass_len="$(printf '%s' "$CONTAINER_PASSWORD" | wc -c | tr -d ' ')"
+  printf 'user=%q pass_len=%s\n' "$CONTAINER_USERNAME" "$pass_len"
   opencode_setup_log "opencode-cloud setup: user created"
 }
 

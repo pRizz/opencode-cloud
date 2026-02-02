@@ -118,6 +118,30 @@ You can check the installed version on the instance:
 opencode-cloud --version
 ```
 
+## Provisioning Script Architecture
+
+The CloudFormation and cloud-init templates now bootstrap provisioning from
+repo scripts instead of embedding the full logic inline. This makes the setup
+flow reusable for other cloud providers while keeping AWS-specific steps
+isolated.
+
+- **Shared core**: `scripts/provisioning/opencode-cloud-setup.sh`
+- **CloudFormation wrapper**: `scripts/provisioning/opencode-cloud-setup-cloudformation.sh`
+- **Cloud-init wrapper**: `scripts/provisioning/opencode-cloud-setup-cloud-init.sh`
+
+The templates download these scripts from `main` at boot and run the wrapper
+appropriate for the environment.
+
+### Environment Variables (Host vs Container)
+
+`/etc/opencode-cloud/stack.env` is loaded by the shared script. Variables are
+scoped to make intent explicit:
+
+- **Host (Docker)**: `HOST_CONTAINER_IMAGE`, `HOST_CONTAINER_NAME`
+- **Container (opencode user)**: `CONTAINER_USERNAME`
+- **Public URLs**: `PUBLIC_OPENCODE_DOMAIN_URL`, `PUBLIC_OPENCODE_ALB_URL`
+- **Private Secrets Manager name**: `PRIVATE_CREDENTIALS_SECRET_NAME`
+
 ## Advanced Parameters
 
 ### Instance
