@@ -19,8 +19,8 @@ use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
     build_image, container_exists, container_is_running, exec_command, exec_command_with_status,
-    get_cli_version, get_image_version, has_previous_image, pull_image, rollback_image, save_state,
-    setup_and_start, stop_service,
+    get_cli_version, get_image_version, get_registry_latest_version, has_previous_image,
+    pull_image, rollback_image, save_state, setup_and_start, stop_service,
 };
 use std::process::Command;
 
@@ -677,6 +677,34 @@ async fn handle_update(
     let use_build = config.image_source == "build";
     let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
     let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
+    let maybe_registry_version = if quiet || use_build {
+        None
+    } else {
+        match get_registry_latest_version(client).await {
+            Ok(version) => version,
+            Err(err) => {
+                eprintln!("{} {err}", style("Warning:").yellow().bold());
+                None
+            }
+        }
+    };
+
+    if !quiet {
+        if let (Some(current), Some(latest)) = (
+            maybe_current_image_version.as_deref(),
+            maybe_registry_version.as_deref(),
+        ) {
+            if current == latest {
+                let check = style("✓").green();
+                eprintln!(
+                    "{} Container image is already up to date (version {}).",
+                    check,
+                    style(latest).dim()
+                );
+                return Ok(());
+            }
+        }
+    }
     let maybe_usage_before = if quiet {
         None
     } else {
@@ -720,6 +748,11 @@ async fn handle_update(
         eprintln!("Current:    {}", style(current).dim());
         if use_build {
             eprintln!("Target:     {}", style("build from source").dim());
+        } else if let Some(version) = maybe_registry_version.as_deref() {
+            eprintln!(
+                "Target:     {}",
+                style(format!("latest (registry, version {version})")).dim()
+            );
         } else {
             eprintln!("Target:     {}", style("latest (registry)").dim());
         }

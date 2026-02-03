@@ -2,14 +2,9 @@
 
 ## Pre-Commit Requirements
 
-Before creating any git commit, you MUST run these checks in order:
+Before creating any git commit, you MUST run `just pre-commit`.
 
-1. **Format code:** `just fmt`
-2. **Lint:** `just lint`
-3. **Verify release build:** `just build`
-4. **Run tests:** `just test`
-
-Only proceed with the commit if all four pass. If any fail, fix the issues first.
+Only proceed with the commit if it passes. If it fails, fix the issues first.
 
 ## Project Structure
 
@@ -26,6 +21,7 @@ just build       # Build all packages
 just test        # Run all tests
 just fmt         # Format all code
 just lint        # Lint all code
+just pre-commit  # Format, lint, build, and test
 just clean       # Clean build artifacts
 just run <args>  # Run CLI with arguments (e.g., just run status)
 ```

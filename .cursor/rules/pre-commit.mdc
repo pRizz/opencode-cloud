@@ -1,0 +1,8 @@
+---
+description: Run pre-commit checks before commits
+alwaysApply: true
+---
+
+# Pre-Commit Checks
+
+- Before creating any git commit, run `just pre-commit`.

@@ -21,6 +21,7 @@ mod health;
 pub mod image;
 pub mod mount;
 pub mod progress;
+mod registry;
 pub mod state;
 pub mod update;
 pub mod users;
@@ -47,7 +48,10 @@ pub use image::{build_image, image_exists, pull_image};
 pub use update::{UpdateResult, has_previous_image, rollback_image, update_image};
 
 // Version detection
-pub use version::{VERSION_LABEL, get_cli_version, get_image_version, versions_compatible};
+pub use version::{
+    VERSION_LABEL, get_cli_version, get_image_version, get_registry_latest_version,
+    versions_compatible,
+};
 
 // Container exec operations
 pub use exec::{
