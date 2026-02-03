@@ -2,6 +2,7 @@
 //!
 //! Starts the opencode service, building the image if needed.
 
+use crate::cli_platform::cli_platform_label;
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
@@ -357,8 +358,21 @@ async fn check_version_compatibility(
 
     println!();
     println!("{} Version mismatch detected", style("⚠").yellow());
-    println!("  CLI version:   {}", style(cli_version).cyan());
-    println!("  Image version: {}", style(&image_version).cyan());
+    let cli_label = format!("{} version:", cli_platform_label());
+    let image_label = "Image version:".to_string();
+    let label_width = cli_label.len().max(image_label.len());
+    println!(
+        "  {:width$} {}",
+        cli_label,
+        style(cli_version).cyan(),
+        width = label_width
+    );
+    println!(
+        "  {:width$} {}",
+        image_label,
+        style(&image_version).cyan(),
+        width = label_width
+    );
     println!();
 
     let selection = dialoguer::Select::new()

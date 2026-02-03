@@ -2,6 +2,7 @@
 //!
 //! This module contains the shared CLI implementation used by all binaries.
 
+mod cli_platform;
 mod commands;
 mod constants;
 mod output;

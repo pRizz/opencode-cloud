@@ -3,6 +3,7 @@
 //! Shows the current state of the opencode service including container info,
 //! port bindings, uptime, health status, and security configuration.
 
+use crate::cli_platform::cli_platform_label;
 use crate::commands::disk_usage::{
     format_disk_usage_report, format_host_disk_report, get_disk_usage_report, get_host_disk_report,
 };
@@ -213,7 +214,8 @@ pub async fn cmd_status(
 
     // Show CLI and image versions
     let cli_version = get_cli_version();
-    println!("{}", format_kv("CLI:", format!("v{cli_version}")));
+    let cli_label = format!("{}:", cli_platform_label());
+    println!("{}", format_kv(&cli_label, format!("v{cli_version}")));
 
     // Try to get image version from label
     if let Ok(Some(img_version)) = get_image_version(&client, &image).await
@@ -229,7 +231,9 @@ pub async fn cmd_status(
                     format!(
                         "v{} {}",
                         img_version,
-                        style("(differs from CLI)").yellow().dim()
+                        style(format!("(differs from {})", cli_platform_label()))
+                            .yellow()
+                            .dim()
                     )
                 )
             );

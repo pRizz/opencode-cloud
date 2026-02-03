@@ -2,6 +2,9 @@
 //!
 //! Updates the opencode image to the latest version or rolls back to previous version.
 
+use crate::cli_platform::{
+    CliInstallMethod, cli_platform_label, detect_install_method, is_dev_binary,
+};
 use crate::commands::disk_usage::{
     format_bytes_i64, format_disk_usage_report, format_host_disk_report, get_disk_usage_report,
     get_host_disk_report,
@@ -90,6 +93,11 @@ struct UpdateCandidate {
     available: bool,
     selectable: bool,
     note: Option<String>,
+}
+
+struct CliTargetVersion {
+    target: String,
+    compatible: Option<String>,
 }
 
 impl UpdateCandidate {
@@ -217,7 +225,8 @@ async fn cmd_update_selector(
     verbose: u8,
 ) -> Result<()> {
     let spinner = CommandSpinner::new_maybe("Checking for updates...", quiet);
-    spinner.update("Checking CLI version...");
+    let cli_label = cli_platform_label();
+    spinner.update(&format!("Checking {cli_label} version..."));
     let cli_candidate = build_cli_candidate();
 
     let (config, config_note) = load_update_config();
@@ -287,6 +296,7 @@ fn build_cli_candidate() -> UpdateCandidate {
     let mut selectable = true;
     let mut note = None;
     let mut target_display = None;
+    let label = cli_platform_label();
 
     if is_dev_binary() {
         selectable = false;
@@ -296,13 +306,19 @@ fn build_cli_candidate() -> UpdateCandidate {
         );
     } else if let Some(install_method) = detect_install_method() {
         let target_version = get_target_cli_version(&install_method);
-        match target_version.as_deref() {
-            Some(target) if target == current_cli => {
+        match target_version.as_ref() {
+            Some(target) if target.target == current_cli => {
                 available = false;
             }
             Some(target) => {
                 available = true;
-                target_display = Some(format!("v{target}"));
+                target_display = Some(format!("v{}", target.target));
+                if target.compatible.is_some() {
+                    note = Some(
+                        "Latest CLI requires a newer Rust toolchain. Run: rustup update, then re-run occ update cli."
+                            .to_string(),
+                    );
+                }
             }
             None => {
                 available = true;
@@ -319,7 +335,7 @@ fn build_cli_candidate() -> UpdateCandidate {
 
     UpdateCandidate {
         target: UpdateTarget::Cli,
-        label: "CLI",
+        label,
         current: format!("v{current_cli}"),
         target_display,
         available,
@@ -700,12 +716,43 @@ async fn run_selected_updates(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::parse_cargo_info_versions;
+
+    #[test]
+    fn parse_cargo_info_versions_latest() {
+        let output = "name: opencode-cloud\nversion: 10.4.0 (latest 11.0.0)\n";
+        let parsed = parse_cargo_info_versions(output).expect("should parse version");
+        assert_eq!(parsed.target, "11.0.0");
+        assert_eq!(parsed.compatible.as_deref(), Some("10.4.0"));
+    }
+
+    #[test]
+    fn parse_cargo_info_versions_plain() {
+        let output = "name: opencode-cloud\nversion: 11.0.0\n";
+        let parsed = parse_cargo_info_versions(output).expect("should parse version");
+        assert_eq!(parsed.target, "11.0.0");
+        assert!(parsed.compatible.is_none());
+    }
+
+    #[test]
+    fn parse_cargo_info_versions_from_path() {
+        let output = "name: opencode-cloud\nversion: 11.0.0 (from ./packages/cli-rust)\n";
+        let parsed = parse_cargo_info_versions(output).expect("should parse version");
+        assert_eq!(parsed.target, "11.0.0");
+        assert!(parsed.compatible.is_none());
+    }
+}
+
 async fn cmd_update_cli(
     args: &UpdateCliArgs,
     maybe_host: Option<&str>,
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
+    let cli_label = cli_platform_label();
+
     if is_dev_binary() {
         let message = [
             "You're running the dev build of opencode-cloud.",
@@ -737,13 +784,13 @@ async fn cmd_update_cli(
 
     let current_version = get_cli_version();
     let maybe_target_version = get_target_cli_version(&install_method);
-    if let Some(target_version) = maybe_target_version.as_deref()
-        && target_version == current_version
+    if let Some(target_version) = maybe_target_version.as_ref()
+        && target_version.target == current_version
     {
         if !quiet {
             let check = style("✓").green();
             eprintln!(
-                "{} opencode-cloud CLI is already up to date (version {}).",
+                "{} opencode-cloud {cli_label} is already up to date (version {}).",
                 check,
                 style(current_version).dim()
             );
@@ -754,22 +801,36 @@ async fn cmd_update_cli(
     if !quiet {
         eprintln!();
         eprintln!(
-            "{} This will update the opencode-cloud CLI and restart the service.",
+            "{} This will update the opencode-cloud {cli_label} and restart the service.",
             style("Warning:").yellow().bold()
         );
         eprintln!("Install:    {}", style(install_method.label()).dim());
         eprintln!("Current:    {}", style(current_version).dim());
-        if let Some(target_version) = maybe_target_version {
-            eprintln!("Target:     {}", style(target_version).dim());
+        if let Some(target_version) = maybe_target_version.as_ref() {
+            eprintln!(
+                "Target:     {}",
+                style(format!("v{}", target_version.target)).dim()
+            );
         } else {
             eprintln!("Target:     {}", style("latest").dim());
+        }
+        if let Some(target_version) = maybe_target_version.as_ref()
+            && target_version.compatible.is_some()
+        {
+            eprintln!();
+            eprintln!(
+                "{} Latest CLI requires a newer Rust toolchain.",
+                style("Warning:").yellow().bold()
+            );
+            eprintln!("  Run: {}", style("rustup update").dim());
+            eprintln!("  Then re-run: {}", style("occ update cli").dim());
         }
         eprintln!();
     }
 
     if !args.yes {
         let confirmed = Confirm::new()
-            .with_prompt("Continue with opencode-cloud update?")
+            .with_prompt(format!("Continue with opencode-cloud {cli_label} update?"))
             .default(true)
             .interact()?;
 
@@ -781,9 +842,15 @@ async fn cmd_update_cli(
         }
     }
 
-    let spinner = CommandSpinner::new_maybe("Updating opencode-cloud...", quiet);
-    install_method.run_update().map_err(|e| anyhow!("{e}"))?;
-    spinner.success("opencode-cloud updated");
+    let spinner =
+        CommandSpinner::new_maybe(&format!("Updating opencode-cloud {cli_label}..."), quiet);
+    let target_version = maybe_target_version
+        .as_ref()
+        .map(|info| info.target.as_str());
+    install_method
+        .run_update(target_version)
+        .map_err(|e| anyhow!("{e}"))?;
+    spinner.success(&format!("opencode-cloud {cli_label} updated"));
 
     let restart_args = RestartArgs {};
     cmd_restart(&restart_args, maybe_host, quiet, verbose).await?;
@@ -791,7 +858,7 @@ async fn cmd_update_cli(
     if !quiet {
         eprintln!();
         eprintln!(
-            "{} opencode-cloud updated successfully!",
+            "{} opencode-cloud {cli_label} updated successfully!",
             style("Success:").green().bold()
         );
         eprintln!();
@@ -800,42 +867,10 @@ async fn cmd_update_cli(
     Ok(())
 }
 
-enum InstallMethod {
-    Cargo,
-    Npm,
-}
-
-impl InstallMethod {
-    fn label(&self) -> &'static str {
-        match self {
-            InstallMethod::Cargo => "cargo install",
-            InstallMethod::Npm => "npm install -g",
-        }
-    }
-
-    fn run_update(&self) -> Result<(), String> {
-        let (program, args) = match self {
-            InstallMethod::Cargo => ("cargo", vec!["install", "opencode-cloud"]),
-            InstallMethod::Npm => ("npm", vec!["install", "-g", "opencode-cloud"]),
-        };
-
-        let status = std::process::Command::new(program)
-            .args(args)
-            .status()
-            .map_err(|e| format!("Failed to execute {program}: {e}"))?;
-
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!("{program} update failed with status {status}"))
-        }
-    }
-}
-
-fn get_target_cli_version(install_method: &InstallMethod) -> Option<String> {
+fn get_target_cli_version(install_method: &CliInstallMethod) -> Option<CliTargetVersion> {
     let (program, args) = match install_method {
-        InstallMethod::Cargo => ("cargo", vec!["info", "opencode-cloud"]),
-        InstallMethod::Npm => ("npm", vec!["view", "opencode-cloud", "version"]),
+        CliInstallMethod::Cargo => ("cargo", vec!["info", "opencode-cloud"]),
+        CliInstallMethod::Npm => ("npm", vec!["view", "opencode-cloud", "version"]),
     };
 
     let output = Command::new(program).args(args).output().ok()?;
@@ -845,18 +880,52 @@ fn get_target_cli_version(install_method: &InstallMethod) -> Option<String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     match install_method {
-        InstallMethod::Cargo => parse_cargo_info_version(&stdout),
-        InstallMethod::Npm => parse_npm_view_version(&stdout),
+        CliInstallMethod::Cargo => parse_cargo_info_versions(&stdout),
+        CliInstallMethod::Npm => parse_npm_view_version(&stdout).map(|version| CliTargetVersion {
+            target: version,
+            compatible: None,
+        }),
     }
 }
 
-fn parse_cargo_info_version(output: &str) -> Option<String> {
-    output
+fn parse_cargo_info_versions(output: &str) -> Option<CliTargetVersion> {
+    let line = output
         .lines()
         .map(str::trim)
-        .find(|line| line.starts_with("version:"))
-        .and_then(|line| line.split_once(':'))
-        .map(|(_, value)| value.trim().to_string())
+        .find(|line| line.starts_with("version:"))?;
+    let (_, value) = line.split_once(':')?;
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+
+    let first_token = value.split_whitespace().next()?;
+    let compatible = first_token.trim_matches(|ch| ch == '(' || ch == ')');
+    let latest = parse_latest_token(value);
+    let target = latest.unwrap_or_else(|| compatible.to_string());
+    let compatible = if target == compatible {
+        None
+    } else {
+        Some(compatible.to_string())
+    };
+
+    Some(CliTargetVersion { target, compatible })
+}
+
+fn parse_latest_token(value: &str) -> Option<String> {
+    let mut iter = value.split_whitespace();
+    while let Some(token) = iter.next() {
+        let cleaned = token.trim_matches(|ch| ch == '(' || ch == ')');
+        if cleaned == "latest" {
+            let next = iter.next()?;
+            let version = next.trim_matches(|ch| ch == '(' || ch == ')');
+            if version.is_empty() {
+                return None;
+            }
+            return Some(version.to_string());
+        }
+    }
+    None
 }
 
 fn parse_npm_view_version(output: &str) -> Option<String> {
@@ -866,31 +935,6 @@ fn parse_npm_view_version(output: &str) -> Option<String> {
     } else {
         Some(value.to_string())
     }
-}
-
-fn detect_install_method() -> Option<InstallMethod> {
-    let exe_path = std::env::current_exe().ok()?;
-    let exe_str = exe_path.to_string_lossy();
-
-    if exe_str.contains("node_modules") || exe_str.contains("@opencode-cloud") {
-        return Some(InstallMethod::Npm);
-    }
-
-    if exe_str.contains(".cargo") || exe_str.contains("cargo/bin") {
-        return Some(InstallMethod::Cargo);
-    }
-
-    None
-}
-
-fn is_dev_binary() -> bool {
-    let exe_path = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(_) => return false,
-    };
-    let exe_str = exe_path.to_string_lossy();
-
-    exe_str.contains("/target/debug/")
 }
 
 pub(crate) async fn cmd_update_opencode(
