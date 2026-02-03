@@ -26,7 +26,7 @@
 # - Self-managing installers (mise, rustup, etc.) trusted to handle versions
 #
 # To check for updates: just check-updates
-# Last version audit: 2026-01-22
+# Last version audit: 2026-02-03
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -198,15 +198,15 @@ ENV PATH="/home/opencode/.local/bin:${PATH}"
 RUN curl https://mise.run | sh \
     && echo 'eval "$(/home/opencode/.local/bin/mise activate zsh)"' >> /home/opencode/.zshrc
 
-# Install language runtimes via mise (2026-01-22)
-# - node@lts: mise handles LTS resolution (currently 22.x)
-# - python@3.12: pinned to minor version
-# - go@1.24: pinned to minor version (was @latest)
-RUN /home/opencode/.local/bin/mise install node@lts \
-    && /home/opencode/.local/bin/mise install python@3.12 \
+# Install language runtimes via mise (2026-02-03)
+# - node@25: pinned to major version
+# - python@3.14: pinned to major version
+# - go@1.24: pinned to minor version
+RUN /home/opencode/.local/bin/mise install node@25 \
+    && /home/opencode/.local/bin/mise install python@3.14 \
     && /home/opencode/.local/bin/mise install go@1.24 \
-    && /home/opencode/.local/bin/mise use --global node@lts \
-    && /home/opencode/.local/bin/mise use --global python@3.12 \
+    && /home/opencode/.local/bin/mise use --global node@25 \
+    && /home/opencode/.local/bin/mise use --global python@3.14 \
     && /home/opencode/.local/bin/mise use --global go@1.24
 
 # Set up mise shims in PATH for non-interactive shells
@@ -230,24 +230,25 @@ ENV PATH="/home/opencode/.cargo/bin:${PATH}"
 # Switch to bash for mise activation (mise outputs bash-specific syntax)
 SHELL ["/bin/bash", "-c"]
 
-# Install pnpm 10.x via corepack (2026-01-22)
+# Install pnpm 10.x via corepack (2026-02-03)
 RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
+    && npm install -g corepack \
     && corepack enable \
-    && corepack prepare pnpm@10.28.1 --activate
+    && corepack prepare pnpm@10.28.2 --activate
 
 # Set up pnpm global bin directory
 ENV PNPM_HOME="/home/opencode/.local/share/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
 RUN mkdir -p "${PNPM_HOME}"
 
-# bun - self-managing installer, trusted to handle versions
+# bun - self-managing installer, pinned to version (2026-02-03)
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
     && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun
 
 ENV PATH="/home/opencode/.bun/bin:${PATH}"
 
-# uv - self-managing installer, trusted to handle versions (fast Python package manager)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# uv - pinned installer (fast Python package manager) (2026-02-03)
+RUN curl -LsSf https://github.com/astral-sh/uv/releases/download/0.9.21/uv-installer.sh | sh
 
 # Install pipx for isolated Python application installs
 # Use BuildKit cache mount for pip cache
@@ -260,7 +261,7 @@ RUN --mount=type=cache,target=/home/opencode/.cache/pip,uid=1000,gid=1000,mode=0
 # Install global TypeScript compiler
 # NOTE: Avoid cache mount here to prevent pnpm store permission issues
 RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
-    && pnpm add -g typescript
+    && pnpm add -g typescript@5.9.2
 
 # -----------------------------------------------------------------------------
 # Modern CLI Tools (Rust-based) - pinned versions (2026-01-22)
@@ -527,8 +528,11 @@ USER opencode
 # -----------------------------------------------------------------------------
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
+# NOTE: OPENCODE_COMMIT is not tied to releases/tags; it tracks the latest stable
+# commit on the main branch of https://github.com/pRizz/opencode.
+# Update it by running: ./scripts/update-opencode-commit.sh
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="8a63844a3d3166273a83d5e94d8820d62ad82510" \
+RUN OPENCODE_COMMIT="cfe79755427fd8d3b94be76e1c7912bdc943a8ab" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
@@ -726,7 +730,7 @@ RUN /opt/opencode/bin/opencode --version
 # Note: If this fails in container builds due to "~" path resolution, retry with
 # OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
 RUN mkdir -p /home/opencode/.npm \
-    && npx --yes get-shit-done-cc --opencode --global \
+    && npx --yes get-shit-done-cc@1.11.1 --opencode --global \
     && rm -rf /home/opencode/.npm/_cacache /home/opencode/.npm/_npx
 
 # -----------------------------------------------------------------------------
