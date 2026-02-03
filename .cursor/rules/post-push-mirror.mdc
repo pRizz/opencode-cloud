@@ -1,0 +1,10 @@
+---
+description: Post-push: also push to mirror remote when configured
+alwaysApply: true
+---
+
+# Post-Push Mirror Remote
+
+- After any successful `git push`, also run `git push mirror`.
+- Only do this if a remote named `mirror` exists (check `git remote -v`).
+- If `mirror` is not configured, ignore this rule.
