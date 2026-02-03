@@ -13,6 +13,9 @@ use opencode_cloud_core::docker::{
 
 /// Arguments for the user passwd command
 #[derive(Args)]
+#[command(
+    after_help = "Tip: Use --generate (-g) to auto-generate a secure password instead of typing one."
+)]
 pub struct UserPasswdArgs {
     /// Username to change password for
     pub username: String,
@@ -48,6 +51,13 @@ pub async fn cmd_user_passwd(
     let password = if args.generate {
         generate_random_password()
     } else {
+        if !quiet {
+            println!(
+                "  {} Use {} to auto-generate a secure password.",
+                style("Tip:").cyan(),
+                style("--generate (-g)").bold()
+            );
+        }
         Password::new()
             .with_prompt("New password")
             .with_confirmation("Confirm new password", "Passwords do not match")
