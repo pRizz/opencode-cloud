@@ -801,7 +801,7 @@ mod tests {
     #[test]
     fn format_build_error_includes_recent_logs() {
         let mut logs = VecDeque::new();
-        logs.push_back("Step 1/5 : FROM ubuntu:22.04".to_string());
+        logs.push_back("Step 1/5 : FROM ubuntu:24.04".to_string());
         logs.push_back("Step 2/5 : RUN apt-get update".to_string());
         logs.push_back("E: Unable to fetch some archives".to_string());
         let error_logs = VecDeque::new();

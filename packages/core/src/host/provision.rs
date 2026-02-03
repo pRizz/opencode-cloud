@@ -44,9 +44,9 @@ pub struct DistroInfo {
     pub family: DistroFamily,
     /// Distribution ID (e.g., "ubuntu", "amzn", "debian")
     pub id: String,
-    /// Pretty name (e.g., "Ubuntu 22.04.3 LTS")
+    /// Pretty name (e.g., "Ubuntu 24.04 LTS")
     pub pretty_name: String,
-    /// Version ID (e.g., "22.04", "2023")
+    /// Version ID (e.g., "24.04", "2023")
     pub version_id: Option<String>,
 }
 
@@ -327,18 +327,18 @@ mod tests {
     #[test]
     fn test_parse_os_release_ubuntu() {
         let content = r#"
-PRETTY_NAME="Ubuntu 22.04.3 LTS"
+PRETTY_NAME="Ubuntu 24.04 LTS"
 NAME="Ubuntu"
-VERSION_ID="22.04"
-VERSION="22.04.3 LTS (Jammy Jellyfish)"
-VERSION_CODENAME=jammy
+VERSION_ID="24.04"
+VERSION="24.04 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
 ID=ubuntu
 ID_LIKE=debian
 "#;
         let info = parse_os_release(content).unwrap();
         assert_eq!(info.family, DistroFamily::Debian);
         assert_eq!(info.id, "ubuntu");
-        assert_eq!(info.version_id, Some("22.04".to_string()));
+        assert_eq!(info.version_id, Some("24.04".to_string()));
     }
 
     #[test]
@@ -375,8 +375,8 @@ ID=debian
         let debian_info = DistroInfo {
             family: DistroFamily::Debian,
             id: "ubuntu".to_string(),
-            pretty_name: "Ubuntu 22.04".to_string(),
-            version_id: Some("22.04".to_string()),
+            pretty_name: "Ubuntu 24.04".to_string(),
+            version_id: Some("24.04".to_string()),
         };
         let commands = get_docker_install_commands(&debian_info).unwrap();
         assert!(!commands.is_empty());
