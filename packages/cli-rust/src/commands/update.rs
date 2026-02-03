@@ -680,9 +680,14 @@ async fn handle_update(
     let maybe_registry_version = if quiet || use_build {
         None
     } else {
+        let spinner = CommandSpinner::new_maybe("Checking registry version...", quiet);
         match get_registry_latest_version(client).await {
-            Ok(version) => version,
+            Ok(version) => {
+                spinner.success("Registry version checked");
+                version
+            }
             Err(err) => {
+                spinner.fail("Failed to check registry version");
                 eprintln!("{} {err}", style("Warning:").yellow().bold());
                 None
             }
