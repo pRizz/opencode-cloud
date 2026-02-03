@@ -25,17 +25,22 @@ pub struct SetupArgs {
     pub bootstrap: bool,
 
     /// Run setup for a remote host instead of local Docker
-    #[arg(long)]
-    pub host: Option<String>,
+    #[arg(long, conflicts_with = "local")]
+    pub remote_host: Option<String>,
+
+    /// Force local Docker (ignores default_host)
+    #[arg(long, conflicts_with = "remote_host")]
+    pub local: bool,
 }
 
 /// Run the setup command
 pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     // Load existing config (or create default)
     let existing_config = load_config_or_default().ok();
+    let target_host = crate::resolve_target_host(args.remote_host.as_deref(), args.local);
 
     if args.bootstrap {
-        return run_bootstrap_setup(existing_config, args.host.as_deref(), quiet).await;
+        return run_bootstrap_setup(existing_config, target_host.as_deref(), quiet).await;
     }
 
     // Handle --yes flag for non-interactive mode
@@ -75,7 +80,7 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     println!();
 
     // Check if container is already running
-    let (client, host_name) = crate::resolve_docker_client(args.host.as_deref()).await?;
+    let (client, host_name) = crate::resolve_docker_client(target_host.as_deref()).await?;
     let is_running = container_is_running(&client, CONTAINER_NAME)
         .await
         .unwrap_or(false);
@@ -117,7 +122,7 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
             timeout: 60,
             remove: false,
         };
-        cmd_stop(&stop_args, args.host.as_deref(), quiet).await?;
+        cmd_stop(&stop_args, target_host.as_deref(), quiet).await?;
         println!();
     }
 
@@ -126,14 +131,14 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
         port: Some(new_config.opencode_web_port),
         ..Default::default()
     };
-    cmd_start(&start_args, args.host.as_deref(), quiet, 0).await?;
+    cmd_start(&start_args, target_host.as_deref(), quiet, 0).await?;
 
     Ok(())
 }
 
 async fn run_bootstrap_setup(
     existing_config: Option<Config>,
-    host: Option<&str>,
+    target_host: Option<&str>,
     quiet: bool,
 ) -> Result<()> {
     let new_config = build_bootstrap_config(existing_config.clone());
@@ -143,7 +148,7 @@ async fn run_bootstrap_setup(
         return start_or_restart_after_setup(
             existing_config.as_ref(),
             &new_config,
-            host,
+            target_host,
             quiet,
             true,
         )
@@ -161,7 +166,14 @@ async fn run_bootstrap_setup(
     );
     println!();
 
-    start_or_restart_after_setup(existing_config.as_ref(), &new_config, host, quiet, true).await
+    start_or_restart_after_setup(
+        existing_config.as_ref(),
+        &new_config,
+        target_host,
+        quiet,
+        true,
+    )
+    .await
 }
 
 fn build_bootstrap_config(existing_config: Option<Config>) -> Config {
@@ -176,11 +188,11 @@ fn build_bootstrap_config(existing_config: Option<Config>) -> Config {
 async fn start_or_restart_after_setup(
     existing_config: Option<&Config>,
     new_config: &Config,
-    host: Option<&str>,
+    target_host: Option<&str>,
     quiet: bool,
     non_interactive: bool,
 ) -> Result<()> {
-    let (client, host_name) = crate::resolve_docker_client(host).await?;
+    let (client, host_name) = crate::resolve_docker_client(target_host).await?;
     let is_running = container_is_running(&client, CONTAINER_NAME)
         .await
         .unwrap_or(false);
@@ -199,14 +211,14 @@ async fn start_or_restart_after_setup(
             timeout: 60,
             remove: false,
         };
-        cmd_stop(&stop_args, host, quiet || non_interactive).await?;
+        cmd_stop(&stop_args, target_host, quiet || non_interactive).await?;
     }
 
     let start_args = crate::commands::StartArgs {
         port: Some(new_config.opencode_web_port),
         ..Default::default()
     };
-    cmd_start(&start_args, host, quiet || non_interactive, 0).await?;
+    cmd_start(&start_args, target_host, quiet || non_interactive, 0).await?;
     Ok(())
 }
 

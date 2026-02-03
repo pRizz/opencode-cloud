@@ -103,7 +103,7 @@ async fn cmd_reset_container(
     if (args.clean_mounts || args.purge_mounts) && is_remote_host(maybe_host) {
         bail!(
             "Mount cleanup is only supported for local hosts.\n\
-             Run without --host or use --host local on the machine where the mounts exist."
+             Run without --remote-host or use --local on the machine where the mounts exist."
         );
     }
 
@@ -263,7 +263,7 @@ async fn cmd_reset_host(
     if is_remote_host(maybe_host) {
         bail!(
             "Host reset is only supported on the local machine.\n\
-             Run without --host or use --host local."
+             Run without --remote-host or use --local."
         );
     }
 

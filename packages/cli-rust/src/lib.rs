@@ -40,8 +40,12 @@ struct Cli {
     no_color: bool,
 
     /// Target remote host (overrides default_host)
-    #[arg(long, global = true)]
-    host: Option<String>,
+    #[arg(long, global = true, conflicts_with = "local")]
+    remote_host: Option<String>,
+
+    /// Force local Docker (ignores default_host)
+    #[arg(long, global = true, conflicts_with = "remote_host")]
+    local: bool,
 }
 
 #[derive(Subcommand)]
@@ -90,26 +94,39 @@ fn get_banner() -> &'static str {
 "#
 }
 
-/// Resolve which Docker client to use based on --host flag and default_host config
-///
-/// Returns (DockerClient, Option<host_name>) where host_name is Some for remote connections.
+/// Resolve the target host name based on flags and hosts.json
 ///
 /// Resolution order:
-/// 1. --host flag (explicit)
-/// 2. default_host from hosts.json
-/// 3. Local Docker (no host_name)
+/// 1. --local (force local Docker)
+/// 2. --remote-host flag (explicit)
+/// 3. default_host from hosts.json
+/// 4. Local Docker (no host_name)
+pub fn resolve_target_host(remote_host: Option<&str>, force_local: bool) -> Option<String> {
+    if force_local {
+        return None;
+    }
+
+    if let Some(name) = remote_host {
+        return Some(name.to_string());
+    }
+
+    let hosts = load_hosts().unwrap_or_default();
+    hosts.default_host.clone()
+}
+
+/// Resolve which Docker client to use based on an explicit target host name
+///
+/// Returns (DockerClient, Option<host_name>) where host_name is Some for remote connections.
 pub async fn resolve_docker_client(
     maybe_host: Option<&str>,
 ) -> anyhow::Result<(DockerClient, Option<String>)> {
     let hosts = load_hosts().unwrap_or_default();
 
     // Determine target host
-    let target_host = maybe_host
-        .map(String::from)
-        .or_else(|| hosts.default_host.clone());
+    let target_host = maybe_host.map(String::from);
 
     match target_host {
-        Some(name) if name != "local" && !name.is_empty() => {
+        Some(name) => {
             // Remote host requested
             let host_config = hosts.get_host(&name).ok_or_else(|| {
                 anyhow::anyhow!(
@@ -120,7 +137,7 @@ pub async fn resolve_docker_client(
             let client = DockerClient::connect_remote(host_config, &name).await?;
             Ok((client, Some(name)))
         }
-        _ => {
+        None => {
             // Local Docker
             let client = DockerClient::new()?;
             Ok((client, None))
@@ -228,8 +245,8 @@ pub fn run() -> Result<()> {
         eprintln!("{} Data: {}", style("[info]").cyan(), data_dir);
     }
 
-    // Store host flag for command handlers
-    let target_host = cli.host.clone();
+    // Store target host for command handlers
+    let target_host = resolve_target_host(cli.remote_host.as_deref(), cli.local);
 
     match cli.command {
         Some(Commands::Start(args)) => {

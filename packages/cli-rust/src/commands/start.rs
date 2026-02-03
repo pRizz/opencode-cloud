@@ -1094,7 +1094,7 @@ fn show_start_result(
     quiet: bool,
     host_name: Option<&str>,
 ) {
-    // Get remote host address if using --host
+    // Get remote host address if using --remote-host
     let maybe_remote_addr = resolve_remote_addr(host_name);
 
     if quiet {

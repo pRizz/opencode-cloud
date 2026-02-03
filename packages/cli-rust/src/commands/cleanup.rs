@@ -3,7 +3,6 @@
 use anyhow::{Context, Result, bail};
 use opencode_cloud_core::config::{Config, get_config_path, load_config_or_default};
 use opencode_cloud_core::docker::ParsedMount;
-use opencode_cloud_core::load_hosts;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -25,20 +24,8 @@ impl MountCleanupResult {
     }
 }
 
-pub fn resolve_target_host_name(maybe_host: Option<&str>) -> Option<String> {
-    if let Some(name) = maybe_host {
-        return Some(name.to_string());
-    }
-
-    let hosts = load_hosts().unwrap_or_default();
-    hosts.default_host.clone()
-}
-
 pub fn is_remote_host(maybe_host: Option<&str>) -> bool {
-    matches!(
-        resolve_target_host_name(maybe_host),
-        Some(name) if !name.is_empty() && name != "local"
-    )
+    matches!(maybe_host, Some(name) if !name.is_empty())
 }
 
 pub fn load_config_for_mounts(include_defaults_if_missing: bool) -> Result<(Config, bool)> {

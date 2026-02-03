@@ -30,7 +30,7 @@ pub async fn cmd_mount_clean(
     if is_remote_host(maybe_host) {
         return Err(anyhow!(
             "Mount cleanup is only supported for local hosts.\n\
-             Run without --host or use --host local on the machine where the mounts exist."
+             Run without --remote-host or use --local on the machine where the mounts exist."
         ));
     }
 

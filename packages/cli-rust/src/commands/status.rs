@@ -156,7 +156,7 @@ pub async fn cmd_status(
         .map(|cfg| cfg.bind_address.as_str())
         .unwrap_or("127.0.0.1");
 
-    // Get remote host address if using --host
+    // Get remote host address if using --remote-host
     let maybe_remote_addr = resolve_remote_addr(host_name.as_deref());
 
     // Normal mode: print formatted status
@@ -579,7 +579,7 @@ fn print_cockpit(
         )
     );
     let user_cmd = if let Some(name) = maybe_host_name {
-        format!("occ user add <username> --host {name}")
+        format!("occ user add <username> --remote-host {name}")
     } else {
         "occ user add <username>".to_string()
     };

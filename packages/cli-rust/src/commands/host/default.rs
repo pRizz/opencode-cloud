@@ -75,7 +75,7 @@ pub async fn cmd_host_default(args: &HostDefaultArgs, quiet: bool, _verbose: u8)
                     "  {} Commands will now target {} unless {} is specified.",
                     style("Note:").dim(),
                     style(name).cyan(),
-                    style("--host").yellow()
+                    style("--remote-host or --local").yellow()
                 );
             }
             Ok(())
