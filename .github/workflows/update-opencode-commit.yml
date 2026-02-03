@@ -27,6 +27,9 @@ jobs:
         run: |
           ./scripts/update-opencode-commit.sh
 
+      - name: Verify OCI description label
+        run: python3 scripts/extract-oci-description.py packages/core/src/docker/Dockerfile
+
       - name: Commit and push if changed
         run: |
           if git diff --quiet; then

@@ -60,6 +60,16 @@ jobs:
           # when called via workflow_call, defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
 
+      # NOTE: We parse the description label from the Dockerfile so the
+      # multi-arch manifest annotation stays in sync and GHCR shows a description.
+      # If you change the label format or quoting, update the extraction logic.
+      - name: Extract OCI description
+        id: oci-description
+        run: |
+          set -euo pipefail
+          description="$(python3 scripts/extract-oci-description.py packages/core/src/docker/Dockerfile)"
+          echo "description=${description}" >> "$GITHUB_OUTPUT"
+
       - name: Extract version
         id: version
         run: |
@@ -196,6 +206,8 @@ jobs:
             OPENCODE_CLOUD_VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: |
+            org.opencontainers.image.description=${{ steps.oci-description.outputs.description }}
           # Scoped cache prevents thrash between test and publish builds.
           # GHA cache v2 improves compatibility with the current cache API.
           cache-from: |
