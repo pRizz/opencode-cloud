@@ -30,9 +30,9 @@
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Stage 1: Runtime
+# Stage 1: Base
 # -----------------------------------------------------------------------------
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:24.04 AS base
 
 # OCI Labels for image metadata
 LABEL org.opencontainers.image.title="opencode-cloud"
@@ -236,6 +236,11 @@ ENV PNPM_HOME="/home/opencode/.local/share/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
 RUN mkdir -p "${PNPM_HOME}"
 
+# bun - self-managing installer, trusted to handle versions
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
+    && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun
+
+ENV PATH="/home/opencode/.bun/bin:${PATH}"
 
 # uv - self-managing installer, trusted to handle versions (fast Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -496,6 +501,11 @@ RUN printf '%s\n' \
 RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
 
 # -----------------------------------------------------------------------------
+# Stage 2: opencode build
+# -----------------------------------------------------------------------------
+FROM base AS opencode-build
+
+# -----------------------------------------------------------------------------
 # opencode Setup (Fork + Broker + Proxy)
 # -----------------------------------------------------------------------------
 # Keep this block near the end to preserve cache for earlier layers. We expect
@@ -504,11 +514,9 @@ RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshr
 # This block includes:
 # - opencode build (backend binary) + app build (frontend dist)
 # - opencode-broker build
-# - opencode web build + runtime
-# - PAM configuration + systemd services
-# - opencode config file
 #
-# NOTE: This section switches between opencode and root users as needed.
+# NOTE: This stage uses opencode user + sudo for privileged installs.
+USER opencode
 
 # -----------------------------------------------------------------------------
 # opencode Installation (Fork from pRizz/opencode)
@@ -522,12 +530,9 @@ RUN OPENCODE_COMMIT="8a63844a3d3166273a83d5e94d8820d62ad82510" \
     && cd /tmp/opencode-repo \
     && git fetch --depth 1 origin "${OPENCODE_COMMIT}" \
     && git checkout "${OPENCODE_COMMIT}" \
-    && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
-    && export PATH="/home/opencode/.bun/bin:${PATH}" \
     && bun install --frozen-lockfile \
     && cd packages/opencode \
     && bun run build-single-ui \
-    && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun \
     && cd /tmp/opencode-repo \
     && sudo mkdir -p /opt/opencode/bin /opt/opencode/ui \
     && echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null \
@@ -536,30 +541,21 @@ RUN OPENCODE_COMMIT="8a63844a3d3166273a83d5e94d8820d62ad82510" \
     && sudo cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/ \
     && sudo chown -R opencode:opencode /opt/opencode \
     && sudo chmod +x /opt/opencode/bin/opencode \
-    && /opt/opencode/bin/opencode --version
+    && cd /tmp/opencode-repo/packages/opencode-broker \
+    && cargo build --release \
+    && sudo mkdir -p /usr/local/bin \
+    && sudo cp target/release/opencode-broker /usr/local/bin/opencode-broker \
+    && sudo chmod 4755 /usr/local/bin/opencode-broker \
+    && rm -rf /tmp/opencode-repo \
+    && rm -rf /home/opencode/.bun/install/cache /home/opencode/.bun/cache /home/opencode/.cache/bun
+
+# -----------------------------------------------------------------------------
+# Stage 3: Runtime
+# -----------------------------------------------------------------------------
+FROM base AS runtime
 
 # Add opencode to PATH
 ENV PATH="/opt/opencode/bin:${PATH}"
-
-# -----------------------------------------------------------------------------
-# opencode-broker Installation
-# -----------------------------------------------------------------------------
-# Build opencode-broker from source (Rust service for PAM authentication)
-# The broker handles PAM authentication and user process spawning
-# NOTE: Requires root privileges for setuid bit (chmod 4755) to allow broker
-# to run with elevated privileges for PAM authentication
-USER root
-RUN cd /tmp/opencode-repo/packages/opencode-broker \
-    && runuser -u opencode -- bash -c '. /home/opencode/.cargo/env && cargo build --release' \
-    && mkdir -p /usr/local/bin \
-    && cp target/release/opencode-broker /usr/local/bin/opencode-broker \
-    && chmod 4755 /usr/local/bin/opencode-broker \
-    && rm -rf /tmp/opencode-repo
-
-# Verify broker binary exists and is executable
-RUN ls -la /usr/local/bin/opencode-broker \
-    && test -x /usr/local/bin/opencode-broker \
-    && echo "Broker installed"
 
 # -----------------------------------------------------------------------------
 # PAM Configuration
@@ -567,6 +563,7 @@ RUN ls -la /usr/local/bin/opencode-broker \
 # Install PAM configuration for opencode authentication
 # This allows opencode to authenticate users via PAM (same users as Cockpit)
 # NOTE: Requires root privileges to write to /etc/pam.d/
+USER root
 RUN printf '%s\n' \
     '# PAM configuration for OpenCode authentication' \
     '# Install to /etc/pam.d/opencode' \
@@ -625,24 +622,11 @@ RUN printf '%s\n' \
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
     && ln -sf /etc/systemd/system/opencode-broker.service /etc/systemd/system/multi-user.target.wants/opencode-broker.service
 
-USER opencode
-
-# -----------------------------------------------------------------------------
-# GSD Plugin Installation
-# -----------------------------------------------------------------------------
-# Install the GSD (Get Shit Done) plugin for opencode
-# Note: If this fails in container builds due to "~" path resolution, retry with
-# OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
-RUN mkdir -p /home/opencode/.npm \
-    && npx --yes get-shit-done-cc --opencode --global \
-    && rm -rf /home/opencode/.npm/_cacache /home/opencode/.npm/_npx
-
 # -----------------------------------------------------------------------------
 # opencode systemd Service (2026-01-22)
 # -----------------------------------------------------------------------------
 # Create opencode as a systemd service for Cockpit integration
 # NOTE: Requires root privileges to write to /etc/systemd/system/
-USER root
 RUN printf '%s\n' \
     '[Unit]' \
     'Description=opencode Web Interface' \
@@ -655,7 +639,7 @@ RUN printf '%s\n' \
     'ExecStart=/opt/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
     'Restart=always' \
     'RestartSec=5' \
-    'Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+    'Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/home/opencode/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
     '' \
     '[Install]' \
     'WantedBy=multi-user.target' \
@@ -683,15 +667,12 @@ RUN mkdir -p /home/opencode/.config/opencode \
 # Verify config file exists
 RUN ls -la /home/opencode/.config/opencode/opencode.jsonc && cat /home/opencode/.config/opencode/opencode.jsonc
 
-USER opencode
-
 # -----------------------------------------------------------------------------
 # Entrypoint Script (Hybrid Init Support)
 # -----------------------------------------------------------------------------
 # Supports both tini (default, works everywhere) and systemd (for Cockpit on Linux)
 # Set USE_SYSTEMD=1 environment variable to use systemd init
 # Note: Entrypoint runs as root to support both modes; tini mode drops to opencode user
-USER root
 RUN printf '%s\n' \
     '#!/bin/bash' \
     'if [ "${USE_SYSTEMD}" = "1" ]; then' \
@@ -715,6 +696,34 @@ RUN printf '%s\n' \
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f -H "Accept: text/html" http://localhost:3000/ || exit 1
+
+# -----------------------------------------------------------------------------
+# opencode Artifacts
+# -----------------------------------------------------------------------------
+COPY --from=opencode-build /opt/opencode /opt/opencode
+COPY --from=opencode-build /usr/local/bin/opencode-broker /usr/local/bin/opencode-broker
+
+RUN chown -R opencode:opencode /opt/opencode \
+    && chmod +x /opt/opencode/bin/opencode \
+    && chmod 4755 /usr/local/bin/opencode-broker
+
+# Verify broker binary exists and is executable
+RUN ls -la /usr/local/bin/opencode-broker \
+    && test -x /usr/local/bin/opencode-broker \
+    && echo "Broker installed"
+
+USER opencode
+RUN /opt/opencode/bin/opencode --version
+
+# -----------------------------------------------------------------------------
+# GSD Plugin Installation
+# -----------------------------------------------------------------------------
+# Install the GSD (Get Shit Done) plugin for opencode
+# Note: If this fails in container builds due to "~" path resolution, retry with
+# OPENCODE_CONFIG_DIR=/home/opencode/.config/opencode set explicitly.
+RUN mkdir -p /home/opencode/.npm \
+    && npx --yes get-shit-done-cc --opencode --global \
+    && rm -rf /home/opencode/.npm/_cacache /home/opencode/.npm/_npx
 
 # -----------------------------------------------------------------------------
 # Version File

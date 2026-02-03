@@ -196,6 +196,9 @@ occ stop
 # Restart the service
 occ restart
 
+# Check for updates and choose what to update
+occ update
+
 # Update the opencode-cloud CLI binary
 occ update cli
 
