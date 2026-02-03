@@ -62,22 +62,23 @@ pub async fn stop_service_with_spinner(
 
     let stop_future = stop_service(client, remove, Some(timeout_secs));
     tokio::pin!(stop_future);
-    let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
-    let mut input = String::new();
+
+    let (stdin_handle, stdin_abort) = spawn_enter_listener();
 
     let outcome = tokio::select! {
-        result = &mut stop_future => StopOutcome::Graceful(result),
-        read_result = stdin.read_line(&mut input) => {
-            match read_result {
-                Ok(0) => StopOutcome::Graceful(stop_future.await),
-                Ok(_) => {
-                    spinner.update(&crate::format_host_message(
-                        host_name,
-                        &format!("{} (forcing stop now)...", messages.update_label),
-                    ));
-                    StopOutcome::Forced(stop_service(client, remove, Some(0)).await)
-                }
-                Err(_) => StopOutcome::Graceful(stop_future.await),
+        result = &mut stop_future => {
+            stdin_abort.abort();
+            StopOutcome::Graceful(result)
+        }
+        join_result = stdin_handle => {
+            if user_pressed_enter(join_result) {
+                spinner.update(&crate::format_host_message(
+                    host_name,
+                    &format!("{} (forcing stop now)...", messages.update_label),
+                ));
+                StopOutcome::Forced(stop_service(client, remove, Some(0)).await)
+            } else {
+                StopOutcome::Graceful(stop_future.await)
             }
         }
     };
@@ -165,4 +166,28 @@ fn stop_success_message(
     };
 
     (message, should_warn)
+}
+
+/// Spawns an abortable task that waits for the user to press Enter.
+///
+/// Returns (JoinHandle, AbortHandle) so the caller can race against other futures
+/// and abort the stdin reader when no longer needed. This prevents the program from
+/// hanging, as tokio's async stdin spawns an internal blocking thread that persists
+/// even after the future is dropped.
+fn spawn_enter_listener() -> (
+    tokio::task::JoinHandle<std::io::Result<bool>>,
+    tokio::task::AbortHandle,
+) {
+    let handle = tokio::spawn(async move {
+        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
+        let mut input = String::new();
+        stdin.read_line(&mut input).await.map(|n| n > 0)
+    });
+    let abort = handle.abort_handle();
+    (handle, abort)
+}
+
+/// Returns true if the stdin task result indicates the user pressed Enter.
+fn user_pressed_enter(join_result: Result<std::io::Result<bool>, tokio::task::JoinError>) -> bool {
+    matches!(join_result, Ok(Ok(true)))
 }
