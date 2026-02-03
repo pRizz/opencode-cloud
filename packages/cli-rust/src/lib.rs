@@ -74,7 +74,7 @@ enum Commands {
     Mount(commands::MountArgs),
     /// Reset containers, mounts, and host data
     Reset(commands::ResetArgs),
-    /// Update to the latest version or rollback
+    /// Update to the latest version or rollback (interactive when no subcommand is provided)
     Update(commands::UpdateArgs),
     /// Open Cockpit web console
     #[command(hide = true)]

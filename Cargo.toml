@@ -42,6 +42,7 @@ tokio-retry = "0.3"
 indicatif = { version = "0.17", features = ["tokio", "futures"] }
 http-body-util = "0.1"
 bytes = "1.9"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 # CLI utilities
 webbrowser = "1.0"

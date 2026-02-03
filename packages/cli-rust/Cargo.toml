@@ -40,6 +40,7 @@ comfy-table.workspace = true
 serde.workspace = true
 rand.workspace = true
 sysinfo.workspace = true
+reqwest.workspace = true
 dirs = "6"
 
 [dev-dependencies]

@@ -12,7 +12,7 @@ use crate::output::CommandSpinner;
 use anyhow::{Result, anyhow};
 use clap::{Args, Subcommand};
 use console::style;
-use dialoguer::Confirm;
+use dialoguer::{Confirm, MultiSelect};
 use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::update::PREVIOUS_TAG;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
@@ -20,8 +20,9 @@ use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
     build_image, container_exists, container_is_running, exec_command, exec_command_with_status,
     get_cli_version, get_image_version, get_registry_latest_version, has_previous_image,
-    pull_image, rollback_image, save_state, setup_and_start, stop_service,
+    image_exists, pull_image, rollback_image, save_state, setup_and_start, stop_service,
 };
+use serde::Deserialize;
 use std::process::Command;
 
 /// Arguments for the update command
@@ -74,6 +75,59 @@ pub struct UpdateOpencodeArgs {
     pub yes: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum UpdateTarget {
+    Cli,
+    Container,
+    Opencode,
+}
+
+struct UpdateCandidate {
+    target: UpdateTarget,
+    label: &'static str,
+    current: String,
+    target_display: Option<String>,
+    available: bool,
+    selectable: bool,
+    note: Option<String>,
+}
+
+impl UpdateCandidate {
+    fn target_display(&self) -> &str {
+        self.target_display.as_deref().unwrap_or("latest")
+    }
+
+    fn summary_line(&self) -> String {
+        let label = format!("{:<10}", self.label);
+        if self.available {
+            format!(
+                "{} {} -> {}",
+                label,
+                format_value(&self.current),
+                format_value(self.target_display())
+            )
+        } else if !self.selectable {
+            format!("{} {} (unavailable)", label, format_value(&self.current))
+        } else {
+            format!("{} {} (up to date)", label, format_value(&self.current))
+        }
+    }
+
+    fn selection_label(&self) -> String {
+        let label = format!("{:<10}", self.label);
+        format!(
+            "{} {} -> {}",
+            label,
+            format_value(&self.current),
+            format_value(self.target_display())
+        )
+    }
+}
+
+fn format_value(value: &str) -> String {
+    format!("{}", style(value).dim())
+}
+
 /// Update the opencode image to the latest version
 ///
 /// This command:
@@ -105,13 +159,9 @@ pub async fn cmd_update(
         }
         Some(UpdateCommand::Container) => {}
         None => {
-            if !quiet {
-                eprintln!(
-                    "{} Missing subcommand. Use one of:\n  occ update cli\n  occ update container\n  occ update opencode",
-                    style("Error:").red().bold()
-                );
+            if !args.rollback {
+                return cmd_update_selector(args, maybe_host, quiet, verbose).await;
             }
-            return Ok(());
         }
     }
 
@@ -158,6 +208,497 @@ pub async fn cmd_update(
         )
         .await
     }
+}
+
+async fn cmd_update_selector(
+    args: &UpdateArgs,
+    maybe_host: Option<&str>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<()> {
+    let spinner = CommandSpinner::new_maybe("Checking for updates...", quiet);
+    spinner.update("Checking CLI version...");
+    let cli_candidate = build_cli_candidate();
+
+    let (config, config_note) = load_update_config();
+    let (docker_client, docker_note) =
+        resolve_update_docker(config.is_some(), maybe_host, verbose).await;
+
+    spinner.update("Checking container image...");
+    let container_candidate = build_container_candidate(
+        config.as_ref(),
+        docker_client.as_ref(),
+        config_note.as_deref(),
+        docker_note.as_deref(),
+    )
+    .await;
+
+    spinner.update("Checking opencode commit...");
+    let (latest_opencode_commit, opencode_note) = match fetch_latest_opencode_commit().await {
+        Ok(commit) => (Some(commit), None),
+        Err(err) => (
+            None,
+            Some(format!("Failed to fetch latest opencode commit: {err}")),
+        ),
+    };
+    let opencode_candidate = build_opencode_candidate(
+        config.is_some(),
+        docker_client.as_ref(),
+        config_note.as_deref(),
+        docker_note.as_deref(),
+        latest_opencode_commit.as_deref(),
+        opencode_note.as_deref(),
+    )
+    .await;
+
+    spinner.success("Update check complete");
+
+    let candidates = vec![cli_candidate, container_candidate, opencode_candidate];
+    print_update_summary(&candidates, quiet);
+
+    let selected_targets = select_update_targets(args, &candidates, quiet)?;
+    if selected_targets.is_empty() {
+        return Ok(());
+    }
+
+    if !confirm_update_selection(args)? {
+        if !quiet {
+            eprintln!("Update cancelled.");
+        }
+        return Ok(());
+    }
+
+    let selection = UpdateSelection::from_targets(&selected_targets);
+    run_selected_updates(
+        selection,
+        config.as_ref(),
+        docker_client.as_ref(),
+        args,
+        maybe_host,
+        quiet,
+        verbose,
+    )
+    .await
+}
+
+fn build_cli_candidate() -> UpdateCandidate {
+    let current_cli = get_cli_version().to_string();
+    let mut available = false;
+    let mut selectable = true;
+    let mut note = None;
+    let mut target_display = None;
+
+    if is_dev_binary() {
+        selectable = false;
+        note = Some(
+            "Dev build detected; self-update is disabled. Nice job running a dev build 😃"
+                .to_string(),
+        );
+    } else if let Some(install_method) = detect_install_method() {
+        let target_version = get_target_cli_version(&install_method);
+        match target_version.as_deref() {
+            Some(target) if target == current_cli => {
+                available = false;
+            }
+            Some(target) => {
+                available = true;
+                target_display = Some(format!("v{target}"));
+            }
+            None => {
+                available = true;
+                target_display = Some("latest (unknown)".to_string());
+            }
+        }
+    } else {
+        selectable = false;
+        note = Some(
+            "Unable to detect install method. Try: cargo install opencode-cloud or npm install -g opencode-cloud."
+                .to_string(),
+        );
+    }
+
+    UpdateCandidate {
+        target: UpdateTarget::Cli,
+        label: "CLI",
+        current: format!("v{current_cli}"),
+        target_display,
+        available,
+        selectable,
+        note,
+    }
+}
+
+fn load_update_config() -> (Option<opencode_cloud_core::config::Config>, Option<String>) {
+    match load_config_or_default() {
+        Ok(config) => (Some(config), None),
+        Err(err) => (None, Some(format!("Failed to load config: {err}"))),
+    }
+}
+
+async fn resolve_update_docker(
+    config_present: bool,
+    maybe_host: Option<&str>,
+    verbose: u8,
+) -> (Option<DockerClient>, Option<String>) {
+    if !config_present {
+        return (None, None);
+    }
+
+    match crate::resolve_docker_client(maybe_host).await {
+        Ok((client, host_name)) => {
+            if verbose > 0 {
+                let target = host_name.as_deref().unwrap_or("local");
+                eprintln!(
+                    "{} Connecting to Docker on {}...",
+                    style("[info]").cyan(),
+                    target
+                );
+            }
+            match client.verify_connection().await {
+                Ok(_) => (Some(client), None),
+                Err(err) => (None, Some(format!("Docker connection error: {err}"))),
+            }
+        }
+        Err(err) => (None, Some(format!("Docker connection error: {err}"))),
+    }
+}
+
+async fn build_container_candidate(
+    config: Option<&opencode_cloud_core::config::Config>,
+    client: Option<&DockerClient>,
+    config_note: Option<&str>,
+    docker_note: Option<&str>,
+) -> UpdateCandidate {
+    let Some(config) = config else {
+        return UpdateCandidate {
+            target: UpdateTarget::Container,
+            label: "Container",
+            current: "unknown".to_string(),
+            target_display: None,
+            available: false,
+            selectable: false,
+            note: config_note.map(ToString::to_string),
+        };
+    };
+
+    let Some(client) = client else {
+        return UpdateCandidate {
+            target: UpdateTarget::Container,
+            label: "Container",
+            current: "unknown".to_string(),
+            target_display: None,
+            available: false,
+            selectable: false,
+            note: docker_note.map(ToString::to_string),
+        };
+    };
+
+    let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let image_present = image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT)
+        .await
+        .unwrap_or(false);
+    let current_version = if image_present {
+        get_image_version(client, &image_name).await.ok().flatten()
+    } else {
+        None
+    };
+    let current_display = if !image_present {
+        "not installed".to_string()
+    } else if let Some(version) = current_version.as_deref() {
+        if version == "dev" {
+            "dev".to_string()
+        } else {
+            format!("v{version}")
+        }
+    } else {
+        "unknown".to_string()
+    };
+    if current_version.as_deref() == Some("dev") {
+        return UpdateCandidate {
+            target: UpdateTarget::Container,
+            label: "Container",
+            current: current_display,
+            target_display: None,
+            available: false,
+            selectable: false,
+            note: Some(
+                "Dev container detected; updates are disabled for dev images. Nice job running a dev build 👏"
+                    .to_string(),
+            ),
+        };
+    }
+
+    let use_build = config.image_source == "build";
+    let mut note = None;
+    let maybe_registry_version = if use_build {
+        None
+    } else {
+        match get_registry_latest_version(client).await {
+            Ok(version) => version,
+            Err(err) => {
+                note = Some(format!("Failed to fetch registry version: {err}"));
+                None
+            }
+        }
+    };
+
+    let target_display = if use_build {
+        Some("build from source".to_string())
+    } else if let Some(version) = maybe_registry_version.as_deref() {
+        Some(format!("v{version}"))
+    } else {
+        Some("latest (unknown)".to_string())
+    };
+
+    let mut available = true;
+    if !use_build {
+        if let (Some(current), Some(latest)) = (
+            current_version.as_deref(),
+            maybe_registry_version.as_deref(),
+        ) {
+            if current == latest {
+                available = false;
+            }
+        }
+    }
+
+    UpdateCandidate {
+        target: UpdateTarget::Container,
+        label: "Container",
+        current: current_display,
+        target_display,
+        available,
+        selectable: true,
+        note,
+    }
+}
+
+async fn build_opencode_candidate(
+    config_present: bool,
+    client: Option<&DockerClient>,
+    config_note: Option<&str>,
+    docker_note: Option<&str>,
+    latest_commit: Option<&str>,
+    opencode_note: Option<&str>,
+) -> UpdateCandidate {
+    if !config_present {
+        return UpdateCandidate {
+            target: UpdateTarget::Opencode,
+            label: "Opencode",
+            current: "unknown".to_string(),
+            target_display: latest_commit
+                .map(|commit| commit.to_string())
+                .or_else(|| Some("latest (unknown)".to_string())),
+            available: false,
+            selectable: false,
+            note: config_note
+                .map(ToString::to_string)
+                .or_else(|| opencode_note.map(ToString::to_string)),
+        };
+    }
+
+    let Some(client) = client else {
+        return UpdateCandidate {
+            target: UpdateTarget::Opencode,
+            label: "Opencode",
+            current: "unknown".to_string(),
+            target_display: latest_commit
+                .map(|commit| commit.to_string())
+                .or_else(|| Some("latest (unknown)".to_string())),
+            available: false,
+            selectable: false,
+            note: docker_note
+                .map(ToString::to_string)
+                .or_else(|| opencode_note.map(ToString::to_string)),
+        };
+    };
+
+    let exists = container_exists(client, CONTAINER_NAME)
+        .await
+        .unwrap_or(false);
+    if !exists {
+        return UpdateCandidate {
+            target: UpdateTarget::Opencode,
+            label: "Opencode",
+            current: "missing".to_string(),
+            target_display: latest_commit
+                .map(|commit| commit.to_string())
+                .or_else(|| Some("latest (unknown)".to_string())),
+            available: false,
+            selectable: false,
+            note: Some("Container not found; start or update the container first.".to_string()),
+        };
+    }
+
+    let running = container_is_running(client, CONTAINER_NAME)
+        .await
+        .unwrap_or(false);
+    let current_commit = if running {
+        get_current_opencode_commit(client).await
+    } else {
+        None
+    };
+    let current_display = if running {
+        current_commit
+            .clone()
+            .unwrap_or_else(|| "missing".to_string())
+    } else {
+        "unknown (stopped)".to_string()
+    };
+
+    let mut available = true;
+    if let (Some(current), Some(latest)) = (current_commit.as_deref(), latest_commit) {
+        if current == latest {
+            available = false;
+        }
+    }
+
+    UpdateCandidate {
+        target: UpdateTarget::Opencode,
+        label: "Opencode",
+        current: current_display,
+        target_display: latest_commit
+            .map(|commit| commit.to_string())
+            .or_else(|| Some("latest (unknown)".to_string())),
+        available,
+        selectable: true,
+        note: opencode_note.map(ToString::to_string),
+    }
+}
+
+fn print_update_summary(candidates: &[UpdateCandidate], quiet: bool) {
+    if quiet {
+        return;
+    }
+
+    eprintln!();
+    eprintln!("{}", style("Update status").bold());
+    eprintln!("{}", style("-------------").dim());
+    for candidate in candidates {
+        eprintln!("{}", candidate.summary_line());
+        if let Some(note) = candidate.note.as_deref() {
+            eprintln!("  {}", style(note).dim());
+        }
+    }
+    eprintln!();
+}
+
+fn select_update_targets(
+    args: &UpdateArgs,
+    candidates: &[UpdateCandidate],
+    quiet: bool,
+) -> Result<Vec<UpdateTarget>> {
+    let selectable_candidates: Vec<&UpdateCandidate> = candidates
+        .iter()
+        .filter(|candidate| candidate.selectable && candidate.available)
+        .collect();
+
+    if selectable_candidates.is_empty() {
+        if !quiet {
+            eprintln!("Everything is already up to date.");
+        }
+        return Ok(Vec::new());
+    }
+
+    let selected_targets: Vec<UpdateTarget> = if args.yes {
+        selectable_candidates
+            .iter()
+            .map(|candidate| candidate.target)
+            .collect()
+    } else {
+        let labels: Vec<String> = selectable_candidates
+            .iter()
+            .map(|candidate| candidate.selection_label())
+            .collect();
+        let defaults = vec![true; labels.len()];
+        let selections = MultiSelect::new()
+            .with_prompt("Select updates to apply")
+            .items(&labels)
+            .defaults(&defaults)
+            .interact()?;
+        selections
+            .into_iter()
+            .map(|index| selectable_candidates[index].target)
+            .collect()
+    };
+
+    if selected_targets.is_empty() && !quiet {
+        eprintln!("No updates selected.");
+    }
+
+    Ok(selected_targets)
+}
+
+fn confirm_update_selection(args: &UpdateArgs) -> Result<bool> {
+    if args.yes {
+        return Ok(true);
+    }
+
+    let confirmed = Confirm::new()
+        .with_prompt("Proceed with selected updates?")
+        .default(true)
+        .interact()?;
+    Ok(confirmed)
+}
+
+struct UpdateSelection {
+    cli: bool,
+    container: bool,
+    opencode: bool,
+}
+
+impl UpdateSelection {
+    fn from_targets(targets: &[UpdateTarget]) -> Self {
+        let mut selection = Self {
+            cli: false,
+            container: false,
+            opencode: false,
+        };
+        for target in targets {
+            match target {
+                UpdateTarget::Cli => selection.cli = true,
+                UpdateTarget::Container => selection.container = true,
+                UpdateTarget::Opencode => selection.opencode = true,
+            }
+        }
+        selection
+    }
+}
+
+async fn run_selected_updates(
+    selection: UpdateSelection,
+    config: Option<&opencode_cloud_core::config::Config>,
+    docker_client: Option<&DockerClient>,
+    args: &UpdateArgs,
+    maybe_host: Option<&str>,
+    quiet: bool,
+    verbose: u8,
+) -> Result<()> {
+    if selection.cli {
+        let cli_args = UpdateCliArgs { yes: args.yes };
+        cmd_update_cli(&cli_args, maybe_host, quiet, verbose).await?;
+    }
+
+    if selection.container {
+        let Some(config) = config else {
+            return Err(anyhow!("Failed to load config; cannot update container."));
+        };
+        let Some(client) = docker_client else {
+            return Err(anyhow!("Docker is unavailable; cannot update container."));
+        };
+        handle_update(client, config, args.yes, quiet, verbose, None).await?;
+    }
+
+    if selection.opencode {
+        let opencode_args = UpdateOpencodeArgs {
+            branch: None,
+            commit: None,
+            yes: args.yes,
+        };
+        cmd_update_opencode(&opencode_args, maybe_host, quiet, verbose).await?;
+    }
+
+    Ok(())
 }
 
 async fn cmd_update_cli(
@@ -628,6 +1169,35 @@ fn short_commit(value: &str) -> String {
     value.chars().take(7).collect()
 }
 
+#[derive(Deserialize)]
+struct GithubCommitResponse {
+    sha: String,
+}
+
+async fn fetch_latest_opencode_commit() -> Result<String> {
+    let client = reqwest::Client::builder()
+        .user_agent("opencode-cloud")
+        .build()
+        .map_err(|e| anyhow!("Failed to build HTTP client: {e}"))?;
+
+    let response = client
+        .get("https://api.github.com/repos/pRizz/opencode/commits/dev")
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to request latest commit: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!("GitHub API returned status {}", response.status()));
+    }
+
+    let commit: GithubCommitResponse = response
+        .json()
+        .await
+        .map_err(|e| anyhow!("Failed to parse commit response: {e}"))?;
+
+    Ok(short_commit(&commit.sha))
+}
+
 async fn purge_unused_docker_resources(client: &DockerClient, quiet: bool) -> Result<Option<i64>> {
     let spinner = CommandSpinner::new_maybe("Pruning unused Docker resources...", quiet);
     let mut reclaimed = 0i64;
@@ -677,6 +1247,19 @@ async fn handle_update(
     let use_build = config.image_source == "build";
     let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
     let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
+    if maybe_current_image_version.as_deref() == Some("dev") {
+        if !quiet {
+            eprintln!(
+                "{} Dev container detected; updates are disabled for dev images.",
+                style("Note:").yellow()
+            );
+            eprintln!(
+                "{} Nice job running a dev build 🎉 Rebuild from source or switch to a prebuilt image.",
+                style("Tip:").cyan()
+            );
+        }
+        return Ok(());
+    }
     let maybe_registry_version = if quiet || use_build {
         None
     } else {
