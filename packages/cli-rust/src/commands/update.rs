@@ -612,7 +612,7 @@ fn select_update_targets(
             .collect();
         let defaults = vec![true; labels.len()];
         let selections = MultiSelect::new()
-            .with_prompt("Select updates to apply")
+            .with_prompt("Select updates to apply (Space to toggle, Enter to confirm)")
             .items(&labels)
             .defaults(&defaults)
             .interact()?;
