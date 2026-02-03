@@ -27,7 +27,7 @@ pub fn format_disk_usage_report(
     baseline: Option<DiskUsageReport>,
 ) -> Vec<String> {
     let mut lines = vec![
-        format!("Disk usage ({stage}):"),
+        format!("Docker disk usage ({stage}):"),
         format!("  Images:      {}", format_usage_value(report.images)),
         format!("  Containers:  {}", format_usage_value(report.containers)),
         format!("  Volumes:     {}", format_usage_value(report.volumes)),
