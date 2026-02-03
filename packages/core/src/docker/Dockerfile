@@ -201,13 +201,13 @@ RUN curl https://mise.run | sh \
 # Install language runtimes via mise (2026-02-03)
 # - node@25: pinned to major version
 # - python@3.14: pinned to major version
-# - go@1.24: pinned to minor version
+# - go@1.25: pinned to minor version
 RUN /home/opencode/.local/bin/mise install node@25 \
     && /home/opencode/.local/bin/mise install python@3.14 \
-    && /home/opencode/.local/bin/mise install go@1.24 \
+    && /home/opencode/.local/bin/mise install go@1.25 \
     && /home/opencode/.local/bin/mise use --global node@25 \
     && /home/opencode/.local/bin/mise use --global python@3.14 \
-    && /home/opencode/.local/bin/mise use --global go@1.24
+    && /home/opencode/.local/bin/mise use --global go@1.25
 
 # Set up mise shims in PATH for non-interactive shells
 ENV PATH="/home/opencode/.local/share/mise/shims:${PATH}"
