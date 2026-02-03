@@ -18,9 +18,10 @@ use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
     IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
-    check_container_path_warning, container_exists, container_is_running, get_cli_version,
-    get_container_bind_mounts, get_container_ports, get_image_version, image_exists, pull_image,
-    save_state, setup_and_start, validate_mount_path, versions_compatible,
+    check_container_path_warning, container_exists, container_is_running, exec_command_with_status,
+    get_cli_version, get_container_bind_mounts, get_container_ports, get_image_version,
+    image_exists, pull_image, save_state, setup_and_start, validate_mount_path,
+    versions_compatible,
 };
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
@@ -828,6 +829,15 @@ pub async fn cmd_start(
         return Err(e);
     }
 
+    // Wait for broker to be ready
+    if let Err(e) = wait_for_broker_ready(&client, &spinner).await {
+        spinner.fail(&crate::format_host_message(
+            host_name.as_deref(),
+            "Broker failed to become ready",
+        ));
+        return Err(e);
+    }
+
     spinner.success(&crate::format_host_message(
         host_name.as_deref(),
         "Service started and ready",
@@ -1205,6 +1215,8 @@ fn format_bind_addr(bind_addr: &str, port: u16) -> String {
 const HEALTH_CHECK_TIMEOUT_SECS: u64 = 60;
 const HEALTH_CHECK_INTERVAL_MS: u64 = 500;
 const HEALTH_CHECK_CONSECUTIVE_REQUIRED: u32 = 3;
+const BROKER_READY_TIMEOUT_SECS: u64 = 30;
+const BROKER_READY_INTERVAL_MS: u64 = 500;
 
 /// Known fatal error patterns in container logs that indicate immediate failure
 const FATAL_ERROR_PATTERNS: &[&str] = &[
@@ -1253,7 +1265,7 @@ async fn check_for_fatal_errors(client: &DockerClient) -> Option<String> {
 /// Returns Ok(()) when the service is ready, or Err if timeout is reached or fatal error detected.
 /// Requires multiple consecutive successful connections to avoid false positives.
 /// Also monitors container logs for fatal errors to fail fast.
-async fn wait_for_service_ready(
+pub(crate) async fn wait_for_service_ready(
     client: &DockerClient,
     bind_addr: &str,
     port: u16,
@@ -1307,6 +1319,49 @@ async fn wait_for_service_ready(
             ));
         }
 
+        tokio::time::sleep(interval).await;
+    }
+}
+
+async fn broker_is_ready(client: &DockerClient) -> Result<bool> {
+    let cmd = vec![
+        "sh",
+        "-lc",
+        "test -S /run/opencode/auth.sock && pgrep -x opencode-broker >/dev/null",
+    ];
+    let (_output, exit_code) = exec_command_with_status(client, CONTAINER_NAME, cmd).await?;
+    Ok(exit_code == 0)
+}
+
+/// Wait for the broker to be ready by checking socket + process inside container
+pub(crate) async fn wait_for_broker_ready(
+    client: &DockerClient,
+    spinner: &CommandSpinner,
+) -> Result<()> {
+    let start = Instant::now();
+    let timeout = Duration::from_secs(BROKER_READY_TIMEOUT_SECS);
+    let interval = Duration::from_millis(BROKER_READY_INTERVAL_MS);
+
+    spinner.update("Waiting for broker to be ready...");
+
+    loop {
+        if start.elapsed() > timeout {
+            eprintln!();
+            eprintln!("{}", style("Recent container logs:").yellow());
+            show_recent_logs(client, 50).await;
+            return Err(anyhow!(
+                "Broker did not become ready within {BROKER_READY_TIMEOUT_SECS} seconds. Check logs with: occ logs"
+            ));
+        }
+
+        if broker_is_ready(client).await? {
+            return Ok(());
+        }
+
+        spinner.update(&format!(
+            "Waiting for broker to be ready... ({}s)",
+            start.elapsed().as_secs()
+        ));
         tokio::time::sleep(interval).await;
     }
 }

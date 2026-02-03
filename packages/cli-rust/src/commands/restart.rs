@@ -2,6 +2,7 @@
 //!
 //! Restarts the opencode service (stop + start).
 
+use crate::commands::start::{wait_for_broker_ready, wait_for_service_ready};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{CommandSpinner, format_docker_error, show_docker_error};
 use anyhow::{Result, anyhow};
@@ -90,6 +91,22 @@ pub async fn cmd_restart(
     .await
     {
         Ok(container_id) => {
+            if let Err(e) = wait_for_service_ready(&client, bind_addr, port, &spinner).await {
+                spinner.fail(&crate::format_host_message(
+                    host_name.as_deref(),
+                    "Service failed to become ready",
+                ));
+                return Err(e);
+            }
+
+            if let Err(e) = wait_for_broker_ready(&client, &spinner).await {
+                spinner.fail(&crate::format_host_message(
+                    host_name.as_deref(),
+                    "Broker failed to become ready",
+                ));
+                return Err(e);
+            }
+
             spinner.success(&crate::format_host_message(
                 host_name.as_deref(),
                 "Service restarted",
