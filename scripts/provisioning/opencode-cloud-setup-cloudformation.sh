@@ -50,8 +50,8 @@ signal_result() {
   fi
 
   if [ "$exit_code" -ne 0 ]; then
-    opencode_setup_log "opencode-cloud setup: delaying failure signal 300s (reason: $reason)"
-    sleep 300
+    opencode_setup_log "opencode-cloud setup: delaying failure signal 1200s (reason: $reason)"
+    sleep 1200
   fi
 
   opencode_setup_log "opencode-cloud setup: send cloudformation signal (reason: $reason)"
