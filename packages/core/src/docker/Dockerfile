@@ -4,7 +4,7 @@
 # A comprehensive development environment for AI-assisted coding with opencode.
 #
 # Features:
-# - Ubuntu 24.04 LTS (noble) base
+# - Ubuntu 25.10 (questing) base
 # - Non-root user with passwordless sudo
 # - Multiple languages via mise (Node.js, Python, Rust, Go)
 # - Modern CLI tools (ripgrep, eza, fzf, lazygit, etc.)
@@ -32,7 +32,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Base
 # -----------------------------------------------------------------------------
-FROM ubuntu:24.04 AS base
+FROM ubuntu:25.10 AS base
 
 # OCI Labels for image metadata
 LABEL org.opencontainers.image.title="opencode-cloud"
@@ -45,7 +45,7 @@ LABEL org.opencontainers.image.url="https://github.com/pRizz/opencode-cloud"
 LABEL org.opencontainers.image.source="https://github.com/pRizz/opencode-cloud"
 LABEL org.opencontainers.image.vendor="pRizz"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.base.name="ubuntu:24.04"
+LABEL org.opencontainers.image.base.name="ubuntu:25.10"
 
 # Environment configuration
 ENV DEBIAN_FRONTEND=noninteractive
@@ -58,7 +58,7 @@ ENV LC_ALL=C.UTF-8
 # -----------------------------------------------------------------------------
 # Install core system packages in logical groups for better caching
 
-# Group 1: Core utilities and build tools (2026-01-22)
+# Group 1: Core utilities and build tools (2026-02-03)
 # Use BuildKit cache mount for APT package lists and cache
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache/apt \
@@ -67,51 +67,51 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     tini=0.19.* \
     dumb-init=1.2.* \
     # systemd for Cockpit support
-    systemd=255.* \
-    systemd-sysv=255.* \
-    dbus=1.14.* \
+    systemd=257.* \
+    systemd-sysv=257.* \
+    dbus=1.16.* \
     # Shell and terminal
     zsh=5.9-* \
-    tmux=3.4-* \
+    tmux=3.5a-* \
     # Editors
     vim=2:9.1.* \
-    neovim=0.9.* \
-    nano=7.2-* \
+    neovim=0.10.* \
+    nano=8.4-* \
     # Build essentials
     build-essential=12.* \
     pkg-config=1.8.* \
-    cmake=3.28.* \
+    cmake=3.31.* \
     # Version control
-    git=1:2.43.* \
-    git-lfs=3.4.* \
+    git=1:2.51.* \
+    git-lfs=3.6.* \
     # Core utilities
-    curl=8.5.* \
-    wget=1.21.* \
+    curl=8.14.* \
+    wget=1.25.* \
     # UNPINNED: ca-certificates - security-critical root certs, needs auto-updates
     ca-certificates \
     # UNPINNED: gnupg - key management security, needs auto-updates
     gnupg \
     lsb-release=12.* \
-    software-properties-common=0.99.* \
+    software-properties-common=0.114* \
     sudo=1.9.* \
     # UNPINNED: openssh-client - security-critical, needs auto-updates
     openssh-client \
     # Process/system tools
-    htop=3.3.* \
+    htop=3.4.* \
     procps=2:4.0.* \
-    less=590-* \
-    file=1:5.45-* \
-    tree=2.1.* \
+    less=668-* \
+    file=1:5.46-* \
+    tree=2.2.* \
     # JSON/YAML processing
-    jq=1.7.* \
+    jq=1.8.* \
     # Network tools
-    netcat-openbsd=1.226-* \
-    iputils-ping=3:20240117-* \
-    dnsutils=1:9.18.* \
+    netcat-openbsd=1.229-* \
+    iputils-ping=3:20240905-* \
+    bind9-dnsutils=1:9.20.* \
     # Compression
     zip=3.0-* \
     unzip=6.0-* \
-    xz-utils=5.6.* \
+    xz-utils=5.8.* \
     p7zip-full=16.02* \
     && rm -rf /var/lib/apt/lists/*
 
@@ -123,32 +123,32 @@ RUN systemctl mask \
     systemd-tmpfiles-setup.service \
     systemd-remount-fs.service
 
-# Group 2: Database clients (2026-01-22)
+# Group 2: Database clients (2026-02-03)
 # Use BuildKit cache mount for APT package lists and cache
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
-    sqlite3=3.45.* \
-    postgresql-client=16+* \
+    sqlite3=3.46.* \
+    postgresql-client=17+* \
     default-mysql-client=1.1.* \
     && rm -rf /var/lib/apt/lists/*
 
-# Group 3: Development libraries for compiling tools (2026-01-22)
+# Group 3: Development libraries for compiling tools (2026-02-03)
 # Use BuildKit cache mount for APT package lists and cache
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
     # libssl-dev depends on libssl3t64 with exact version match
-    libssl3t64=3.0.* \
-    libssl-dev=3.0.* \
-    libffi-dev=3.4.* \
+    libssl3t64=3.5.* \
+    libssl-dev=3.5.* \
+    libffi-dev=3.5.* \
     zlib1g-dev=1:1.3.* \
     libbz2-dev=1.0.* \
-    libreadline-dev=8.2-* \
-    libsqlite3-dev=3.45.* \
-    libncurses-dev=6.4+* \
-    libpam0g-dev=1.5.* \
-    liblzma-dev=5.6.* \
+    libreadline-dev=8.3-* \
+    libsqlite3-dev=3.46.* \
+    libncurses-dev=6.5+* \
+    libpam0g-dev=1.7.* \
+    liblzma-dev=5.8.* \
     && rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------------------------
@@ -316,7 +316,7 @@ RUN mkdir -p /home/opencode/.cargo/registry /home/opencode/.cargo/git \
 # RUN eval "$(/home/opencode/.local/bin/mise activate bash)" \
 #     && go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0
 
-# Install btop system monitor (2026-01-22)
+# Install btop system monitor (2026-02-03)
 # Use BuildKit cache mount for APT package lists and cache
 USER root
 RUN --mount=type=cache,target=/var/lib/apt/lists \
@@ -343,7 +343,7 @@ USER opencode
 # Cockpit Web Console (2026-01-22) - temporarily disabled
 # -----------------------------------------------------------------------------
 # Cockpit provides web-based administration for the container
-# Ubuntu noble has cockpit 316 in main repos
+# Ubuntu questing has cockpit 346 in main repos
 # Use BuildKit cache mount for APT package lists and cache
 # USER root
 # RUN --mount=type=cache,target=/var/lib/apt/lists \
