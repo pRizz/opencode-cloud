@@ -71,7 +71,6 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     systemd-sysv=257.* \
     dbus=1.16.* \
     # Shell and terminal
-    zsh=5.9-* \
     tmux=3.5a-* \
     # Editors
     vim=2:9.1.* \
@@ -155,7 +154,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 # Create Non-Root User
 # -----------------------------------------------------------------------------
 # Create 'opencode' user with passwordless sudo
-RUN useradd -m -s /bin/zsh -G sudo opencode \
+RUN useradd -m -s /bin/bash -G sudo opencode \
     && echo "opencode ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/opencode \
     && chmod 0440 /etc/sudoers.d/opencode
 
@@ -176,27 +175,23 @@ RUN mkdir -p \
 ENV PATH="/home/opencode/.local/bin:${PATH}"
 
 # -----------------------------------------------------------------------------
-# Shell Setup: Zsh + Oh My Zsh + Starship
+# Shell Setup: Bash + Starship
 # -----------------------------------------------------------------------------
-# Oh My Zsh - self-managing installer, trusted to handle versions
-# Disabled temporarily to reduce Docker build time.
-# RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-
 # Starship prompt - self-managing installer, trusted to handle versions
 # Disabled temporarily to reduce Docker build time.
 # RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir /home/opencode/.local/bin
 
-# Configure zsh with starship
+# Configure bash with starship
 # Disabled temporarily to reduce Docker build time.
-# RUN echo 'eval "$(starship init zsh)"' >> /home/opencode/.zshrc \
-#     && echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
+# RUN echo 'eval "$(starship init bash)"' >> /home/opencode/.bashrc \
+#     && echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.bashrc
 
 # -----------------------------------------------------------------------------
 # mise: Universal Version Manager
 # -----------------------------------------------------------------------------
 # mise - self-managing installer, trusted to handle versions
 RUN curl https://mise.run | sh \
-    && echo 'eval "$(/home/opencode/.local/bin/mise activate zsh)"' >> /home/opencode/.zshrc
+    && echo 'eval "$(/home/opencode/.local/bin/mise activate bash)"' >> /home/opencode/.bashrc
 
 # Install language runtimes via mise (2026-02-03)
 # - node@25: pinned to major version
@@ -306,7 +301,7 @@ RUN mkdir -p /home/opencode/.cargo/registry /home/opencode/.cargo/git \
 # RUN apt-get update && apt-get install -y --no-install-recommends direnv=2.32.* \
 #     && rm -rf /var/lib/apt/lists/*
 # USER opencode
-# RUN echo 'eval "$(direnv hook zsh)"' >> /home/opencode/.zshrc
+# RUN echo 'eval "$(direnv hook bash)"' >> /home/opencode/.bashrc
 
 # Install HTTPie
 # Disabled temporarily to reduce Docker build time.
@@ -508,10 +503,10 @@ RUN printf '%s\n' \
     'alias d="docker"' \
     'alias dc="docker compose"' \
     '' \
-    >> /home/opencode/.zshrc
+    >> /home/opencode/.bashrc
 
 # Set up pipx path
-RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.zshrc
+RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.bashrc
 
 # -----------------------------------------------------------------------------
 # Stage 2: opencode build
