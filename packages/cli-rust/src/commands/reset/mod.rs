@@ -182,10 +182,10 @@ async fn cmd_reset_container(
                     .map(|mount| mount.host_path.to_string_lossy().to_string())
                     .collect();
                 let removed = remove_mounts_from_config(&mut config, &purge_hosts);
-                if removed > 0 {
-                    if let Err(err) = save_config(&config) {
-                        errors.push(format!("Failed to update config mounts: {err}"));
-                    }
+                if removed > 0
+                    && let Err(err) = save_config(&config)
+                {
+                    errors.push(format!("Failed to update config mounts: {err}"));
                 }
             }
 

@@ -71,10 +71,10 @@ pub fn load_state() -> Option<ImageState> {
 
 /// Clear image state (e.g., after image removal)
 pub fn clear_state() -> anyhow::Result<()> {
-    if let Some(path) = get_state_path() {
-        if path.exists() {
-            std::fs::remove_file(&path)?;
-        }
+    if let Some(path) = get_state_path()
+        && path.exists()
+    {
+        std::fs::remove_file(&path)?;
     }
     Ok(())
 }

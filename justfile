@@ -84,7 +84,7 @@ lint-rust:
 # Use this before pushing to catch CI failures on Linux
 # Requires: Docker running
 lint-rust-linux:
-    docker run --rm -v "{{justfile_directory()}}":/workspace -w /workspace rust:1.88 \
+    docker run --rm -v "{{justfile_directory()}}":/workspace -w /workspace rust:1.89 \
         cargo clippy --all-targets --all-features -- -D warnings
 
 # Lint Rust code for all platforms (local + Linux via Docker)

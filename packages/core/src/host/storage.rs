@@ -54,11 +54,11 @@ pub fn save_hosts(hosts: &HostsFile) -> Result<(), HostError> {
         .ok_or_else(|| HostError::SaveFailed("Could not determine hosts file path".to_string()))?;
 
     // Ensure config directory exists
-    if let Some(parent) = hosts_path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|e| HostError::SaveFailed(format!("Failed to create directory: {e}")))?;
-        }
+    if let Some(parent) = hosts_path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)
+            .map_err(|e| HostError::SaveFailed(format!("Failed to create directory: {e}")))?;
     }
 
     // Create backup if file exists

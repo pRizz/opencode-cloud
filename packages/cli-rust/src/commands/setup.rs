@@ -45,13 +45,13 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
 
     // Handle --yes flag for non-interactive mode
     if args.yes {
-        if let Some(ref config) = existing_config {
-            if config.has_required_auth() {
-                if !quiet {
-                    println!("{}", style("Configuration already set").green());
-                }
-                return Ok(());
+        if let Some(ref config) = existing_config
+            && config.has_required_auth()
+        {
+            if !quiet {
+                println!("{}", style("Configuration already set").green());
             }
+            return Ok(());
         }
 
         anyhow::bail!(

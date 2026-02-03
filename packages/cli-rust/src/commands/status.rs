@@ -163,25 +163,25 @@ pub async fn cmd_status(
     println!("{}", format_kv("State:", state_style(&status)));
 
     // Show installation status early
-    if is_service_registration_supported() {
-        if let Ok(manager) = get_service_manager() {
-            let installed = manager.is_installed().unwrap_or(false);
-            let install_status = if installed {
-                // Load config to determine boot mode
-                let boot_mode = config::load_config_or_default()
-                    .map(|c| c.boot_mode)
-                    .unwrap_or_else(|_| "user".to_string());
-                let boot_desc = if boot_mode == "system" {
-                    "starts on boot"
-                } else {
-                    "starts on login"
-                };
-                format!("{} ({})", style("yes").green(), boot_desc)
+    if is_service_registration_supported()
+        && let Ok(manager) = get_service_manager()
+    {
+        let installed = manager.is_installed().unwrap_or(false);
+        let install_status = if installed {
+            // Load config to determine boot mode
+            let boot_mode = config::load_config_or_default()
+                .map(|c| c.boot_mode)
+                .unwrap_or_else(|_| "user".to_string());
+            let boot_desc = if boot_mode == "system" {
+                "starts on boot"
             } else {
-                style("no").yellow().to_string()
+                "starts on login"
             };
-            println!("{}", format_kv("Installed:", install_status));
-        }
+            format!("{} ({})", style("yes").green(), boot_desc)
+        } else {
+            style("no").yellow().to_string()
+        };
+        println!("{}", format_kv("Installed:", install_status));
     }
 
     // Label config path - clarify it's local config when using remote host
@@ -216,23 +216,23 @@ pub async fn cmd_status(
     println!("{}", format_kv("CLI:", format!("v{cli_version}")));
 
     // Try to get image version from label
-    if let Ok(Some(img_version)) = get_image_version(&client, &image).await {
-        if img_version != "dev" {
-            if cli_version == img_version {
-                println!("{}", format_kv("Image ver:", format!("v{img_version}")));
-            } else {
-                println!(
-                    "{}",
-                    format_kv(
-                        "Image ver:",
-                        format!(
-                            "v{} {}",
-                            img_version,
-                            style("(differs from CLI)").yellow().dim()
-                        )
+    if let Ok(Some(img_version)) = get_image_version(&client, &image).await
+        && img_version != "dev"
+    {
+        if cli_version == img_version {
+            println!("{}", format_kv("Image ver:", format!("v{img_version}")));
+        } else {
+            println!(
+                "{}",
+                format_kv(
+                    "Image ver:",
+                    format!(
+                        "v{} {}",
+                        img_version,
+                        style("(differs from CLI)").yellow().dim()
                     )
-                );
-            }
+                )
+            );
         }
     }
 
@@ -403,10 +403,9 @@ fn format_duration(duration: Duration) -> String {
 async fn get_opencode_commit(client: &opencode_cloud_core::docker::DockerClient) -> Option<String> {
     if let Ok(output) =
         exec_command(client, CONTAINER_NAME, vec!["cat", "/opt/opencode/COMMIT"]).await
+        && let Some(commit) = extract_short_commit(&output)
     {
-        if let Some(commit) = extract_short_commit(&output) {
-            return Some(commit);
-        }
+        return Some(commit);
     }
     None
 }
@@ -621,11 +620,11 @@ fn print_config_path(maybe_host_name: Option<&str>, config_path: &str) {
 }
 
 fn print_stopped_section(finished_at: Option<&str>) {
-    if let Some(finished) = finished_at {
-        if let Some(display_time) = parse_timestamp_display(finished) {
-            println!();
-            println!("{}", format_kv("Last run:", style(&display_time).dim()));
-        }
+    if let Some(finished) = finished_at
+        && let Some(display_time) = parse_timestamp_display(finished)
+    {
+        println!();
+        println!("{}", format_kv("Last run:", style(&display_time).dim()));
     }
     println!();
     println!("Run '{}' to start the service.", style("occ start").cyan());
@@ -848,18 +847,18 @@ fn host_paths_match(container_path: &str, configured_path: &str) -> bool {
             return true;
         }
         // /host_mnt/private/tmp matches /tmp
-        if let Some(private_stripped) = stripped.strip_prefix("/private") {
-            if private_stripped == configured_path {
-                return true;
-            }
+        if let Some(private_stripped) = stripped.strip_prefix("/private")
+            && private_stripped == configured_path
+        {
+            return true;
         }
     }
 
     // Handle /private prefix (macOS symlink: /tmp -> /private/tmp)
-    if let Some(private_path) = configured_path.strip_prefix("/private") {
-        if container_path.ends_with(private_path) {
-            return true;
-        }
+    if let Some(private_path) = configured_path.strip_prefix("/private")
+        && container_path.ends_with(private_path)
+    {
+        return true;
     }
 
     false

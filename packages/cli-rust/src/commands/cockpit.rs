@@ -96,15 +96,15 @@ pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: b
     }
 
     // Open in browser
-    if let Err(e) = webbrowser::open(&url) {
-        if !quiet {
-            eprintln!(
-                "{} Failed to open browser: {}",
-                style("Warning:").yellow(),
-                e
-            );
-            eprintln!("Open manually: {}", style(&url).cyan());
-        }
+    if let Err(e) = webbrowser::open(&url)
+        && !quiet
+    {
+        eprintln!(
+            "{} Failed to open browser: {}",
+            style("Warning:").yellow(),
+            e
+        );
+        eprintln!("Open manually: {}", style(&url).cyan());
     }
 
     Ok(())

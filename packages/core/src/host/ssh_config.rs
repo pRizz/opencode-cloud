@@ -137,21 +137,21 @@ pub fn write_ssh_config_entry(
     })?;
 
     // Ensure .ssh directory exists with proper permissions
-    if let Some(ssh_dir) = config_path.parent() {
-        if !ssh_dir.exists() {
-            fs::create_dir_all(ssh_dir).map_err(|e| {
-                HostError::SshConfigWrite(format!("Failed to create .ssh directory: {e}"))
-            })?;
+    if let Some(ssh_dir) = config_path.parent()
+        && !ssh_dir.exists()
+    {
+        fs::create_dir_all(ssh_dir).map_err(|e| {
+            HostError::SshConfigWrite(format!("Failed to create .ssh directory: {e}"))
+        })?;
 
-            // Set directory permissions to 700 on Unix
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let perms = fs::Permissions::from_mode(0o700);
-                fs::set_permissions(ssh_dir, perms).map_err(|e| {
-                    HostError::SshConfigWrite(format!("Failed to set .ssh permissions: {e}"))
-                })?;
-            }
+        // Set directory permissions to 700 on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::Permissions::from_mode(0o700);
+            fs::set_permissions(ssh_dir, perms).map_err(|e| {
+                HostError::SshConfigWrite(format!("Failed to set .ssh permissions: {e}"))
+            })?;
         }
     }
 
@@ -164,10 +164,10 @@ pub fn write_ssh_config_entry(
     if let Some(u) = user {
         entry.push_str(&format!("    User {u}\n"));
     }
-    if let Some(p) = port {
-        if p != 22 {
-            entry.push_str(&format!("    Port {p}\n"));
-        }
+    if let Some(p) = port
+        && p != 22
+    {
+        entry.push_str(&format!("    Port {p}\n"));
     }
     if let Some(key) = identity_file {
         entry.push_str(&format!("    IdentityFile {key}\n"));

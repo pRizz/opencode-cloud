@@ -338,13 +338,11 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) 
     save_config(&config)?;
 
     // Check if service is running and warn
-    if !quiet {
-        if let Ok(true) = check_container_running() {
-            eprintln!(
-                "{} Restart required for changes to take effect",
-                style("Warning:").yellow().bold()
-            );
-        }
+    if !quiet && let Ok(true) = check_container_running() {
+        eprintln!(
+            "{} Restart required for changes to take effect",
+            style("Warning:").yellow().bold()
+        );
     }
 
     if !quiet {

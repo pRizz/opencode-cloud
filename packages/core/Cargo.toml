@@ -2,7 +2,7 @@
 name = "opencode-cloud-core"
 version = "10.4.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT"
 repository = "https://github.com/pRizz/opencode-cloud"
 homepage = "https://github.com/pRizz/opencode-cloud"

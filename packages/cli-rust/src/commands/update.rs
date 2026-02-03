@@ -451,15 +451,14 @@ async fn build_container_candidate(
     };
 
     let mut available = true;
-    if !use_build {
-        if let (Some(current), Some(latest)) = (
+    if !use_build
+        && let (Some(current), Some(latest)) = (
             current_version.as_deref(),
             maybe_registry_version.as_deref(),
-        ) {
-            if current == latest {
-                available = false;
-            }
-        }
+        )
+        && current == latest
+    {
+        available = false;
     }
 
     UpdateCandidate {
@@ -547,10 +546,10 @@ async fn build_opencode_candidate(
     };
 
     let mut available = true;
-    if let (Some(current), Some(latest)) = (current_commit.as_deref(), latest_commit) {
-        if current == latest {
-            available = false;
-        }
+    if let (Some(current), Some(latest)) = (current_commit.as_deref(), latest_commit)
+        && current == latest
+    {
+        available = false;
     }
 
     UpdateCandidate {
@@ -738,18 +737,18 @@ async fn cmd_update_cli(
 
     let current_version = get_cli_version();
     let maybe_target_version = get_target_cli_version(&install_method);
-    if let Some(target_version) = maybe_target_version.as_deref() {
-        if target_version == current_version {
-            if !quiet {
-                let check = style("✓").green();
-                eprintln!(
-                    "{} opencode-cloud CLI is already up to date (version {}).",
-                    check,
-                    style(current_version).dim()
-                );
-            }
-            return Ok(());
+    if let Some(target_version) = maybe_target_version.as_deref()
+        && target_version == current_version
+    {
+        if !quiet {
+            let check = style("✓").green();
+            eprintln!(
+                "{} opencode-cloud CLI is already up to date (version {}).",
+                check,
+                style(current_version).dim()
+            );
         }
+        return Ok(());
     }
 
     if !quiet {
@@ -1277,21 +1276,20 @@ async fn handle_update(
         }
     };
 
-    if !quiet {
-        if let (Some(current), Some(latest)) = (
+    if !quiet
+        && let (Some(current), Some(latest)) = (
             maybe_current_image_version.as_deref(),
             maybe_registry_version.as_deref(),
-        ) {
-            if current == latest {
-                let check = style("✓").green();
-                eprintln!(
-                    "{} Container image is already up to date (version {}).",
-                    check,
-                    style(latest).dim()
-                );
-                return Ok(());
-            }
-        }
+        )
+        && current == latest
+    {
+        let check = style("✓").green();
+        eprintln!(
+            "{} Container image is already up to date (version {}).",
+            check,
+            style(latest).dim()
+        );
+        return Ok(());
     }
     let maybe_usage_before = if quiet {
         None

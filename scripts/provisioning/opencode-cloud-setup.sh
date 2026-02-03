@@ -146,7 +146,7 @@ opencode_setup_ensure_rust_toolchain() {
     opencode_setup_log "opencode-cloud setup: install rust toolchain"
     opencode_setup_run_as_user \
       "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-        bash -s -- -y --profile minimal --default-toolchain 1.88.0"
+        bash -s -- -y --profile minimal --default-toolchain 1.89.0"
     opencode_setup_log "opencode-cloud setup: rust toolchain installed"
   fi
 

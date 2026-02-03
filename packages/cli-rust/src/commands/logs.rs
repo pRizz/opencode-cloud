@@ -106,10 +106,10 @@ pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) ->
                 };
 
                 // Apply grep filter
-                if let Some(ref pattern) = args.grep {
-                    if !line.contains(pattern) {
-                        continue;
-                    }
+                if let Some(ref pattern) = args.grep
+                    && !line.contains(pattern)
+                {
+                    continue;
                 }
 
                 // Print the line

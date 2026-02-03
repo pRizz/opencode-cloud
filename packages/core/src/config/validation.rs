@@ -96,26 +96,26 @@ pub fn validate_config(config: &Config) -> Result<Vec<ValidationWarning>, Valida
     }
 
     // Legacy auth fields present
-    if let Some(ref username) = config.auth_username {
-        if !username.is_empty() {
-            warnings.push(ValidationWarning {
-                field: "auth_username".to_string(),
-                message: "Legacy auth fields present; consider using 'occ user add' instead"
-                    .to_string(),
-                fix_command: "occ config set auth_username ''".to_string(),
-            });
-        }
+    if let Some(ref username) = config.auth_username
+        && !username.is_empty()
+    {
+        warnings.push(ValidationWarning {
+            field: "auth_username".to_string(),
+            message: "Legacy auth fields present; consider using 'occ user add' instead"
+                .to_string(),
+            fix_command: "occ config set auth_username ''".to_string(),
+        });
     }
 
-    if let Some(ref password) = config.auth_password {
-        if !password.is_empty() {
-            warnings.push(ValidationWarning {
-                field: "auth_password".to_string(),
-                message: "Legacy auth fields present; consider using 'occ user add' instead"
-                    .to_string(),
-                fix_command: "occ config set auth_password ''".to_string(),
-            });
-        }
+    if let Some(ref password) = config.auth_password
+        && !password.is_empty()
+    {
+        warnings.push(ValidationWarning {
+            field: "auth_password".to_string(),
+            message: "Legacy auth fields present; consider using 'occ user add' instead"
+                .to_string(),
+            fix_command: "occ config set auth_password ''".to_string(),
+        });
     }
 
     Ok(warnings)

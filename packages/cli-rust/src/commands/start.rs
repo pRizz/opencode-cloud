@@ -109,10 +109,8 @@ fn collect_bind_mounts(
         }
 
         // Show warnings for system paths (non-blocking)
-        if !quiet {
-            if let Some(warning) = check_container_path_warning(&parsed.container_path) {
-                eprintln!("{}", style(&warning).yellow());
-            }
+        if !quiet && let Some(warning) = check_container_path_warning(&parsed.container_path) {
+            eprintln!("{}", style(&warning).yellow());
         }
     }
 
@@ -134,18 +132,18 @@ fn host_paths_match(container_path: &str, configured_path: &str) -> bool {
             return true;
         }
         // /host_mnt/private/tmp matches /tmp
-        if let Some(private_stripped) = stripped.strip_prefix("/private") {
-            if private_stripped == configured_path {
-                return true;
-            }
+        if let Some(private_stripped) = stripped.strip_prefix("/private")
+            && private_stripped == configured_path
+        {
+            return true;
         }
     }
 
     // Handle /private prefix (macOS symlink: /tmp -> /private/tmp)
-    if let Some(private_path) = configured_path.strip_prefix("/private") {
-        if container_path.ends_with(private_path) {
-            return true;
-        }
+    if let Some(private_path) = configured_path.strip_prefix("/private")
+        && container_path.ends_with(private_path)
+    {
+        return true;
     }
 
     false
@@ -703,19 +701,20 @@ pub async fn cmd_start(
     }
 
     // Check for port mismatch on existing container
-    if !is_first_start && !recreate_container {
-        if let Some(rebuild) = check_port_mismatch(&client, &config, port, quiet).await? {
-            recreate_container = rebuild;
-        }
+    if !is_first_start
+        && !recreate_container
+        && let Some(rebuild) = check_port_mismatch(&client, &config, port, quiet).await?
+    {
+        recreate_container = rebuild;
     }
 
     // Check for mount mismatch on existing container (only if not already rebuilding)
-    if !is_first_start && !recreate_container {
-        if let Some(rebuild) =
+    if !is_first_start
+        && !recreate_container
+        && let Some(rebuild) =
             check_mount_mismatch(&client, bind_mounts_option.as_deref(), quiet).await?
-        {
-            recreate_container = rebuild;
-        }
+    {
+        recreate_container = rebuild;
     }
 
     // Handle rebuild: remove existing container so a new one is created from the new image
@@ -1124,17 +1123,13 @@ fn show_start_result(
     println!("Port:       {port} -> 3000");
 
     // Show Cockpit availability if enabled
-    if COCKPIT_EXPOSED {
-        if let Ok(config) = opencode_cloud_core::config::load_config_or_default() {
-            if config.cockpit_enabled {
-                let cockpit_url = format_cockpit_url(
-                    maybe_remote_addr.as_deref(),
-                    bind_addr,
-                    config.cockpit_port,
-                );
-                println!("Cockpit:    {cockpit_url} (web admin)");
-            }
-        }
+    if COCKPIT_EXPOSED
+        && let Ok(config) = opencode_cloud_core::config::load_config_or_default()
+        && config.cockpit_enabled
+    {
+        let cockpit_url =
+            format_cockpit_url(maybe_remote_addr.as_deref(), bind_addr, config.cockpit_port);
+        println!("Cockpit:    {cockpit_url} (web admin)");
     }
 
     // Show security status

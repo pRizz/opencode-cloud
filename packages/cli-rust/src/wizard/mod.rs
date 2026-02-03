@@ -315,17 +315,18 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
     }
 
     // Migrate old auth_username/auth_password if present
-    if let Some(ref old_username) = config.auth_username {
-        if !old_username.is_empty() && !config.users.contains(old_username) {
-            println!(
-                "{}",
-                style(format!(
-                    "Migrating existing user '{old_username}' to PAM-based authentication..."
-                ))
-                .dim()
-            );
-            config.users.push(old_username.clone());
-        }
+    if let Some(ref old_username) = config.auth_username
+        && !old_username.is_empty()
+        && !config.users.contains(old_username)
+    {
+        println!(
+            "{}",
+            style(format!(
+                "Migrating existing user '{old_username}' to PAM-based authentication..."
+            ))
+            .dim()
+        );
+        config.users.push(old_username.clone());
     }
 
     // Clear legacy auth fields (keep them empty for schema compatibility)

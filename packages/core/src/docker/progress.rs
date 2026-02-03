@@ -210,17 +210,17 @@ impl ProgressReporter {
 
         // Check if we should throttle this update
         if !is_step_message {
-            if let Some(last) = self.last_update_by_id.get(id) {
-                if now.duration_since(*last) < SPINNER_UPDATE_THROTTLE {
-                    return; // Throttle: too soon since last update
-                }
+            if let Some(last) = self.last_update_by_id.get(id)
+                && now.duration_since(*last) < SPINNER_UPDATE_THROTTLE
+            {
+                return; // Throttle: too soon since last update
             }
 
             // Skip if message is identical to last one
-            if let Some(last_msg) = self.last_message_by_id.get(id) {
-                if last_msg == message {
-                    return;
-                }
+            if let Some(last_msg) = self.last_message_by_id.get(id)
+                && last_msg == message
+            {
+                return;
             }
         }
 

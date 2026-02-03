@@ -139,10 +139,10 @@ impl HostConfig {
         let mut parts = vec!["ssh".to_string()];
 
         // Port (if non-default)
-        if let Some(port) = self.port {
-            if port != 22 {
-                parts.push(format!("-p {port}"));
-            }
+        if let Some(port) = self.port
+            && port != 22
+        {
+            parts.push(format!("-p {port}"));
         }
 
         // Identity file
