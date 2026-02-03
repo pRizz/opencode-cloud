@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use super::update_signal::run_update_command_listener;
 
 /// Arguments for the start command
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct StartArgs {
     /// Port to bind on host (default: 3000)
     #[arg(short, long)]
@@ -1335,7 +1335,12 @@ async fn show_recent_logs(client: &DockerClient, lines: usize) {
 mod tests {
     use super::*;
     use opencode_cloud_core::docker::ContainerBindMount;
+    use std::net::TcpListener;
     use std::path::PathBuf;
+
+    fn can_bind_localhost() -> bool {
+        TcpListener::bind(("127.0.0.1", 0)).is_ok()
+    }
 
     #[test]
     fn port_check_returns_false_for_privileged_ports() {
@@ -1347,6 +1352,10 @@ mod tests {
 
     #[test]
     fn find_next_port_finds_available_port() {
+        if !can_bind_localhost() {
+            eprintln!("Skipping test: cannot bind to localhost in this environment.");
+            return;
+        }
         // This should find something in the 49152-49252 range (dynamic ports)
         let result = find_next_available_port("127.0.0.1", 49152);
         assert!(result.is_some());

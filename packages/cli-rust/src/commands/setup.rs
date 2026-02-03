@@ -124,15 +124,7 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
     // Start the service
     let start_args = crate::commands::StartArgs {
         port: Some(new_config.opencode_web_port),
-        open: false,
-        no_daemon: false,
-        pull_sandbox_image: false,
-        cached_rebuild_sandbox_image: false,
-        full_rebuild_sandbox_image: false,
-        ignore_version: false,
-        no_update_check: false,
-        mounts: Vec::new(),
-        no_mounts: false,
+        ..Default::default()
     };
     cmd_start(&start_args, args.host.as_deref(), quiet, 0).await?;
 
@@ -212,15 +204,7 @@ async fn start_or_restart_after_setup(
 
     let start_args = crate::commands::StartArgs {
         port: Some(new_config.opencode_web_port),
-        open: false,
-        no_daemon: false,
-        pull_sandbox_image: false,
-        cached_rebuild_sandbox_image: false,
-        full_rebuild_sandbox_image: false,
-        ignore_version: false,
-        no_update_check: false,
-        mounts: Vec::new(),
-        no_mounts: false,
+        ..Default::default()
     };
     cmd_start(&start_args, host, quiet || non_interactive, 0).await?;
     Ok(())

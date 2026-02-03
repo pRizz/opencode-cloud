@@ -2,6 +2,7 @@
 //!
 //! This module contains the implementations for service lifecycle commands.
 
+mod cleanup;
 mod cockpit;
 mod config;
 mod disk_usage;
@@ -9,6 +10,7 @@ mod host;
 mod install;
 mod logs;
 mod mount;
+mod reset;
 mod restart;
 mod service;
 mod setup;
@@ -26,6 +28,7 @@ pub use host::{HostArgs, cmd_host};
 pub use install::{InstallArgs, cmd_install};
 pub use logs::{LogsArgs, cmd_logs};
 pub use mount::{MountArgs, cmd_mount};
+pub use reset::{ResetArgs, cmd_reset};
 pub use restart::{RestartArgs, cmd_restart};
 pub use setup::{SetupArgs, cmd_setup};
 pub use start::{StartArgs, cmd_start};

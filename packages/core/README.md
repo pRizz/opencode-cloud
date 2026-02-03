@@ -209,6 +209,21 @@ occ update opencode
 occ update opencode --branch dev
 occ update opencode --commit <sha>
 
+# Remove the container (keeps volumes)
+occ reset container
+
+# Remove container and volumes (data loss)
+occ reset container --volumes --force
+
+# Clean bind mount contents (data loss)
+occ mount clean --force
+
+# Purge bind mounts (data loss, removes config entries)
+occ mount clean --purge --force
+
+# Factory reset host (container, volumes, mounts, config/data)
+occ reset host --force
+
 ### Webapp-triggered update (command file)
 
 When running in foreground mode (for example via `occ install`, which uses `occ start --no-daemon`),

@@ -146,6 +146,11 @@ pub fn prompt_hostname(step: usize, total: usize, default_bind: &str) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+
+    fn can_bind_localhost() -> bool {
+        TcpListener::bind(("127.0.0.1", 0)).is_ok()
+    }
 
     #[test]
     fn test_validate_port_valid() {
@@ -172,6 +177,10 @@ mod tests {
 
     #[test]
     fn test_find_next_port_finds_available() {
+        if !can_bind_localhost() {
+            eprintln!("Skipping test: cannot bind to localhost in this environment.");
+            return;
+        }
         // Should find something in the dynamic port range
         let result = find_next_available_port(49152);
         assert!(result.is_some());

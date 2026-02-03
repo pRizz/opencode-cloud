@@ -41,3 +41,6 @@ serde.workspace = true
 rand.workspace = true
 sysinfo.workspace = true
 dirs = "6"
+
+[dev-dependencies]
+tempfile.workspace = true
