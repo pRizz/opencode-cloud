@@ -740,6 +740,13 @@ async fn handle_update(
 
     // Confirm with user unless --yes
     if !skip_confirm {
+        if !quiet {
+            eprintln!(
+                "{} Unused images and containers will be purged to save space.",
+                style("Notice:").yellow().bold()
+            );
+            eprintln!();
+        }
         let confirmed = Confirm::new()
             .with_prompt("Continue with update?")
             .default(true)
