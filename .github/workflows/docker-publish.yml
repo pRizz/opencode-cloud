@@ -17,6 +17,10 @@ on:
         # If not provided: when triggered by tag push, uses the tag automatically;
         # when called via workflow_call, defaults to the commit that triggered the workflow
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   IMAGE_NAME_GHCR: ghcr.io/prizz/opencode-cloud-sandbox
   IMAGE_NAME_DOCKERHUB: ${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox
@@ -109,7 +113,7 @@ jobs:
           # Separate cache scope to avoid overwriting the main publish build cache.
           # GHA cache v2 is the recommended backend going forward.
           cache-from: type=gha,scope=opencode-cloud-sandbox-test,version=2
-          cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=max,version=2
+          cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=min,version=2
 
       # Temporary disabled smoke test
       # - name: Smoke test - verify container starts and becomes healthy
@@ -194,8 +198,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           # Scoped cache prevents thrash between test and publish builds.
           # GHA cache v2 improves compatibility with the current cache API.
-          cache-from: type=gha,scope=opencode-cloud-sandbox,version=2
-          cache-to: type=gha,scope=opencode-cloud-sandbox,mode=max,version=2
+          cache-from: |
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache
+            type=gha,scope=opencode-cloud-sandbox,version=2
+          cache-to: |
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache,mode=max
+            type=gha,scope=opencode-cloud-sandbox,mode=min,version=2
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5

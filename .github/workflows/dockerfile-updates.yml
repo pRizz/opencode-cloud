@@ -87,7 +87,7 @@ jobs:
           file: packages/core/src/docker/Dockerfile
           push: false
           cache-from: type=gha,scope=opencode-cloud-dockerfile-updates,version=2
-          cache-to: type=gha,scope=opencode-cloud-dockerfile-updates,mode=max,version=2
+          cache-to: type=gha,scope=opencode-cloud-dockerfile-updates,mode=min,version=2
 
       - name: Create Pull Request
         if: steps.check.outputs.updates_available == 'true'
