@@ -207,6 +207,41 @@ opencode_setup_wait_for_docker() {
   fi
 }
 
+opencode_setup_align_mount_ownership() {
+  local target_home="$OPENCODE_SETUP_HOME"
+  if [ -z "$target_home" ] && [ -n "$OPENCODE_SETUP_USER" ]; then
+    target_home="$(getent passwd "$OPENCODE_SETUP_USER" | cut -d: -f6)"
+  fi
+  if [ -z "$target_home" ]; then
+    target_home="/root"
+  fi
+
+  opencode_setup_log "opencode-cloud setup: align host mount ownership (home: $target_home)"
+
+  local data_dir="$target_home/.local/share/opencode"
+  local state_dir="$target_home/.local/state/opencode"
+  local cache_dir="$target_home/.cache/opencode"
+  local config_dir="$target_home/.config/opencode"
+  local workspace_dir="$data_dir/workspace"
+
+  mkdir -p "$data_dir" "$state_dir" "$cache_dir" "$config_dir" "$workspace_dir"
+
+  local opencode_uid
+  local opencode_gid
+  opencode_uid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -u opencode)"
+  opencode_gid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -g opencode)"
+  opencode_setup_log "opencode-cloud setup: host mount ownership uid=$opencode_uid gid=$opencode_gid"
+
+  chown -R "$opencode_uid:$opencode_gid" \
+    "$data_dir" \
+    "$state_dir" \
+    "$cache_dir" \
+    "$config_dir" \
+    "$workspace_dir"
+
+  opencode_setup_log "opencode-cloud setup: host mount ownership aligned"
+}
+
 opencode_setup_bootstrap_config() {
   opencode_setup_log "opencode-cloud setup: bootstrap config"
   opencode_setup_run_as_user "opencode-cloud --quiet setup --bootstrap"
@@ -254,6 +289,7 @@ opencode_cloud_setup_run_common() {
   opencode_setup_ensure_cli
   opencode_setup_enable_docker
   opencode_setup_wait_for_docker
+  opencode_setup_align_mount_ownership
   opencode_setup_bootstrap_config
   opencode_setup_create_user
   opencode_setup_disable_unauth_network

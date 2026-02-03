@@ -133,31 +133,14 @@ opencode_setup_ensure_rust_toolchain
 opencode_setup_ensure_cli
 opencode_setup_enable_docker
 opencode_setup_wait_for_docker
+opencode_setup_align_mount_ownership
 opencode_setup_bootstrap_config
 
 opencode_setup_log "opencode-cloud setup: install service (ubuntu user)"
 opencode_setup_run_as_user "opencode-cloud install --force"
 opencode_setup_log "opencode-cloud setup: service install complete (ubuntu user)"
 
-opencode_setup_log "opencode-cloud setup: align host mount ownership"
-ubuntu_home="$OPENCODE_SETUP_HOME"
-data_dir="$ubuntu_home/.local/share/opencode"
-state_dir="$ubuntu_home/.local/state/opencode"
-cache_dir="$ubuntu_home/.cache/opencode"
-config_dir="$ubuntu_home/.config/opencode"
-workspace_dir="$data_dir/workspace"
-mkdir -p "$data_dir" "$state_dir" "$cache_dir" "$config_dir" "$workspace_dir"
-opencode_uid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -u opencode)"
-opencode_gid="$(docker run --rm --entrypoint id "$HOST_CONTAINER_IMAGE" -g opencode)"
-chown -R "$opencode_uid:$opencode_gid" \
-  "$data_dir" \
-  "$state_dir" \
-  "$cache_dir" \
-  "$config_dir" \
-  "$workspace_dir"
-opencode_setup_log "opencode-cloud setup: host mount ownership aligned"
-
-opencode_setup_log "opencode-cloud setup: restart container after mount ownership update"
+opencode_setup_log "opencode-cloud setup: restart container after service install"
 opencode_setup_run_as_user "opencode-cloud restart --quiet"
 opencode_setup_log "opencode-cloud setup: container restart complete"
 
