@@ -218,6 +218,9 @@ opencode_setup_align_mount_ownership() {
 
   opencode_setup_log "opencode-cloud setup: align host mount ownership (home: $target_home)"
 
+  opencode_setup_log "opencode-cloud setup: ensure base home dirs for config/state/cache"
+  opencode_setup_run_as_user "mkdir -p \"$target_home/.config\" \"$target_home/.local/share\" \"$target_home/.local/state\" \"$target_home/.cache\""
+
   local data_dir="$target_home/.local/share/opencode"
   local state_dir="$target_home/.local/state/opencode"
   local cache_dir="$target_home/.cache/opencode"
