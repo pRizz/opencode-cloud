@@ -14,6 +14,9 @@ use opencode_cloud_core::{load_config_or_default, save_config};
 
 /// Arguments for the user add command
 #[derive(Args)]
+#[command(
+    after_help = "Tip: Use --generate (-g) to auto-generate a secure password instead of typing one."
+)]
 pub struct UserAddArgs {
     /// Username to create (default: opencode if not provided)
     pub username: Option<String>,
@@ -96,6 +99,11 @@ pub async fn cmd_user_add(
                     "Authentication is handled by the system via PAM - we don't store passwords."
                 )
                 .dim()
+            );
+            println!(
+                "  {} Use {} to auto-generate a secure password.",
+                style("Tip:").cyan(),
+                style("--generate (-g)").bold()
             );
         }
         let pwd = Password::new()
