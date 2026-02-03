@@ -200,14 +200,22 @@ RUN curl https://mise.run | sh \
 
 # Install language runtimes via mise (2026-02-03)
 # - node@25: pinned to major version
-# - python@3.14: pinned to major version
+# - python@3.13: pinned to major version (3.13 has precompiled binaries available)
 # - go@1.25: pinned to minor version
-RUN /home/opencode/.local/bin/mise install node@25 \
-    && /home/opencode/.local/bin/mise install python@3.14 \
-    && /home/opencode/.local/bin/mise install go@1.25 \
-    && /home/opencode/.local/bin/mise use --global node@25 \
-    && /home/opencode/.local/bin/mise use --global python@3.14 \
-    && /home/opencode/.local/bin/mise use --global go@1.25
+#
+# MISE_PYTHON_COMPILE=0: Disable Python compilation from source.
+# If no precompiled binary exists, mise will fail fast instead of hanging
+# during a 30+ minute compilation that may timeout in CI.
+#
+# Timeout: 10 minutes max for all runtime installations as safety net.
+RUN timeout 600 sh -c '\
+    export MISE_PYTHON_COMPILE=0 && \
+    /home/opencode/.local/bin/mise install node@25 && \
+    /home/opencode/.local/bin/mise install python@3.13 && \
+    /home/opencode/.local/bin/mise install go@1.25 && \
+    /home/opencode/.local/bin/mise use --global node@25 && \
+    /home/opencode/.local/bin/mise use --global python@3.13 && \
+    /home/opencode/.local/bin/mise use --global go@1.25'
 
 # Set up mise shims in PATH for non-interactive shells
 ENV PATH="/home/opencode/.local/share/mise/shims:${PATH}"
