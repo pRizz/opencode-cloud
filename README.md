@@ -5,6 +5,7 @@
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
 [![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
 [![Docker Hub](https://img.shields.io/docker/v/prizz/opencode-cloud-sandbox?label=docker&sort=semver)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
+[![Docker Pulls](https://img.shields.io/docker/pulls/prizz/opencode-cloud-sandbox)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
 [![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
