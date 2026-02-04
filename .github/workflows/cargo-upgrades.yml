@@ -21,6 +21,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.89"
+          components: rustfmt, clippy
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -52,8 +53,20 @@ jobs:
           updates_dir="${RUNNER_TEMP}"
           upgrade_output_path="${updates_dir}/cargo-upgrade-output.txt"
           upgrade_output_plain_path="${updates_dir}/cargo-upgrade-output-plain.txt"
+          install_output_path="${updates_dir}/pnpm-install-output.txt"
+          install_output_plain_path="${updates_dir}/pnpm-install-output-plain.txt"
+          format_output_path="${updates_dir}/cargo-fmt-output.txt"
+          format_output_plain_path="${updates_dir}/cargo-fmt-output-plain.txt"
+          clippy_output_path="${updates_dir}/cargo-clippy-output.txt"
+          clippy_output_plain_path="${updates_dir}/cargo-clippy-output-plain.txt"
+          build_output_path="${updates_dir}/cargo-build-output.txt"
+          build_output_plain_path="${updates_dir}/cargo-build-output-plain.txt"
           test_output_path="${updates_dir}/cargo-test-output.txt"
           test_output_plain_path="${updates_dir}/cargo-test-output-plain.txt"
+          core_build_output_path="${updates_dir}/core-build-output.txt"
+          core_build_output_plain_path="${updates_dir}/core-build-output-plain.txt"
+          verify_output_path="${updates_dir}/cli-verify-output.txt"
+          verify_output_plain_path="${updates_dir}/cli-verify-output-plain.txt"
           audit_output_path="${updates_dir}/cargo-audit-output.txt"
           audit_output_plain_path="${updates_dir}/cargo-audit-output-plain.txt"
 
@@ -92,31 +105,97 @@ jobs:
 
           echo "updates_available=true" >> $GITHUB_OUTPUT
 
+          install_exit=0
+          format_exit=0
+          clippy_exit=0
+          build_exit=0
           test_exit=0
+          core_build_exit=0
+          verify_exit=0
           audit_exit=0
 
           if [ "${upgrade_exit}" -eq 0 ]; then
-            pnpm install --frozen-lockfile --ignore-scripts
+            pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tee "${install_output_path}"
+            install_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
+
+            cargo fmt --all -- --check 2>&1 | tee "${format_output_path}"
+            format_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_output_path}" > "${format_output_plain_path}"
+
+            cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tee "${clippy_output_path}"
+            clippy_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_output_path}" > "${clippy_output_plain_path}"
+
+            cargo build --workspace 2>&1 | tee "${build_output_path}"
+            build_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${build_output_path}" > "${build_output_plain_path}"
 
             just test-all-slow 2>&1 | tee "${test_output_path}"
             test_exit=$?
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
 
+            pnpm -C packages/core build 2>&1 | tee "${core_build_output_path}"
+            core_build_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${core_build_output_path}" > "${core_build_output_plain_path}"
+
+            cargo run -p opencode-cloud -- --version 2>&1 | tee "${verify_output_path}"
+            verify_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${verify_output_path}" > "${verify_output_plain_path}"
+
             cargo audit 2>&1 | tee "${audit_output_path}"
             audit_exit=$?
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
           else
-            echo "Skipping tests and audit because cargo upgrade exited with ${upgrade_exit}." | tee "${test_output_path}"
-            echo "Skipping audit because cargo upgrade exited with ${upgrade_exit}." | tee "${audit_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${install_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${format_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${clippy_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${build_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${test_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${core_build_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${verify_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${audit_output_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_output_path}" > "${format_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_output_path}" > "${clippy_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${build_output_path}" > "${build_output_plain_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${core_build_output_path}" > "${core_build_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${verify_output_path}" > "${verify_output_plain_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
           fi
 
+          checks_passed=true
+          if [ "${upgrade_exit}" -ne 0 ] || \
+             [ "${install_exit}" -ne 0 ] || \
+             [ "${format_exit}" -ne 0 ] || \
+             [ "${clippy_exit}" -ne 0 ] || \
+             [ "${build_exit}" -ne 0 ] || \
+             [ "${test_exit}" -ne 0 ] || \
+             [ "${core_build_exit}" -ne 0 ] || \
+             [ "${verify_exit}" -ne 0 ] || \
+             [ "${audit_exit}" -ne 0 ]; then
+            checks_passed=false
+          fi
+
           echo "upgrade_exit=${upgrade_exit}" >> $GITHUB_OUTPUT
+          echo "install_exit=${install_exit}" >> $GITHUB_OUTPUT
+          echo "format_exit=${format_exit}" >> $GITHUB_OUTPUT
+          echo "clippy_exit=${clippy_exit}" >> $GITHUB_OUTPUT
+          echo "build_exit=${build_exit}" >> $GITHUB_OUTPUT
           echo "test_exit=${test_exit}" >> $GITHUB_OUTPUT
+          echo "core_build_exit=${core_build_exit}" >> $GITHUB_OUTPUT
+          echo "verify_exit=${verify_exit}" >> $GITHUB_OUTPUT
           echo "audit_exit=${audit_exit}" >> $GITHUB_OUTPUT
+          echo "checks_passed=${checks_passed}" >> $GITHUB_OUTPUT
           echo "upgrade_output_plain_path=${upgrade_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "install_output_plain_path=${install_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "format_output_plain_path=${format_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "clippy_output_plain_path=${clippy_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "build_output_plain_path=${build_output_plain_path}" >> $GITHUB_OUTPUT
           echo "test_output_plain_path=${test_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "core_build_output_plain_path=${core_build_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "verify_output_plain_path=${verify_output_plain_path}" >> $GITHUB_OUTPUT
           echo "audit_output_plain_path=${audit_output_plain_path}" >> $GITHUB_OUTPUT
           exit 0
 
@@ -182,21 +261,39 @@ jobs:
           echo "body_path=${body_path}" >> $GITHUB_OUTPUT
 
       - name: Create issue on upgrade failure
-        if: steps.upgrade.outputs.updates_available == 'true' && (steps.upgrade.outputs.upgrade_exit != '0' || steps.upgrade.outputs.test_exit != '0' || steps.upgrade.outputs.audit_exit != '0')
+        if: steps.upgrade.outputs.updates_available == 'true' && steps.upgrade.outputs.checks_passed != 'true'
         uses: actions/github-script@v7
         env:
           UPGRADE_OUTPUT: ${{ steps.upgrade.outputs.upgrade_output_plain_path }}
+          INSTALL_OUTPUT: ${{ steps.upgrade.outputs.install_output_plain_path }}
+          FORMAT_OUTPUT: ${{ steps.upgrade.outputs.format_output_plain_path }}
+          CLIPPY_OUTPUT: ${{ steps.upgrade.outputs.clippy_output_plain_path }}
+          BUILD_OUTPUT: ${{ steps.upgrade.outputs.build_output_plain_path }}
           TEST_OUTPUT: ${{ steps.upgrade.outputs.test_output_plain_path }}
+          CORE_BUILD_OUTPUT: ${{ steps.upgrade.outputs.core_build_output_plain_path }}
+          VERIFY_OUTPUT: ${{ steps.upgrade.outputs.verify_output_plain_path }}
           AUDIT_OUTPUT: ${{ steps.upgrade.outputs.audit_output_plain_path }}
           UPGRADE_EXIT: ${{ steps.upgrade.outputs.upgrade_exit }}
+          INSTALL_EXIT: ${{ steps.upgrade.outputs.install_exit }}
+          FORMAT_EXIT: ${{ steps.upgrade.outputs.format_exit }}
+          CLIPPY_EXIT: ${{ steps.upgrade.outputs.clippy_exit }}
+          BUILD_EXIT: ${{ steps.upgrade.outputs.build_exit }}
           TEST_EXIT: ${{ steps.upgrade.outputs.test_exit }}
+          CORE_BUILD_EXIT: ${{ steps.upgrade.outputs.core_build_exit }}
+          VERIFY_EXIT: ${{ steps.upgrade.outputs.verify_exit }}
           AUDIT_EXIT: ${{ steps.upgrade.outputs.audit_exit }}
         with:
           script: |
             const fs = require('fs');
 
             const upgradeExit = process.env.UPGRADE_EXIT || '0';
+            const installExit = process.env.INSTALL_EXIT || '0';
+            const formatExit = process.env.FORMAT_EXIT || '0';
+            const clippyExit = process.env.CLIPPY_EXIT || '0';
+            const buildExit = process.env.BUILD_EXIT || '0';
             const testExit = process.env.TEST_EXIT || '0';
+            const coreBuildExit = process.env.CORE_BUILD_EXIT || '0';
+            const verifyExit = process.env.VERIFY_EXIT || '0';
             const auditExit = process.env.AUDIT_EXIT || '0';
 
             const readFileSafe = (path) => {
@@ -215,7 +312,13 @@ jobs:
             };
 
             const upgradeOutput = readFileSafe(process.env.UPGRADE_OUTPUT);
+            const installOutput = readFileSafe(process.env.INSTALL_OUTPUT);
+            const formatOutput = readFileSafe(process.env.FORMAT_OUTPUT);
+            const clippyOutput = readFileSafe(process.env.CLIPPY_OUTPUT);
+            const buildOutput = readFileSafe(process.env.BUILD_OUTPUT);
             const testOutput = readFileSafe(process.env.TEST_OUTPUT);
+            const coreBuildOutput = readFileSafe(process.env.CORE_BUILD_OUTPUT);
+            const verifyOutput = readFileSafe(process.env.VERIFY_OUTPUT);
             const auditOutput = readFileSafe(process.env.AUDIT_OUTPUT);
 
             const sections = [];
@@ -223,11 +326,20 @@ jobs:
             sections.push('');
             sections.push('### Summary');
             sections.push(`- Upgrade exit: \`${upgradeExit}\``);
+            sections.push(`- Install exit: \`${installExit}\``);
+            sections.push(`- Format exit: \`${formatExit}\``);
+            sections.push(`- Clippy exit: \`${clippyExit}\``);
+            sections.push(`- Build exit: \`${buildExit}\``);
             sections.push(`- Test exit: \`${testExit}\``);
+            sections.push(`- Core bindings exit: \`${coreBuildExit}\``);
+            sections.push(`- CLI verify exit: \`${verifyExit}\``);
             sections.push(`- Audit exit: \`${auditExit}\``);
             sections.push('');
             sections.push('### Run');
             sections.push(`- ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`);
+            sections.push('');
+            sections.push('### Result');
+            sections.push('- PR not created because checks failed.');
             sections.push('');
 
             sections.push('### Cargo Upgrade Output (tail)');
@@ -236,10 +348,58 @@ jobs:
             sections.push('```');
             sections.push('');
 
+            if (installExit !== '0') {
+              sections.push('### pnpm Install Output (tail)');
+              sections.push('```');
+              sections.push(tail(installOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (formatExit !== '0') {
+              sections.push('### cargo fmt Output (tail)');
+              sections.push('```');
+              sections.push(tail(formatOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (clippyExit !== '0') {
+              sections.push('### Clippy Output (tail)');
+              sections.push('```');
+              sections.push(tail(clippyOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (buildExit !== '0') {
+              sections.push('### Cargo Build Output (tail)');
+              sections.push('```');
+              sections.push(tail(buildOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
             if (testExit !== '0') {
               sections.push('### Test Output (tail)');
               sections.push('```');
               sections.push(tail(testOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (coreBuildExit !== '0') {
+              sections.push('### Core Bindings Build Output (tail)');
+              sections.push('```');
+              sections.push(tail(coreBuildOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (verifyExit !== '0') {
+              sections.push('### CLI Verify Output (tail)');
+              sections.push('```');
+              sections.push(tail(verifyOutput, 12000));
               sections.push('```');
               sections.push('');
             }
@@ -263,7 +423,7 @@ jobs:
             });
 
       - name: Create Pull Request
-        if: steps.upgrade.outputs.updates_available == 'true'
+        if: steps.upgrade.outputs.updates_available == 'true' && steps.upgrade.outputs.checks_passed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
