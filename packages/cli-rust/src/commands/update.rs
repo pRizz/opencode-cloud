@@ -21,9 +21,10 @@ use opencode_cloud_core::docker::update::PREVIOUS_TAG;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
-    build_image, container_exists, container_is_running, exec_command, exec_command_with_status,
-    get_cli_version, get_image_version, get_registry_latest_version, has_previous_image,
-    image_exists, pull_image, rollback_image, save_state, setup_and_start, stop_service,
+    build_image, container_exists, container_is_running, docker_supports_systemd, exec_command,
+    exec_command_with_status, get_cli_version, get_image_version, get_registry_latest_version,
+    has_previous_image, image_exists, pull_image, rollback_image, save_state, setup_and_start,
+    stop_service,
 };
 use serde::Deserialize;
 use std::process::Command;
@@ -989,6 +990,7 @@ pub(crate) async fn cmd_update_opencode(
             }
         }
 
+        let systemd_enabled = docker_supports_systemd(&client).await?;
         setup_and_start(
             &client,
             Some(config.opencode_web_port),
@@ -996,6 +998,7 @@ pub(crate) async fn cmd_update_opencode(
             Some(&config.bind_address),
             Some(config.cockpit_port),
             Some(config.cockpit_enabled && COCKPIT_EXPOSED),
+            Some(systemd_enabled),
             None,
         )
         .await
@@ -1579,6 +1582,7 @@ async fn handle_update(
         eprintln!("{} Recreating container...", style("[3/4]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Recreating container...", quiet);
+    let systemd_enabled = docker_supports_systemd(client).await?;
     if let Err(e) = setup_and_start(
         client,
         Some(port),
@@ -1586,6 +1590,7 @@ async fn handle_update(
         Some(bind_addr),
         Some(config.cockpit_port),
         Some(config.cockpit_enabled && COCKPIT_EXPOSED),
+        Some(systemd_enabled),
         None, // bind_mounts: update recreates without bind mounts (user can restart with mounts)
     )
     .await
@@ -1776,6 +1781,7 @@ async fn handle_rollback(
         eprintln!("{} Recreating container...", style("[3/4]").cyan());
     }
     let spinner = CommandSpinner::new_maybe("Recreating container...", quiet);
+    let systemd_enabled = docker_supports_systemd(client).await?;
     if let Err(e) = setup_and_start(
         client,
         Some(port),
@@ -1783,6 +1789,7 @@ async fn handle_rollback(
         Some(bind_addr),
         Some(config.cockpit_port),
         Some(config.cockpit_enabled && COCKPIT_EXPOSED),
+        Some(systemd_enabled),
         None, // bind_mounts: rollback recreates without bind mounts (user can restart with mounts)
     )
     .await

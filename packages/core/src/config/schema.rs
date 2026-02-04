@@ -100,13 +100,10 @@ pub struct Config {
     /// Enable Cockpit web console (default: false)
     ///
     /// When enabled:
-    /// - Container uses systemd as init (required for Cockpit)
     /// - Requires Linux host with native Docker (does NOT work on macOS Docker Desktop)
     /// - Cockpit web UI accessible at cockpit_port
     ///
     /// When disabled (default):
-    /// - Container uses tini as init (lightweight, works everywhere)
-    /// - Works on macOS, Linux, and Windows
     /// - No Cockpit web UI
     #[serde(default = "default_cockpit_enabled")]
     pub cockpit_enabled: bool,

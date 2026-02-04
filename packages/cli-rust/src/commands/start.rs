@@ -19,9 +19,9 @@ use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
     IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
-    check_container_path_warning, container_exists, container_is_running, exec_command_with_status,
-    get_cli_version, get_container_bind_mounts, get_container_ports, get_image_version,
-    image_exists, pull_image, save_state, setup_and_start, validate_mount_path,
+    check_container_path_warning, container_exists, container_is_running, docker_supports_systemd,
+    exec_command_with_status, get_cli_version, get_container_bind_mounts, get_container_ports,
+    get_image_version, image_exists, pull_image, save_state, setup_and_start, validate_mount_path,
     versions_compatible,
 };
 use std::net::{TcpListener, TcpStream};
@@ -512,6 +512,85 @@ fn display_port_mismatch(
     eprintln!();
 }
 
+/// Check for init mode mismatch (systemd vs tini) on existing container
+async fn check_init_mismatch(
+    client: &DockerClient,
+    systemd_enabled: bool,
+    quiet: bool,
+) -> Result<Option<bool>> {
+    let info = client
+        .inner()
+        .inspect_container(CONTAINER_NAME, None)
+        .await
+        .map_err(|e| anyhow!("Failed to inspect container: {e}"))?;
+
+    let env = info
+        .config
+        .and_then(|config| config.env)
+        .unwrap_or_default();
+    let container_systemd_enabled = env.iter().any(|entry| {
+        entry == "USE_SYSTEMD=1"
+            || entry
+                .strip_prefix("USE_SYSTEMD=")
+                .map(|val| val == "1")
+                .unwrap_or(false)
+    });
+
+    if container_systemd_enabled == systemd_enabled {
+        return Ok(None);
+    }
+
+    if quiet {
+        return Err(anyhow!(
+            "Init mode mismatch: container uses {} but desired is {}.\n\
+             Container must be recreated to change init mode.\n\
+             Run:\n  occ stop --remove\n  occ start",
+            if container_systemd_enabled {
+                "systemd"
+            } else {
+                "tini"
+            },
+            if systemd_enabled { "systemd" } else { "tini" }
+        ));
+    }
+
+    eprintln!();
+    eprintln!("{}", style("Init mode mismatch detected:").yellow().bold());
+    eprintln!(
+        "  container: {}",
+        style(if container_systemd_enabled {
+            "systemd"
+        } else {
+            "tini"
+        })
+        .red()
+    );
+    eprintln!(
+        "  desired:   {}",
+        style(if systemd_enabled { "systemd" } else { "tini" }).green()
+    );
+    eprintln!();
+    eprintln!(
+        "{}",
+        style("Container must be recreated to change init mode.").dim()
+    );
+
+    let confirm = dialoguer::Confirm::new()
+        .with_prompt("Recreate container with new init mode?")
+        .default(true)
+        .interact()?;
+
+    if !confirm {
+        return Err(anyhow!(
+            "Container not recreated. To switch init mode, run:\n  \
+             occ stop --remove\n  \
+             occ start"
+        ));
+    }
+
+    Ok(Some(true))
+}
+
 /// Acquire Docker image (build or pull) based on configuration
 async fn acquire_image(
     client: &DockerClient,
@@ -644,6 +723,8 @@ pub async fn cmd_start(
         }
     }
 
+    let systemd_enabled = docker_supports_systemd(&client).await?;
+
     // Collect and validate bind mounts
     let bind_mounts = collect_bind_mounts(&config, &args.mounts, args.no_mounts, quiet)?;
     let bind_mounts_option = if bind_mounts.is_empty() {
@@ -720,6 +801,14 @@ pub async fn cmd_start(
     if !is_first_start
         && !recreate_container
         && let Some(rebuild) = check_port_mismatch(&client, &config, port, quiet).await?
+    {
+        recreate_container = rebuild;
+    }
+
+    // Check for init mismatch on existing container (systemd vs tini)
+    if !is_first_start
+        && !recreate_container
+        && let Some(rebuild) = check_init_mismatch(&client, systemd_enabled, quiet).await?
     {
         recreate_container = rebuild;
     }
@@ -802,6 +891,7 @@ pub async fn cmd_start(
         bind_addr,
         config.cockpit_port,
         config.cockpit_enabled && COCKPIT_EXPOSED,
+        systemd_enabled,
         bind_mounts_option,
     )
     .await
@@ -1082,6 +1172,7 @@ async fn start_container(
     bind_address: &str,
     cockpit_port: u16,
     cockpit_enabled: bool,
+    systemd_enabled: bool,
     bind_mounts: Option<Vec<ParsedMount>>,
 ) -> Result<String, DockerError> {
     setup_and_start(
@@ -1091,6 +1182,7 @@ async fn start_container(
         Some(bind_address),
         Some(cockpit_port),
         Some(cockpit_enabled),
+        Some(systemd_enabled),
         bind_mounts,
     )
     .await
@@ -1351,7 +1443,7 @@ pub(crate) async fn wait_for_broker_ready(
             eprintln!("{}", style("Recent container logs:").yellow());
             show_recent_logs(client, 50).await;
             return Err(anyhow!(
-                "Broker did not become ready within {BROKER_READY_TIMEOUT_SECS} seconds. Check logs with: occ logs"
+                "Broker did not become ready within {BROKER_READY_TIMEOUT_SECS} seconds. Check logs with: occ logs --broker"
             ));
         }
 

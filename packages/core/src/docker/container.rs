@@ -45,6 +45,7 @@ fn has_env_key(env: &[String], key: &str) -> bool {
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 /// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
 /// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to false)
+/// * `systemd_enabled` - Whether to use systemd as init (defaults to false)
 /// * `bind_mounts` - User-defined bind mounts from config and CLI flags (optional)
 #[allow(clippy::too_many_arguments)]
 pub async fn create_container(
@@ -56,6 +57,7 @@ pub async fn create_container(
     bind_address: Option<&str>,
     cockpit_port: Option<u16>,
     cockpit_enabled: Option<bool>,
+    systemd_enabled: Option<bool>,
     bind_mounts: Option<Vec<ParsedMount>>,
 ) -> Result<String, DockerError> {
     let container_name = name.unwrap_or(CONTAINER_NAME);
@@ -64,10 +66,16 @@ pub async fn create_container(
     let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
     let cockpit_port_val = cockpit_port.unwrap_or(9090);
     let cockpit_enabled_val = cockpit_enabled.unwrap_or(false);
+    let systemd_enabled_val = systemd_enabled.unwrap_or(false);
 
     debug!(
-        "Creating container {} from image {} with port {} and cockpit_port {} (enabled: {})",
-        container_name, image_name, port, cockpit_port_val, cockpit_enabled_val
+        "Creating container {} from image {} with port {} and cockpit_port {} (enabled: {}, systemd: {})",
+        container_name,
+        image_name,
+        port,
+        cockpit_port_val,
+        cockpit_enabled_val,
+        systemd_enabled_val
     );
 
     // Check if container already exists
@@ -162,9 +170,9 @@ pub async fn create_container(
     }
 
     // Create host config
-    // When Cockpit is enabled, add systemd-specific settings (requires Linux host)
-    // When Cockpit is disabled, use simpler tini-based config (works everywhere)
-    let host_config = if cockpit_enabled_val {
+    // When systemd is enabled, add systemd-specific settings (requires Linux host)
+    // When systemd is disabled, use simpler tini-based config (works everywhere)
+    let host_config = if systemd_enabled_val {
         HostConfig {
             mounts: Some(mounts),
             port_bindings: Some(port_bindings),
@@ -217,8 +225,8 @@ pub async fn create_container(
     if !has_env_key(&env, "XDG_CACHE_HOME") {
         env.push("XDG_CACHE_HOME=/home/opencode/.cache".to_string());
     }
-    // Add USE_SYSTEMD=1 when Cockpit is enabled to tell entrypoint to use systemd
-    if cockpit_enabled_val && !has_env_key(&env, "USE_SYSTEMD") {
+    // Add USE_SYSTEMD=1 when systemd is enabled to tell entrypoint to use systemd
+    if systemd_enabled_val && !has_env_key(&env, "USE_SYSTEMD") {
         env.push("USE_SYSTEMD=1".to_string());
     }
     let final_env = if env.is_empty() { None } else { Some(env) };

@@ -10,7 +10,7 @@ use clap::Args;
 use console::style;
 use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, container_is_running, setup_and_start, stop_service,
+    CONTAINER_NAME, container_is_running, docker_supports_systemd, setup_and_start, stop_service,
 };
 
 /// Arguments for the restart command
@@ -53,6 +53,7 @@ pub async fn cmd_restart(
     let config = load_config_or_default()?;
     let port = config.opencode_web_port;
     let bind_addr = &config.bind_address;
+    let systemd_enabled = docker_supports_systemd(&client).await?;
 
     // Create single spinner for the full operation
     let msg = crate::format_host_message(host_name.as_deref(), "Restarting service...");
@@ -86,6 +87,7 @@ pub async fn cmd_restart(
         Some(bind_addr),
         Some(config.cockpit_port),
         Some(config.cockpit_enabled && COCKPIT_EXPOSED),
+        Some(systemd_enabled),
         None, // bind_mounts: restart preserves existing container mounts
     )
     .await

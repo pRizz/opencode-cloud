@@ -71,6 +71,39 @@ pub use volume::{
     VOLUME_USERS, ensure_volumes_exist, remove_all_volumes, remove_volume, volume_exists,
 };
 
+/// Determine whether the Docker host supports systemd-in-container.
+///
+/// Returns true only for Linux hosts that are not Docker Desktop and not rootless.
+pub async fn docker_supports_systemd(client: &DockerClient) -> Result<bool, DockerError> {
+    let info = client.inner().info().await.map_err(DockerError::from)?;
+
+    let os_type = info.os_type.unwrap_or_default();
+    if os_type.to_lowercase() != "linux" {
+        return Ok(false);
+    }
+
+    let operating_system = match info.operating_system {
+        Some(value) => value,
+        None => return Ok(false),
+    };
+    if operating_system.to_lowercase().contains("docker desktop") {
+        return Ok(false);
+    }
+
+    let security_options = match info.security_options {
+        Some(options) => options,
+        None => return Ok(false),
+    };
+    let is_rootless = security_options
+        .iter()
+        .any(|opt| opt.to_lowercase().contains("name=rootless"));
+    if is_rootless {
+        return Ok(false);
+    }
+
+    Ok(true)
+}
+
 // Bind mount parsing and validation
 pub use mount::{MountError, ParsedMount, check_container_path_warning, validate_mount_path};
 
@@ -95,8 +128,10 @@ pub use state::{ImageState, clear_state, get_state_path, load_state, save_state}
 /// * `env_vars` - Additional environment variables (optional)
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
 /// * `cockpit_port` - Port to bind on host for Cockpit (defaults to 9090)
-/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to true)
+/// * `cockpit_enabled` - Whether to enable Cockpit port mapping (defaults to false)
+/// * `systemd_enabled` - Whether to use systemd as init (defaults to false)
 /// * `bind_mounts` - User-defined bind mounts from config and CLI flags (optional)
+#[allow(clippy::too_many_arguments)]
 pub async fn setup_and_start(
     client: &DockerClient,
     opencode_web_port: Option<u16>,
@@ -104,6 +139,7 @@ pub async fn setup_and_start(
     bind_address: Option<&str>,
     cockpit_port: Option<u16>,
     cockpit_enabled: Option<bool>,
+    systemd_enabled: Option<bool>,
     bind_mounts: Option<Vec<mount::ParsedMount>>,
 ) -> Result<String, DockerError> {
     // Ensure volumes exist first
@@ -132,6 +168,7 @@ pub async fn setup_and_start(
             bind_address,
             cockpit_port,
             cockpit_enabled,
+            systemd_enabled,
             bind_mounts,
         )
         .await?

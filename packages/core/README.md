@@ -191,6 +191,16 @@ occ logs
 # Follow logs in real-time
 occ logs -f
 
+# View opencode-broker logs (systemd/journald required)
+occ logs --broker
+
+# Dump opencode-broker logs (no follow)
+occ logs --broker --no-follow
+
+# Note: Broker logs require systemd/journald. This is enabled by default on supported Linux
+# hosts. Docker Desktop/macOS/Windows use Tini, so broker logs aren't available there.
+# Existing containers may need to be recreated after upgrading.
+
 # Stop the service
 occ stop
 
