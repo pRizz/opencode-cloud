@@ -4,7 +4,7 @@
 //! Uses serde serialization to automatically include all Config fields.
 
 use anyhow::Result;
-use comfy_table::{Cell, Color, Table};
+use comfy_table::{Cell, Color, ContentArrangement, Table};
 use opencode_cloud_core::{Config, config};
 use serde_json::Value;
 
@@ -49,6 +49,7 @@ fn show_table(config: &Config) -> Result<()> {
 
     let mut table = Table::new();
     table.set_header(vec!["Key", "Value"]);
+    table.set_content_arrangement(ContentArrangement::Dynamic);
 
     for (key, val) in obj {
         if HIDDEN_FIELDS.contains(&key.as_str()) {
