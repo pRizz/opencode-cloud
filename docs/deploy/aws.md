@@ -118,6 +118,13 @@ You can check the installed version on the instance:
 opencode-cloud --version
 ```
 
+CloudFormation installs a **system-level** systemd unit that runs as `ubuntu`.
+Check service status with:
+
+```bash
+sudo systemctl status opencode-cloud
+```
+
 ## Provisioning Script Architecture
 
 The CloudFormation and cloud-init templates now bootstrap provisioning from

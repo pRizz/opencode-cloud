@@ -68,6 +68,17 @@ impl SystemdManager {
         // This gives enough window for the allowed burst of restarts
         let start_limit_interval = config.restart_delay * config.restart_retries * 2;
 
+        let service_user_line = if !self.user_mode {
+            std::env::var("OPENCODE_SERVICE_USER")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .map(|value| format!("User={value}\n"))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
         format!(
             r#"[Unit]
 Description=opencode-cloud container service
@@ -77,7 +88,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart={exec_start}
+{service_user_line}ExecStart={exec_start}
 ExecStop={exec_stop}
 Restart=on-failure
 RestartSec={restart_delay}s
@@ -92,6 +103,7 @@ WantedBy=default.target
             restart_delay = config.restart_delay,
             restart_retries = config.restart_retries,
             start_limit_interval = start_limit_interval,
+            service_user_line = service_user_line,
         )
     }
 
@@ -359,6 +371,25 @@ mod tests {
         assert!(unit.contains("RestartSec=10s"));
         assert!(unit.contains("StartLimitBurst=5"));
         assert!(unit.contains("StartLimitIntervalSec=100")); // 10 * 5 * 2
+    }
+
+    #[test]
+    fn test_generate_unit_file_system_user() {
+        std::env::set_var("OPENCODE_SERVICE_USER", "ubuntu");
+
+        let manager = SystemdManager::new("system");
+        let config = ServiceConfig {
+            executable_path: PathBuf::from("/usr/bin/occ"),
+            restart_retries: 3,
+            restart_delay: 5,
+            boot_mode: "system".to_string(),
+        };
+
+        let unit = manager.generate_unit_file(&config);
+
+        assert!(unit.contains("User=ubuntu"));
+
+        std::env::remove_var("OPENCODE_SERVICE_USER");
     }
 
     #[test]

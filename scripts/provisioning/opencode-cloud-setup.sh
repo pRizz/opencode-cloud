@@ -141,6 +141,27 @@ opencode_setup_run_as_user() {
   fi
 }
 
+opencode_setup_run_as_root_with_user_env() {
+  local cmd="$*"
+  local target_home="${OPENCODE_SETUP_HOME:-/root}"
+  local service_user="${OPENCODE_SETUP_USER:-}"
+  local target_path="$target_home/.cargo/bin:$PATH"
+  local -a env_args=(
+    "HOME=$target_home"
+    "XDG_CONFIG_HOME=$target_home/.config"
+    "XDG_DATA_HOME=$target_home/.local/share"
+    "XDG_STATE_HOME=$target_home/.local/state"
+    "XDG_CACHE_HOME=$target_home/.cache"
+    "PATH=$target_path"
+  )
+
+  if [ -n "$service_user" ]; then
+    env_args=("OPENCODE_SERVICE_USER=$service_user" "${env_args[@]}")
+  fi
+
+  env "${env_args[@]}" bash -lc "$cmd"
+}
+
 opencode_setup_ensure_rust_toolchain() {
   if ! opencode_setup_run_as_user "command -v cargo >/dev/null 2>&1"; then
     opencode_setup_log "opencode-cloud setup: install rust toolchain"

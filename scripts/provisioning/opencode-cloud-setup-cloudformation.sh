@@ -144,7 +144,7 @@ opencode_setup_log "opencode-cloud setup: set boot_mode=system for cloudformatio
 opencode_setup_run_as_user "opencode-cloud config set boot_mode system"
 
 opencode_setup_log "opencode-cloud setup: install service (system-level)"
-opencode_setup_run_as_user "opencode-cloud install --force"
+opencode_setup_run_as_root_with_user_env "opencode-cloud install --force"
 opencode_setup_log "opencode-cloud setup: service install complete (system-level)"
 
 opencode_setup_log "opencode-cloud setup: restart container after service install"
