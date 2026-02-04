@@ -9,13 +9,16 @@ use super::{
 };
 use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
-use bollard::query_parameters::{BuildImageOptions, BuilderVersion, CreateImageOptions};
+use bollard::query_parameters::{
+    BuildImageOptions, BuilderVersion, CreateImageOptions, ListImagesOptionsBuilder,
+    RemoveImageOptionsBuilder,
+};
 use bytes::Bytes;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use futures_util::StreamExt;
 use http_body_util::{Either, Full};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Builder as TarBuilder;
@@ -65,6 +68,80 @@ pub async fn image_exists(
         }) => Ok(false),
         Err(e) => Err(DockerError::from(e)),
     }
+}
+
+/// Remove all images whose tags or digests contain the provided name fragment
+///
+/// Returns the number of image references removed.
+pub async fn remove_images_by_name(
+    client: &DockerClient,
+    name_fragment: &str,
+    force: bool,
+) -> Result<usize, DockerError> {
+    debug!("Removing Docker images matching '{name_fragment}'");
+
+    let images = list_docker_images(client).await?;
+
+    let references = collect_image_references(&images, name_fragment);
+    remove_image_references(client, references, force).await
+}
+
+/// List all local Docker images (including intermediate layers).
+async fn list_docker_images(
+    client: &DockerClient,
+) -> Result<Vec<bollard::models::ImageSummary>, DockerError> {
+    let list_options = ListImagesOptionsBuilder::new().all(true).build();
+    client
+        .inner()
+        .list_images(Some(list_options))
+        .await
+        .map_err(|e| DockerError::Image(format!("Failed to list images: {e}")))
+}
+
+/// Collect tags and digests that contain the provided name fragment.
+fn collect_image_references(
+    images: &[bollard::models::ImageSummary],
+    name_fragment: &str,
+) -> HashSet<String> {
+    let mut references = HashSet::new();
+    for image in images {
+        for tag in &image.repo_tags {
+            if tag != "<none>:<none>" && tag.contains(name_fragment) {
+                references.insert(tag.to_string());
+            }
+        }
+
+        for digest in &image.repo_digests {
+            if digest.contains(name_fragment) {
+                references.insert(digest.to_string());
+            }
+        }
+    }
+    references
+}
+
+/// Remove image references (tags/digests), returning the number removed.
+async fn remove_image_references(
+    client: &DockerClient,
+    references: HashSet<String>,
+    force: bool,
+) -> Result<usize, DockerError> {
+    if references.is_empty() {
+        return Ok(0);
+    }
+
+    let remove_options = RemoveImageOptionsBuilder::new().force(force).build();
+    let mut removed = 0usize;
+    for reference in references {
+        client
+            .inner()
+            .remove_image(&reference, Some(remove_options.clone()), None)
+            .await
+            .map_err(|e| DockerError::Image(format!("Failed to remove image {reference}: {e}")))?;
+        removed += 1;
+    }
+
+    Ok(removed)
 }
 
 /// Build the opencode image from embedded Dockerfile
