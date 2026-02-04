@@ -70,9 +70,9 @@ pub async fn image_exists(
     }
 }
 
-/// Remove all images whose tags or digests contain the provided name fragment
+/// Remove all images whose tags, digests, or labels match the provided name fragment
 ///
-/// Returns the number of image references removed.
+/// Returns the number of images removed.
 pub async fn remove_images_by_name(
     client: &DockerClient,
     name_fragment: &str,
@@ -82,8 +82,8 @@ pub async fn remove_images_by_name(
 
     let images = list_docker_images(client).await?;
 
-    let references = collect_image_references(&images, name_fragment);
-    remove_image_references(client, references, force).await
+    let image_ids = collect_image_ids(&images, name_fragment);
+    remove_image_ids(client, image_ids, force).await
 }
 
 /// List all local Docker images (including intermediate layers).
@@ -98,47 +98,87 @@ async fn list_docker_images(
         .map_err(|e| DockerError::Image(format!("Failed to list images: {e}")))
 }
 
-/// Collect tags and digests that contain the provided name fragment.
-fn collect_image_references(
+const LABEL_TITLE: &str = "org.opencontainers.image.title";
+const LABEL_SOURCE: &str = "org.opencontainers.image.source";
+const LABEL_URL: &str = "org.opencontainers.image.url";
+
+const LABEL_TITLE_VALUE: &str = "opencode-cloud";
+const LABEL_SOURCE_VALUE: &str = "https://github.com/pRizz/opencode-cloud";
+const LABEL_URL_VALUE: &str = "https://github.com/pRizz/opencode-cloud";
+
+/// Collect image IDs that contain the provided name fragment or match opencode labels.
+fn collect_image_ids(
     images: &[bollard::models::ImageSummary],
     name_fragment: &str,
 ) -> HashSet<String> {
-    let mut references = HashSet::new();
+    let mut image_ids = HashSet::new();
     for image in images {
-        for tag in &image.repo_tags {
-            if tag != "<none>:<none>" && tag.contains(name_fragment) {
-                references.insert(tag.to_string());
-            }
-        }
-
-        for digest in &image.repo_digests {
-            if digest.contains(name_fragment) {
-                references.insert(digest.to_string());
-            }
+        if image_matches_fragment_or_labels(image, name_fragment) {
+            image_ids.insert(image.id.clone());
         }
     }
-    references
+    image_ids
 }
 
-/// Remove image references (tags/digests), returning the number removed.
-async fn remove_image_references(
+fn image_matches_fragment_or_labels(
+    image: &bollard::models::ImageSummary,
+    name_fragment: &str,
+) -> bool {
+    let tag_match = image
+        .repo_tags
+        .iter()
+        .any(|tag| tag != "<none>:<none>" && tag.contains(name_fragment));
+    let digest_match = image
+        .repo_digests
+        .iter()
+        .any(|digest| digest.contains(name_fragment));
+    let label_match = image_labels_match(&image.labels);
+
+    tag_match || digest_match || label_match
+}
+
+fn image_labels_match(labels: &HashMap<String, String>) -> bool {
+    labels
+        .get(LABEL_SOURCE)
+        .is_some_and(|value| value == LABEL_SOURCE_VALUE)
+        || labels
+            .get(LABEL_URL)
+            .is_some_and(|value| value == LABEL_URL_VALUE)
+        || labels
+            .get(LABEL_TITLE)
+            .is_some_and(|value| value == LABEL_TITLE_VALUE)
+}
+
+/// Remove image IDs, returning the number removed.
+async fn remove_image_ids(
     client: &DockerClient,
-    references: HashSet<String>,
+    image_ids: HashSet<String>,
     force: bool,
 ) -> Result<usize, DockerError> {
-    if references.is_empty() {
+    if image_ids.is_empty() {
         return Ok(0);
     }
 
     let remove_options = RemoveImageOptionsBuilder::new().force(force).build();
     let mut removed = 0usize;
-    for reference in references {
-        client
+    for image_id in image_ids {
+        let result = client
             .inner()
-            .remove_image(&reference, Some(remove_options.clone()), None)
-            .await
-            .map_err(|e| DockerError::Image(format!("Failed to remove image {reference}: {e}")))?;
-        removed += 1;
+            .remove_image(&image_id, Some(remove_options.clone()), None)
+            .await;
+        match result {
+            Ok(_) => removed += 1,
+            Err(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => {
+                debug!("Docker image already removed: {}", image_id);
+            }
+            Err(err) => {
+                return Err(DockerError::Image(format!(
+                    "Failed to remove image {image_id}: {err}"
+                )));
+            }
+        }
     }
 
     Ok(removed)
@@ -867,6 +907,32 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bollard::models::ImageSummary;
+    use std::collections::HashMap;
+
+    fn make_image_summary(
+        id: &str,
+        tags: Vec<&str>,
+        digests: Vec<&str>,
+        labels: HashMap<String, String>,
+    ) -> ImageSummary {
+        ImageSummary {
+            id: id.to_string(),
+            parent_id: String::new(),
+            repo_tags: tags.into_iter().map(|tag| tag.to_string()).collect(),
+            repo_digests: digests
+                .into_iter()
+                .map(|digest| digest.to_string())
+                .collect(),
+            created: 0,
+            size: 0,
+            shared_size: -1,
+            labels,
+            containers: 0,
+            manifests: None,
+            descriptor: None,
+        }
+    }
 
     #[test]
     fn create_build_context_succeeds() {
@@ -979,5 +1045,25 @@ mod tests {
         assert!(is_error_line("Unable to locate package"));
         assert!(!is_error_line("Compiling foo v1.0"));
         assert!(!is_error_line("Successfully installed"));
+    }
+
+    #[test]
+    fn collect_image_ids_matches_labels() {
+        let mut labels = HashMap::new();
+        labels.insert(LABEL_SOURCE.to_string(), LABEL_SOURCE_VALUE.to_string());
+
+        let images = vec![
+            make_image_summary("sha256:opencode", vec![], vec![], labels),
+            make_image_summary(
+                "sha256:other",
+                vec!["busybox:latest"],
+                vec![],
+                HashMap::new(),
+            ),
+        ];
+
+        let ids = collect_image_ids(&images, "opencode-cloud-sandbox");
+        assert!(ids.contains("sha256:opencode"));
+        assert!(!ids.contains("sha256:other"));
     }
 }
