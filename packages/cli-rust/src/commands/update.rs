@@ -20,8 +20,9 @@ use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::update::PREVIOUS_TAG;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ProgressReporter,
-    build_image, container_exists, container_is_running, docker_supports_systemd, exec_command,
+    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
+    ProgressReporter, build_image, container_exists, container_is_running, docker_supports_systemd,
+    exec_command,
     exec_command_with_status, get_cli_version, get_image_version, get_registry_latest_version,
     has_previous_image, image_exists, pull_image, rollback_image, save_state, setup_and_start,
     stop_service,
@@ -1069,6 +1070,8 @@ pub(crate) async fn cmd_update_opencode(
 
     let spinner = CommandSpinner::new_maybe("Updating opencode...", quiet);
 
+    ensure_container_running_for_update(&client, &config, quiet).await?;
+
     stop_opencode_for_update(&client, quiet).await?;
 
     let update_script = format!(
@@ -1175,20 +1178,24 @@ async fn get_current_opencode_commit(client: &DockerClient) -> Option<String> {
 }
 
 async fn stop_opencode_for_update(client: &DockerClient, quiet: bool) -> Result<()> {
-    let pid1_comm = get_pid1_comm(client).await;
-    let is_systemd = pid1_comm == "systemd";
-    let (running, pids) = check_opencode_running(client).await?;
-
-    if is_systemd {
-        return stop_opencode_systemd(client, quiet, running).await;
+    let status = check_opencode_status(client).await?;
+    if !status.container_running {
+        return Err(container_not_running_update_error());
     }
 
-    if !running {
+    let pid1_comm = get_pid1_comm(client).await;
+    let is_systemd = pid1_comm == "systemd";
+
+    if is_systemd {
+        return stop_opencode_systemd(client, quiet, status.process_running).await;
+    }
+
+    if !status.process_running {
         print_already_stopped(quiet);
         return Ok(());
     }
 
-    stop_opencode_non_systemd(client, quiet, &pid1_comm, pids).await
+    stop_opencode_non_systemd(client, quiet, &pid1_comm, status.pids).await
 }
 
 async fn stop_opencode_systemd(client: &DockerClient, quiet: bool, running: bool) -> Result<()> {
@@ -1257,12 +1264,15 @@ async fn wait_for_opencode_exit(
     let mut last_pids = initial_pids;
     for _ in 0..10 {
         sleep(Duration::from_millis(300)).await;
-        let (still_running, current_pids) = check_opencode_running(client).await?;
-        if !still_running {
+        let status = check_opencode_status(client).await?;
+        if !status.container_running {
+            return Err(container_not_running_update_error());
+        }
+        if !status.process_running {
             return Ok(None);
         }
-        if !current_pids.is_empty() {
-            last_pids = current_pids;
+        if !status.pids.is_empty() {
+            last_pids = status.pids;
         }
     }
 
@@ -1337,14 +1347,41 @@ async fn get_pid1_comm(client: &DockerClient) -> String {
     }
 }
 
-async fn check_opencode_running(client: &DockerClient) -> Result<(bool, String)> {
-    let (output, status) = exec_command_with_status(
+struct OpencodeProcessStatus {
+    container_running: bool,
+    process_running: bool,
+    pids: String,
+}
+
+async fn check_opencode_status(client: &DockerClient) -> Result<OpencodeProcessStatus> {
+    let container_running = container_is_running(client, CONTAINER_NAME).await?;
+    if !container_running {
+        return Ok(OpencodeProcessStatus {
+            container_running: false,
+            process_running: false,
+            pids: String::new(),
+        });
+    }
+
+    let (output, status) = match exec_command_with_status(
         client,
         CONTAINER_NAME,
         vec!["bash", "-lc", "pgrep -f \"/opt/opencode/bin/opencode\""],
     )
     .await
-    .map_err(|e| anyhow!("Failed to check opencode process status: {e}"))?;
+    {
+        Ok(result) => result,
+        Err(err) => {
+            if is_container_not_running_error(&err) {
+                return Ok(OpencodeProcessStatus {
+                    container_running: false,
+                    process_running: false,
+                    pids: String::new(),
+                });
+            }
+            return Err(anyhow!("Failed to check opencode process status: {err}"));
+        }
+    };
 
     match status {
         0 => {
@@ -1354,13 +1391,70 @@ async fn check_opencode_running(client: &DockerClient) -> Result<(bool, String)>
                 .filter(|l| !l.is_empty())
                 .collect();
             let joined = pids.join(" ");
-            Ok((!joined.is_empty(), joined))
+            Ok(OpencodeProcessStatus {
+                container_running: true,
+                process_running: !joined.is_empty(),
+                pids: joined,
+            })
         }
-        1 => Ok((false, String::new())),
+        1 => Ok(OpencodeProcessStatus {
+            container_running: true,
+            process_running: false,
+            pids: String::new(),
+        }),
         _ => Err(anyhow!(
             "Failed to check opencode process status (exit {status}).\n{output}"
         )),
     }
+}
+
+async fn ensure_container_running_for_update(
+    client: &DockerClient,
+    config: &opencode_cloud_core::config::Config,
+    quiet: bool,
+) -> Result<()> {
+    if container_is_running(client, CONTAINER_NAME).await? {
+        return Ok(());
+    }
+
+    if !quiet {
+        eprintln!(
+            "{} Container is not running; attempting to start it before updating.",
+            style("Warning:").yellow().bold()
+        );
+    }
+
+    let systemd_enabled = docker_supports_systemd(client).await?;
+    setup_and_start(
+        client,
+        Some(config.opencode_web_port),
+        None,
+        Some(&config.bind_address),
+        Some(config.cockpit_port),
+        Some(config.cockpit_enabled && COCKPIT_EXPOSED),
+        Some(systemd_enabled),
+        None,
+    )
+    .await
+    .map_err(|e| anyhow!("Failed to start container: {e}"))?;
+
+    if container_is_running(client, CONTAINER_NAME).await? {
+        return Ok(());
+    }
+
+    Err(container_not_running_update_error())
+}
+
+fn container_not_running_update_error() -> anyhow::Error {
+    anyhow!(
+        "Container is not running; cannot update opencode.\n\
+Run:\n  occ start\n\
+If it exits immediately, run:\n  occ logs"
+    )
+}
+
+fn is_container_not_running_error(err: &DockerError) -> bool {
+    matches!(err, DockerError::Container(msg) if msg.contains("is not running") || msg.contains("not running"))
 }
 
 async fn resolve_remote_commit(client: &DockerClient, target_ref: &str) -> Option<String> {
