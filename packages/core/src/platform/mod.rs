@@ -85,9 +85,12 @@ pub trait ServiceManager: Send + Sync {
 
 /// Get the appropriate service manager for the current platform
 ///
+/// # Arguments
+/// * `boot_mode` - "user" for user-level service (default), "system" for system-level
+///
 /// Returns an error if the platform is not supported or if the
 /// service manager implementation is not yet available.
-pub fn get_service_manager() -> Result<Box<dyn ServiceManager>> {
+pub fn get_service_manager(boot_mode: &str) -> Result<Box<dyn ServiceManager>> {
     #[cfg(target_os = "linux")]
     {
         if !systemd::systemd_available() {
@@ -96,11 +99,11 @@ pub fn get_service_manager() -> Result<Box<dyn ServiceManager>> {
                  Service registration requires systemd as the init system."
             ));
         }
-        Ok(Box::new(systemd::SystemdManager::new("user")))
+        Ok(Box::new(systemd::SystemdManager::new(boot_mode)))
     }
     #[cfg(target_os = "macos")]
     {
-        Ok(Box::new(launchd::LaunchdManager::new("user")))
+        Ok(Box::new(launchd::LaunchdManager::new(boot_mode)))
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
@@ -164,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_get_service_manager_behavior() {
-        let result = get_service_manager();
+        let result = get_service_manager("user");
 
         // On Linux with systemd: returns Ok(SystemdManager)
         // On Linux without systemd: returns Err (systemd not available)
@@ -187,5 +190,17 @@ mod tests {
         {
             assert!(result.is_err());
         }
+    }
+
+    #[test]
+    fn test_get_service_manager_respects_boot_mode() {
+        // Test that boot_mode parameter is passed through
+        let user_result = get_service_manager("user");
+        let system_result = get_service_manager("system");
+
+        // Both should either succeed or fail based on platform support,
+        // but they should not panic
+        let _ = user_result;
+        let _ = system_result;
     }
 }

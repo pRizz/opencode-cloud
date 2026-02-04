@@ -136,9 +136,16 @@ opencode_setup_wait_for_docker
 opencode_setup_align_mount_ownership
 opencode_setup_bootstrap_config
 
-opencode_setup_log "opencode-cloud setup: install service (ubuntu user)"
+# Use system-level boot mode for CloudFormation deployments.
+# During cloud-init, user-level systemd sessions aren't available, so
+# `systemctl --user daemon-reload` would fail with "No medium found".
+# System-level services work during boot and provide better reliability.
+opencode_setup_log "opencode-cloud setup: set boot_mode=system for cloudformation"
+opencode_setup_run_as_user "opencode-cloud config set boot_mode system"
+
+opencode_setup_log "opencode-cloud setup: install service (system-level)"
 opencode_setup_run_as_user "opencode-cloud install --force"
-opencode_setup_log "opencode-cloud setup: service install complete (ubuntu user)"
+opencode_setup_log "opencode-cloud setup: service install complete (system-level)"
 
 opencode_setup_log "opencode-cloud setup: restart container after service install"
 opencode_setup_run_as_user "opencode-cloud restart --quiet"

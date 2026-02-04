@@ -46,6 +46,47 @@ build-node:
     pnpm -C packages/core build
     pnpm -r --filter="!@opencode-cloud/core" build
 
+# --- Docker Sandbox Image ---
+
+# Build Docker sandbox image with BuildKit caching (amd64 only, for local dev)
+# Use DOCKER_BUILDKIT=1 for layer caching and faster rebuilds
+# The image is tagged as opencode-cloud-sandbox:dev
+build-docker:
+    @echo "Building Docker sandbox image..."
+    @cp packages/core/src/docker/Dockerfile Dockerfile.build
+    DOCKER_BUILDKIT=1 docker build \
+        -f Dockerfile.build \
+        -t opencode-cloud-sandbox:dev \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        .
+    @rm -f Dockerfile.build
+    @echo "✓ Docker image built: opencode-cloud-sandbox:dev"
+
+# Build Docker sandbox image with no cache (clean rebuild)
+build-docker-no-cache:
+    @echo "Building Docker sandbox image (no cache)..."
+    @cp packages/core/src/docker/Dockerfile Dockerfile.build
+    DOCKER_BUILDKIT=1 docker build \
+        -f Dockerfile.build \
+        -t opencode-cloud-sandbox:dev \
+        --no-cache \
+        .
+    @rm -f Dockerfile.build
+    @echo "✓ Docker image built (no cache): opencode-cloud-sandbox:dev"
+
+# Verify Docker build stages (builds opencode-build stage only, faster than full build)
+check-docker:
+    @echo "Checking Dockerfile syntax and build stages..."
+    @cp packages/core/src/docker/Dockerfile Dockerfile.build
+    DOCKER_BUILDKIT=1 docker build \
+        -f Dockerfile.build \
+        --target opencode-build \
+        -t opencode-cloud-sandbox:check \
+        .
+    @rm -f Dockerfile.build
+    @docker rmi opencode-cloud-sandbox:check 2>/dev/null || true
+    @echo "✓ Dockerfile check passed"
+
 # Run all tests (fast)
 test-all-fast: test-rust-fast test-node
 
@@ -104,8 +145,12 @@ lint-shell:
 check-updates:
     ./scripts/check-dockerfile-updates.sh
 
-# Pre-commit checks
+# Pre-commit checks (without Docker build - faster, works without Docker)
 pre-commit: fmt lint build test-all-fast
+
+# Pre-commit checks including Docker build (requires Docker)
+pre-commit-full: fmt lint build test-all-fast build-docker
+    @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything
 fmt:

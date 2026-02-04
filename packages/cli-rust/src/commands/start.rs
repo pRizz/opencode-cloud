@@ -379,7 +379,7 @@ async fn check_version_compatibility(
 
     let selection = dialoguer::Select::new()
         .with_prompt("What would you like to do?")
-        .items(&[
+        .items([
             "Redownload latest prebuilt image (recommended)",
             "Rebuild image from source",
             "Continue with mismatched versions",
