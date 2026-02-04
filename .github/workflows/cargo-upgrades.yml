@@ -22,6 +22,18 @@ jobs:
         with:
           toolchain: "1.89"
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Install cargo-edit
         run: cargo install cargo-edit --locked
 
@@ -80,13 +92,25 @@ jobs:
 
           echo "updates_available=true" >> $GITHUB_OUTPUT
 
-          just test-all-slow 2>&1 | tee "${test_output_path}"
-          test_exit=$?
-          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
+          test_exit=0
+          audit_exit=0
 
-          cargo audit 2>&1 | tee "${audit_output_path}"
-          audit_exit=$?
-          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
+          if [ "${upgrade_exit}" -eq 0 ]; then
+            pnpm install --frozen-lockfile --ignore-scripts
+
+            just test-all-slow 2>&1 | tee "${test_output_path}"
+            test_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
+
+            cargo audit 2>&1 | tee "${audit_output_path}"
+            audit_exit=$?
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
+          else
+            echo "Skipping tests and audit because cargo upgrade exited with ${upgrade_exit}." | tee "${test_output_path}"
+            echo "Skipping audit because cargo upgrade exited with ${upgrade_exit}." | tee "${audit_output_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
+          fi
 
           echo "upgrade_exit=${upgrade_exit}" >> $GITHUB_OUTPUT
           echo "test_exit=${test_exit}" >> $GITHUB_OUTPUT
