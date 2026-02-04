@@ -13,6 +13,11 @@ on:
           - major
         default: patch
 
+concurrency:
+  group: version-bump
+  # Queue runs to avoid overlapping version bumps, tag collisions, and push races.
+  cancel-in-progress: false
+
 permissions:
   contents: write    # Required for pushing commits and tags
   packages: write    # Required for GHCR push (docker-publish)
