@@ -29,7 +29,7 @@ mod version;
 pub mod volume;
 
 // Core types
-pub use client::DockerClient;
+pub use client::{DockerClient, DockerEndpoint};
 pub use error::DockerError;
 pub use progress::ProgressReporter;
 

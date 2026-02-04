@@ -4,10 +4,14 @@
 //! errors gracefully and provides clear error messages.
 
 use bollard::Docker;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use super::error::DockerError;
 use crate::host::{HostConfig, SshTunnel};
+
+/// Default Unix socket path used when `DOCKER_HOST` does not specify a socket.
+const DEFAULT_UNIX_SOCKET: &str = "/var/run/docker.sock";
 
 /// Docker client wrapper with connection handling
 pub struct DockerClient {
@@ -16,6 +20,22 @@ pub struct DockerClient {
     _tunnel: Option<SshTunnel>,
     /// Host name for remote connections (None = local)
     host_name: Option<String>,
+    /// Connection info for raw HTTP calls that bypass Bollard models.
+    endpoint: DockerEndpoint,
+}
+
+/// Docker API endpoint details for raw HTTP calls.
+///
+/// We keep this alongside the Bollard client because some Docker API responses
+/// (notably `/system/df` in API v1.52+) do not deserialize cleanly into the
+/// Bollard-generated models. The CLI uses this endpoint to fetch and parse
+/// those responses directly.
+#[derive(Clone, Debug)]
+pub enum DockerEndpoint {
+    /// Unix domain socket path (local Docker).
+    Unix(PathBuf),
+    /// HTTP base URL (remote Docker via SSH tunnel).
+    Http(String),
 }
 
 impl DockerClient {
@@ -24,6 +44,7 @@ impl DockerClient {
     /// Uses platform-appropriate socket (Unix socket on Linux/macOS).
     /// Returns a clear error if Docker is not running or accessible.
     pub fn new() -> Result<Self, DockerError> {
+        let endpoint = Self::resolve_local_endpoint();
         let docker = Docker::connect_with_local_defaults()
             .map_err(|e| DockerError::Connection(e.to_string()))?;
 
@@ -31,6 +52,7 @@ impl DockerClient {
             inner: docker,
             _tunnel: None,
             host_name: None,
+            endpoint,
         })
     }
 
@@ -39,6 +61,7 @@ impl DockerClient {
     /// Use for long-running operations like image builds.
     /// Default timeout is 120 seconds; build timeout should be 600+ seconds.
     pub fn with_timeout(timeout_secs: u64) -> Result<Self, DockerError> {
+        let endpoint = Self::resolve_local_endpoint();
         let docker = Docker::connect_with_local_defaults()
             .map_err(|e| DockerError::Connection(e.to_string()))?
             .with_timeout(Duration::from_secs(timeout_secs));
@@ -47,6 +70,7 @@ impl DockerClient {
             inner: docker,
             _tunnel: None,
             host_name: None,
+            endpoint,
         })
     }
 
@@ -62,6 +86,7 @@ impl DockerClient {
         // Create SSH tunnel
         let tunnel = SshTunnel::new(host, host_name)
             .map_err(|e| DockerError::Connection(format!("SSH tunnel failed: {e}")))?;
+        let endpoint = Self::endpoint_from_tunnel(&tunnel);
 
         // Wait for tunnel to be ready with exponential backoff
         tunnel
@@ -94,6 +119,7 @@ impl DockerClient {
                                 inner: docker,
                                 _tunnel: Some(tunnel),
                                 host_name: Some(host_name.to_string()),
+                                endpoint,
                             });
                         }
                         Err(e) => {
@@ -124,6 +150,7 @@ impl DockerClient {
     ) -> Result<Self, DockerError> {
         let tunnel = SshTunnel::new(host, host_name)
             .map_err(|e| DockerError::Connection(format!("SSH tunnel failed: {e}")))?;
+        let endpoint = Self::endpoint_from_tunnel(&tunnel);
 
         tunnel
             .wait_ready()
@@ -143,6 +170,7 @@ impl DockerClient {
             inner: docker,
             _tunnel: Some(tunnel),
             host_name: Some(host_name.to_string()),
+            endpoint,
         })
     }
 
@@ -177,9 +205,39 @@ impl DockerClient {
         self._tunnel.is_some()
     }
 
+    /// Return the endpoint details used for raw Docker API calls.
+    ///
+    /// This exists to support endpoints whose response schemas are newer than
+    /// the Bollard-generated models (e.g., `/system/df` in newer Docker APIs).
+    pub fn endpoint(&self) -> &DockerEndpoint {
+        &self.endpoint
+    }
+
     /// Access inner Bollard client for advanced operations
     pub fn inner(&self) -> &Docker {
         &self.inner
+    }
+
+    /// Resolve the local Unix socket path used by the Docker client.
+    ///
+    /// Bollard's `connect_with_local_defaults` only honors `DOCKER_HOST` when it
+    /// starts with `unix://`. We mirror that logic so our raw HTTP calls use the
+    /// same socket, which is necessary because Bollard's `/system/df` models
+    /// don't match newer Docker API responses.
+    fn resolve_local_endpoint() -> DockerEndpoint {
+        let socket = std::env::var("DOCKER_HOST")
+            .ok()
+            .and_then(|host| host.strip_prefix("unix://").map(|path| path.to_string()))
+            .unwrap_or_else(|| DEFAULT_UNIX_SOCKET.to_string());
+        DockerEndpoint::Unix(PathBuf::from(socket))
+    }
+
+    /// Build an HTTP base URL for a Docker daemon reachable via SSH tunnel.
+    ///
+    /// We store this so the CLI can query `/system/df` directly when Bollard's
+    /// data-usage models are out of date.
+    fn endpoint_from_tunnel(tunnel: &SshTunnel) -> DockerEndpoint {
+        DockerEndpoint::Http(format!("http://127.0.0.1:{}", tunnel.local_port()))
     }
 }
 
