@@ -12,6 +12,61 @@ STACK_NAME="${OPENCODE_STACK_NAME:-}"
 SIGNAL_RESOURCE="${OPENCODE_SIGNAL_RESOURCE:-OpencodeInstance}"
 IMDS_BASE="http://169.254.169.254"
 
+opencode_setup_secrets_manager_url() {
+  local secret_name="${PRIVATE_CREDENTIALS_SECRET_NAME:-}"
+  local region="${AWS_REGION:-}"
+
+  if [ -z "$secret_name" ] && [ -n "${OPENCODE_CREDENTIALS_SECRET_ARN:-}" ]; then
+    secret_name="${OPENCODE_CREDENTIALS_SECRET_ARN##*:secret:}"
+  fi
+
+  if [ -n "$secret_name" ] && [ -n "$region" ]; then
+    local encoded_name
+    if command -v jq >/dev/null 2>&1; then
+      encoded_name="$(printf '%s' "$secret_name" | jq -sRr @uri)"
+    else
+      encoded_name="$secret_name"
+    fi
+    printf 'https://console.aws.amazon.com/secretsmanager/secret?name=%s&region=%s\n' \
+      "$encoded_name" "$region"
+    return 0
+  fi
+
+  if [ -n "$region" ]; then
+    printf 'https://console.aws.amazon.com/secretsmanager/home?region=%s#/secretsmanager\n' "$region"
+    return 0
+  fi
+
+  printf 'https://console.aws.amazon.com/secretsmanager\n'
+}
+
+opencode_setup_emit_success_summary() {
+  local secrets_url
+  local secret_name="${PRIVATE_CREDENTIALS_SECRET_NAME:-}"
+
+  if [ -z "$secret_name" ] && [ -n "${OPENCODE_CREDENTIALS_SECRET_ARN:-}" ]; then
+    secret_name="${OPENCODE_CREDENTIALS_SECRET_ARN##*:secret:}"
+  fi
+
+  secrets_url="$(opencode_setup_secrets_manager_url)"
+
+  local -a lines=(
+    "opencode-cloud ready. (cloudformation)"
+    "Public URL: ${PUBLIC_OPENCODE_DOMAIN_URL}"
+    "ALB URL: ${PUBLIC_OPENCODE_ALB_URL}"
+    "Credentials stored in AWS Secrets Manager."
+    "Credentials secret: ${OPENCODE_CREDENTIALS_SECRET_ARN}${secret_name:+ (name: ${secret_name})}"
+    "Secrets Manager link: ${secrets_url}"
+    "Fetch credentials: aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ${OPENCODE_CREDENTIALS_SECRET_ARN} --query SecretString --output text"
+  )
+
+  local line
+  for line in "${lines[@]}"; do
+    printf '%s\n' "$line"
+    opencode_setup_log "$line"
+  done
+}
+
 signal_result() {
   local -r exit_code="$1"
   local -r reason="$2"
@@ -193,4 +248,5 @@ aws secretsmanager put-secret-value \
 opencode_setup_log "opencode-cloud setup: secret stored"
 
 opencode_setup_mark_provisioned
+opencode_setup_emit_success_summary
 signal_result 0 "opencode-cloud provisioned successfully"
