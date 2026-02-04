@@ -13,6 +13,9 @@ import { existsSync } from 'fs';
 // Path to the Rust binary (built from workspace)
 const RUST_BINARY_PATH = resolve(__dirname, '../../../target/debug/opencode-cloud');
 
+// Check if binaries exist for conditional test execution
+const RUST_BINARY_EXISTS = existsSync(RUST_BINARY_PATH);
+
 // Path where Node CLI expects to find the binary
 const NODE_BIN_DIR = resolve(__dirname, '../bin');
 const NODE_BIN_PATH = join(NODE_BIN_DIR, 'occ');
@@ -56,17 +59,18 @@ function discoverCommands(): string[] {
   return commands;
 }
 
-describe('CLI Parity', () => {
+// Log skip reason at module load time if binary is missing
+if (!RUST_BINARY_EXISTS) {
+  console.warn(
+    `\n⚠️  Skipping CLI parity tests: Rust binary not found at ${RUST_BINARY_PATH}\n` +
+      `   Run 'cargo build -p opencode-cloud' to enable these tests.\n`
+  );
+}
+
+describe.skipIf(!RUST_BINARY_EXISTS)('CLI Parity', () => {
   let commands: string[];
 
   beforeAll(() => {
-    // Ensure Rust binary exists
-    if (!existsSync(RUST_BINARY_PATH)) {
-      throw new Error(
-        `Rust binary not found at ${RUST_BINARY_PATH}. Run: cargo build -p opencode-cloud`
-      );
-    }
-
     // Ensure Node CLI wrapper is built
     if (!existsSync(NODE_CLI_PATH)) {
       throw new Error(
