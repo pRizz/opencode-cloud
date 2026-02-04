@@ -51,6 +51,10 @@ jobs:
           set -o pipefail
 
           updates_dir="${RUNNER_TEMP}"
+          strip_ansi() {
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "$1" > "$2"
+          }
+
           upgrade_output_path="${updates_dir}/cargo-upgrade-output.txt"
           upgrade_output_plain_path="${updates_dir}/cargo-upgrade-output-plain.txt"
           install_output_path="${updates_dir}/pnpm-install-output.txt"
@@ -100,7 +104,7 @@ jobs:
               upgrade_exit="${upgrade_status}"
             fi
           fi
-          sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${upgrade_output_path}" > "${upgrade_output_plain_path}"
+          strip_ansi "${upgrade_output_path}" "${upgrade_output_plain_path}"
 
           if git diff --quiet; then
             echo "updates_available=false" >> $GITHUB_OUTPUT
@@ -123,56 +127,56 @@ jobs:
           if [ "${upgrade_exit}" -eq 0 ]; then
             pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tee "${install_output_path}"
             install_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
+            strip_ansi "${install_output_path}" "${install_output_plain_path}"
 
             cargo fmt --all 2>&1 | tee "${format_fix_output_path}"
             format_fix_status=$?
             if [ "${format_fix_status}" -ne 0 ]; then
               format_fix_exit="${format_fix_status}"
             fi
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
+            strip_ansi "${format_fix_output_path}" "${format_fix_output_plain_path}"
 
             cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged 2>&1 | tee "${clippy_fix_output_path}"
             clippy_fix_status=$?
             if [ "${clippy_fix_status}" -ne 0 ]; then
               clippy_fix_exit="${clippy_fix_status}"
             fi
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_fix_output_path}" > "${clippy_fix_output_plain_path}"
+            strip_ansi "${clippy_fix_output_path}" "${clippy_fix_output_plain_path}"
 
             cargo fmt --all 2>&1 | tee -a "${format_fix_output_path}"
             format_fix_status=$?
             if [ "${format_fix_status}" -ne 0 ]; then
               format_fix_exit="${format_fix_status}"
             fi
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
+            strip_ansi "${format_fix_output_path}" "${format_fix_output_plain_path}"
 
             cargo fmt --all -- --check 2>&1 | tee "${format_output_path}"
             format_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_output_path}" > "${format_output_plain_path}"
+            strip_ansi "${format_output_path}" "${format_output_plain_path}"
 
             cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tee "${clippy_output_path}"
             clippy_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_output_path}" > "${clippy_output_plain_path}"
+            strip_ansi "${clippy_output_path}" "${clippy_output_plain_path}"
 
             cargo build --workspace 2>&1 | tee "${build_output_path}"
             build_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${build_output_path}" > "${build_output_plain_path}"
+            strip_ansi "${build_output_path}" "${build_output_plain_path}"
 
             just test-all-slow 2>&1 | tee "${test_output_path}"
             test_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
+            strip_ansi "${test_output_path}" "${test_output_plain_path}"
 
             pnpm -C packages/core build 2>&1 | tee "${core_build_output_path}"
             core_build_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${core_build_output_path}" > "${core_build_output_plain_path}"
+            strip_ansi "${core_build_output_path}" "${core_build_output_plain_path}"
 
             cargo run -p opencode-cloud -- --version 2>&1 | tee "${verify_output_path}"
             verify_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${verify_output_path}" > "${verify_output_plain_path}"
+            strip_ansi "${verify_output_path}" "${verify_output_plain_path}"
 
             cargo audit 2>&1 | tee "${audit_output_path}"
             audit_exit=$?
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
+            strip_ansi "${audit_output_path}" "${audit_output_plain_path}"
           else
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${install_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${format_fix_output_path}"
@@ -184,16 +188,16 @@ jobs:
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${core_build_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${verify_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${audit_output_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_fix_output_path}" > "${clippy_fix_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_output_path}" > "${format_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_output_path}" > "${clippy_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${build_output_path}" > "${build_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${core_build_output_path}" > "${core_build_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${verify_output_path}" > "${verify_output_plain_path}"
-            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
+            strip_ansi "${install_output_path}" "${install_output_plain_path}"
+            strip_ansi "${format_fix_output_path}" "${format_fix_output_plain_path}"
+            strip_ansi "${clippy_fix_output_path}" "${clippy_fix_output_plain_path}"
+            strip_ansi "${format_output_path}" "${format_output_plain_path}"
+            strip_ansi "${clippy_output_path}" "${clippy_output_plain_path}"
+            strip_ansi "${build_output_path}" "${build_output_plain_path}"
+            strip_ansi "${test_output_path}" "${test_output_plain_path}"
+            strip_ansi "${core_build_output_path}" "${core_build_output_plain_path}"
+            strip_ansi "${verify_output_path}" "${verify_output_plain_path}"
+            strip_ansi "${audit_output_path}" "${audit_output_plain_path}"
           fi
 
           checks_passed=true
