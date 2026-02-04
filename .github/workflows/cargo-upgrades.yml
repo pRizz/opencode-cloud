@@ -55,6 +55,10 @@ jobs:
           upgrade_output_plain_path="${updates_dir}/cargo-upgrade-output-plain.txt"
           install_output_path="${updates_dir}/pnpm-install-output.txt"
           install_output_plain_path="${updates_dir}/pnpm-install-output-plain.txt"
+          format_fix_output_path="${updates_dir}/cargo-fmt-fix-output.txt"
+          format_fix_output_plain_path="${updates_dir}/cargo-fmt-fix-output-plain.txt"
+          clippy_fix_output_path="${updates_dir}/cargo-clippy-fix-output.txt"
+          clippy_fix_output_plain_path="${updates_dir}/cargo-clippy-fix-output-plain.txt"
           format_output_path="${updates_dir}/cargo-fmt-output.txt"
           format_output_plain_path="${updates_dir}/cargo-fmt-output-plain.txt"
           clippy_output_path="${updates_dir}/cargo-clippy-output.txt"
@@ -106,6 +110,8 @@ jobs:
           echo "updates_available=true" >> $GITHUB_OUTPUT
 
           install_exit=0
+          format_fix_exit=0
+          clippy_fix_exit=0
           format_exit=0
           clippy_exit=0
           build_exit=0
@@ -118,6 +124,27 @@ jobs:
             pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tee "${install_output_path}"
             install_exit=$?
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
+
+            cargo fmt --all 2>&1 | tee "${format_fix_output_path}"
+            format_fix_status=$?
+            if [ "${format_fix_status}" -ne 0 ]; then
+              format_fix_exit="${format_fix_status}"
+            fi
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
+
+            cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged 2>&1 | tee "${clippy_fix_output_path}"
+            clippy_fix_status=$?
+            if [ "${clippy_fix_status}" -ne 0 ]; then
+              clippy_fix_exit="${clippy_fix_status}"
+            fi
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_fix_output_path}" > "${clippy_fix_output_plain_path}"
+
+            cargo fmt --all 2>&1 | tee -a "${format_fix_output_path}"
+            format_fix_status=$?
+            if [ "${format_fix_status}" -ne 0 ]; then
+              format_fix_exit="${format_fix_status}"
+            fi
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
 
             cargo fmt --all -- --check 2>&1 | tee "${format_output_path}"
             format_exit=$?
@@ -148,6 +175,8 @@ jobs:
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${audit_output_path}" > "${audit_output_plain_path}"
           else
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${install_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${format_fix_output_path}"
+            echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${clippy_fix_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${format_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${clippy_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${build_output_path}"
@@ -156,6 +185,8 @@ jobs:
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${verify_output_path}"
             echo "Skipping checks because cargo upgrade exited with ${upgrade_exit}." | tee "${audit_output_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${install_output_path}" > "${install_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_fix_output_path}" > "${format_fix_output_plain_path}"
+            sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_fix_output_path}" > "${clippy_fix_output_plain_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${format_output_path}" > "${format_output_plain_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${clippy_output_path}" > "${clippy_output_plain_path}"
             sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${build_output_path}" > "${build_output_plain_path}"
@@ -180,6 +211,8 @@ jobs:
 
           echo "upgrade_exit=${upgrade_exit}" >> $GITHUB_OUTPUT
           echo "install_exit=${install_exit}" >> $GITHUB_OUTPUT
+          echo "format_fix_exit=${format_fix_exit}" >> $GITHUB_OUTPUT
+          echo "clippy_fix_exit=${clippy_fix_exit}" >> $GITHUB_OUTPUT
           echo "format_exit=${format_exit}" >> $GITHUB_OUTPUT
           echo "clippy_exit=${clippy_exit}" >> $GITHUB_OUTPUT
           echo "build_exit=${build_exit}" >> $GITHUB_OUTPUT
@@ -190,6 +223,8 @@ jobs:
           echo "checks_passed=${checks_passed}" >> $GITHUB_OUTPUT
           echo "upgrade_output_plain_path=${upgrade_output_plain_path}" >> $GITHUB_OUTPUT
           echo "install_output_plain_path=${install_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "format_fix_output_plain_path=${format_fix_output_plain_path}" >> $GITHUB_OUTPUT
+          echo "clippy_fix_output_plain_path=${clippy_fix_output_plain_path}" >> $GITHUB_OUTPUT
           echo "format_output_plain_path=${format_output_plain_path}" >> $GITHUB_OUTPUT
           echo "clippy_output_plain_path=${clippy_output_plain_path}" >> $GITHUB_OUTPUT
           echo "build_output_plain_path=${build_output_plain_path}" >> $GITHUB_OUTPUT
@@ -266,6 +301,8 @@ jobs:
         env:
           UPGRADE_OUTPUT: ${{ steps.upgrade.outputs.upgrade_output_plain_path }}
           INSTALL_OUTPUT: ${{ steps.upgrade.outputs.install_output_plain_path }}
+          FORMAT_FIX_OUTPUT: ${{ steps.upgrade.outputs.format_fix_output_plain_path }}
+          CLIPPY_FIX_OUTPUT: ${{ steps.upgrade.outputs.clippy_fix_output_plain_path }}
           FORMAT_OUTPUT: ${{ steps.upgrade.outputs.format_output_plain_path }}
           CLIPPY_OUTPUT: ${{ steps.upgrade.outputs.clippy_output_plain_path }}
           BUILD_OUTPUT: ${{ steps.upgrade.outputs.build_output_plain_path }}
@@ -275,6 +312,8 @@ jobs:
           AUDIT_OUTPUT: ${{ steps.upgrade.outputs.audit_output_plain_path }}
           UPGRADE_EXIT: ${{ steps.upgrade.outputs.upgrade_exit }}
           INSTALL_EXIT: ${{ steps.upgrade.outputs.install_exit }}
+          FORMAT_FIX_EXIT: ${{ steps.upgrade.outputs.format_fix_exit }}
+          CLIPPY_FIX_EXIT: ${{ steps.upgrade.outputs.clippy_fix_exit }}
           FORMAT_EXIT: ${{ steps.upgrade.outputs.format_exit }}
           CLIPPY_EXIT: ${{ steps.upgrade.outputs.clippy_exit }}
           BUILD_EXIT: ${{ steps.upgrade.outputs.build_exit }}
@@ -288,6 +327,8 @@ jobs:
 
             const upgradeExit = process.env.UPGRADE_EXIT || '0';
             const installExit = process.env.INSTALL_EXIT || '0';
+            const formatFixExit = process.env.FORMAT_FIX_EXIT || '0';
+            const clippyFixExit = process.env.CLIPPY_FIX_EXIT || '0';
             const formatExit = process.env.FORMAT_EXIT || '0';
             const clippyExit = process.env.CLIPPY_EXIT || '0';
             const buildExit = process.env.BUILD_EXIT || '0';
@@ -313,6 +354,8 @@ jobs:
 
             const upgradeOutput = readFileSafe(process.env.UPGRADE_OUTPUT);
             const installOutput = readFileSafe(process.env.INSTALL_OUTPUT);
+            const formatFixOutput = readFileSafe(process.env.FORMAT_FIX_OUTPUT);
+            const clippyFixOutput = readFileSafe(process.env.CLIPPY_FIX_OUTPUT);
             const formatOutput = readFileSafe(process.env.FORMAT_OUTPUT);
             const clippyOutput = readFileSafe(process.env.CLIPPY_OUTPUT);
             const buildOutput = readFileSafe(process.env.BUILD_OUTPUT);
@@ -327,6 +370,8 @@ jobs:
             sections.push('### Summary');
             sections.push(`- Upgrade exit: \`${upgradeExit}\``);
             sections.push(`- Install exit: \`${installExit}\``);
+            sections.push(`- Format fix exit: \`${formatFixExit}\``);
+            sections.push(`- Clippy fix exit: \`${clippyFixExit}\``);
             sections.push(`- Format exit: \`${formatExit}\``);
             sections.push(`- Clippy exit: \`${clippyExit}\``);
             sections.push(`- Build exit: \`${buildExit}\``);
@@ -352,6 +397,22 @@ jobs:
               sections.push('### pnpm Install Output (tail)');
               sections.push('```');
               sections.push(tail(installOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (formatFixExit !== '0') {
+              sections.push('### cargo fmt (fix) Output (tail)');
+              sections.push('```');
+              sections.push(tail(formatFixOutput, 12000));
+              sections.push('```');
+              sections.push('');
+            }
+
+            if (clippyFixExit !== '0') {
+              sections.push('### Clippy Fix Output (tail)');
+              sections.push('```');
+              sections.push(tail(clippyFixOutput, 12000));
               sections.push('```');
               sections.push('');
             }
