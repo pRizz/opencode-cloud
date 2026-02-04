@@ -53,7 +53,7 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls", "w
 plist = "1.8"
 
 # Host management
-whoami = "1.5"
+whoami = "2.1"
 ssh2-config-rs = "0.7.2"
 dirs = "6"
 
