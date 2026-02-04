@@ -130,11 +130,37 @@ pub fn systemd_available() -> bool {
     Path::new("/run/systemd/system").exists()
 }
 
+/// Check if systemd user session is available for the current user
+///
+/// Returns true if XDG_RUNTIME_DIR is set and the user's systemd directory exists.
+/// This is needed for `systemctl --user` commands to work.
+pub fn systemd_user_session_available() -> bool {
+    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+        // Check if the user's systemd directory exists
+        Path::new(&runtime_dir).join("systemd").exists()
+    } else {
+        false
+    }
+}
+
 impl ServiceManager for SystemdManager {
     fn install(&self, config: &ServiceConfig) -> Result<InstallResult> {
-        // Check permissions for system-level installation
-        if !self.user_mode {
-            // Check if we can write to /etc/systemd/system/
+        // Check permissions and session availability based on mode
+        if self.user_mode {
+            // User-level installation requires an active systemd user session
+            if !systemd_user_session_available() {
+                return Err(anyhow!(
+                    "User-level systemd session not available.\n\
+                     This typically happens during cloud-init or when running as a \
+                     different user without an active login session.\n\n\
+                     Solutions:\n\
+                     1. Use system-level installation: occ config set boot_mode system\n\
+                     2. Run the command from an interactive login session\n\
+                     3. Ensure XDG_RUNTIME_DIR is set and the user has an active systemd session"
+                ));
+            }
+        } else {
+            // System-level installation requires root privileges
             let test_path = self.service_dir().join(".opencode-cloud-test");
             if fs::write(&test_path, "").is_err() {
                 return Err(anyhow!(

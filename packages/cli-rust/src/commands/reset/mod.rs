@@ -17,6 +17,7 @@ use anyhow::{Result, anyhow, bail};
 use clap::{Args, Subcommand};
 use console::style;
 use dialoguer::Confirm;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::config::paths::{get_config_dir, get_data_dir};
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
@@ -580,7 +581,12 @@ fn uninstall_service_registration(quiet: bool, errors: &mut Vec<String>) {
         return;
     }
 
-    let manager = match get_service_manager() {
+    // Load config to determine boot mode
+    let boot_mode = load_config_or_default()
+        .map(|c| c.boot_mode)
+        .unwrap_or_else(|_| "user".to_string());
+
+    let manager = match get_service_manager(&boot_mode) {
         Ok(manager) => manager,
         Err(err) => {
             errors.push(format!("Failed to load service manager: {err}"));

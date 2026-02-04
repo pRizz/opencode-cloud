@@ -43,8 +43,11 @@ pub async fn cmd_install(args: &InstallArgs, quiet: bool, _verbose: u8) -> Resul
         ));
     }
 
-    // 2. Get service manager
-    let manager = get_service_manager()?;
+    // 2. Load config first to get boot_mode
+    let config = load_config_or_default()?;
+
+    // 3. Get service manager with correct boot_mode
+    let manager = get_service_manager(&config.boot_mode)?;
 
     // 3. Check if already installed
     if manager.is_installed()? {
@@ -90,10 +93,7 @@ pub async fn cmd_install(args: &InstallArgs, quiet: bool, _verbose: u8) -> Resul
     // 5. Get executable path (current binary)
     let executable_path = std::env::current_exe()?;
 
-    // 6. Load config for restart settings
-    let config = load_config_or_default()?;
-
-    // 7. Build ServiceConfig
+    // 6. Build ServiceConfig (config already loaded above for boot_mode)
     let service_config = ServiceConfig {
         executable_path,
         restart_retries: config.restart_retries,

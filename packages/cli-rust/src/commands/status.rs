@@ -164,25 +164,25 @@ pub async fn cmd_status(
     println!("{}", format_kv("State:", state_style(&status)));
 
     // Show installation status early
-    if is_service_registration_supported()
-        && let Ok(manager) = get_service_manager()
-    {
-        let installed = manager.is_installed().unwrap_or(false);
-        let install_status = if installed {
-            // Load config to determine boot mode
-            let boot_mode = config::load_config_or_default()
-                .map(|c| c.boot_mode)
-                .unwrap_or_else(|_| "user".to_string());
-            let boot_desc = if boot_mode == "system" {
-                "starts on boot"
+    if is_service_registration_supported() {
+        // Load config to determine boot mode
+        let boot_mode = config::load_config_or_default()
+            .map(|c| c.boot_mode)
+            .unwrap_or_else(|_| "user".to_string());
+        if let Ok(manager) = get_service_manager(&boot_mode) {
+            let installed = manager.is_installed().unwrap_or(false);
+            let install_status = if installed {
+                let boot_desc = if boot_mode == "system" {
+                    "starts on boot"
+                } else {
+                    "starts on login"
+                };
+                format!("{} ({})", style("yes").green(), boot_desc)
             } else {
-                "starts on login"
+                style("no").yellow().to_string()
             };
-            format!("{} ({})", style("yes").green(), boot_desc)
-        } else {
-            style("no").yellow().to_string()
-        };
-        println!("{}", format_kv("Installed:", install_status));
+            println!("{}", format_kv("Installed:", install_status));
+        }
     }
 
     // Label config path - clarify it's local config when using remote host

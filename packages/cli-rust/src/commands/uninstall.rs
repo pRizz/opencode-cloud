@@ -8,6 +8,7 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use dialoguer::Confirm;
+use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::config::paths::{get_config_dir, get_data_dir};
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, DockerError, container_is_running, remove_all_volumes,
@@ -52,8 +53,11 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         ));
     }
 
-    // 3. Get service manager
-    let manager = get_service_manager()?;
+    // 3. Load config to determine boot mode
+    let config = load_config_or_default()?;
+
+    // 4. Get service manager with correct boot_mode
+    let manager = get_service_manager(&config.boot_mode)?;
 
     // 4. Check if installed
     if !manager.is_installed()? {
