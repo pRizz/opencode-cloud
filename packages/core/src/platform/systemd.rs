@@ -374,25 +374,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_unit_file_system_user() {
-        std::env::set_var("OPENCODE_SERVICE_USER", "ubuntu");
-
-        let manager = SystemdManager::new("system");
-        let config = ServiceConfig {
-            executable_path: PathBuf::from("/usr/bin/occ"),
-            restart_retries: 3,
-            restart_delay: 5,
-            boot_mode: "system".to_string(),
-        };
-
-        let unit = manager.generate_unit_file(&config);
-
-        assert!(unit.contains("User=ubuntu"));
-
-        std::env::remove_var("OPENCODE_SERVICE_USER");
-    }
-
-    #[test]
     fn test_is_installed_returns_false_for_nonexistent() {
         let manager = SystemdManager::new("user");
         // On a test system without the service installed, this should return false

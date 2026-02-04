@@ -22,10 +22,9 @@ use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
     ProgressReporter, build_image, container_exists, container_is_running, docker_supports_systemd,
-    exec_command,
-    exec_command_with_status, get_cli_version, get_image_version, get_registry_latest_version,
-    has_previous_image, image_exists, pull_image, rollback_image, save_state, setup_and_start,
-    stop_service,
+    exec_command, exec_command_with_status, get_cli_version, get_image_version,
+    get_registry_latest_version, has_previous_image, image_exists, pull_image, rollback_image,
+    save_state, setup_and_start, stop_service,
 };
 use serde::Deserialize;
 use std::process::Command;
