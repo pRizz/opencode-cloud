@@ -4,7 +4,8 @@
 //! for persistent storage across container restarts.
 
 use super::{DockerClient, DockerError};
-use bollard::volume::CreateVolumeOptions;
+use bollard::models::VolumeCreateRequest;
+use bollard::query_parameters::RemoveVolumeOptions;
 use std::collections::HashMap;
 use tracing::debug;
 
@@ -73,12 +74,16 @@ pub async fn ensure_volumes_exist(client: &DockerClient) -> Result<(), DockerErr
 async fn ensure_volume_exists(client: &DockerClient, name: &str) -> Result<(), DockerError> {
     debug!("Checking volume: {}", name);
 
-    // Create volume options with default local driver
-    let options = CreateVolumeOptions {
-        name,
-        driver: "local",
-        driver_opts: HashMap::new(),
-        labels: HashMap::from([("managed-by", "opencode-cloud")]),
+    // Create volume request with default local driver (bollard v0.20+ uses VolumeCreateRequest)
+    let options = VolumeCreateRequest {
+        name: Some(name.to_string()),
+        driver: Some("local".to_string()),
+        driver_opts: Some(HashMap::new()),
+        labels: Some(HashMap::from([(
+            "managed-by".to_string(),
+            "opencode-cloud".to_string(),
+        )])),
+        cluster_volume_spec: None,
     };
 
     // create_volume is idempotent - returns existing volume if it exists
@@ -116,7 +121,7 @@ pub async fn remove_volume(client: &DockerClient, name: &str) -> Result<(), Dock
 
     client
         .inner()
-        .remove_volume(name, None)
+        .remove_volume(name, None::<RemoveVolumeOptions>)
         .await
         .map_err(|e| DockerError::Volume(format!("Failed to remove volume {name}: {e}")))?;
 

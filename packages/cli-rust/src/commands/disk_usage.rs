@@ -68,9 +68,10 @@ pub fn format_host_disk_report(
 }
 
 pub async fn get_disk_usage_report(client: &DockerClient) -> Result<DiskUsageReport> {
+    use opencode_cloud_core::bollard::query_parameters::DataUsageOptions;
     let data_usage = client
         .inner()
-        .df()
+        .df(None::<DataUsageOptions>)
         .await
         .map_err(|e| anyhow!("Failed to read Docker disk usage: {e}"))?;
     Ok(build_disk_usage_report(&data_usage))
@@ -92,22 +93,23 @@ pub fn format_bytes_i64(value: i64) -> String {
 }
 
 fn build_disk_usage_report(data_usage: &SystemDataUsageResponse) -> DiskUsageReport {
-    let images = data_usage.layers_size;
+    // Bollard v0.20+ uses new disk usage structures
+    let images = data_usage
+        .images_disk_usage
+        .as_ref()
+        .and_then(|u| u.total_size);
     let containers = data_usage
-        .containers
+        .containers_disk_usage
         .as_ref()
-        .and_then(|containers| sum_optional_sizes(containers.iter().map(|c| c.size_rw)));
-    let volumes = data_usage.volumes.as_ref().and_then(|volumes| {
-        sum_optional_sizes(
-            volumes
-                .iter()
-                .map(|v| v.usage_data.as_ref().map(|u| u.size)),
-        )
-    });
+        .and_then(|u| u.total_size);
+    let volumes = data_usage
+        .volumes_disk_usage
+        .as_ref()
+        .and_then(|u| u.total_size);
     let build_cache = data_usage
-        .build_cache
+        .build_cache_disk_usage
         .as_ref()
-        .and_then(|cache| sum_optional_sizes(cache.iter().map(|entry| entry.size)));
+        .and_then(|u| u.total_size);
 
     let total = match (images, containers, volumes, build_cache) {
         (Some(images), Some(containers), Some(volumes), Some(build_cache)) => {
@@ -141,25 +143,6 @@ fn build_host_disk_report(disks: &Disks) -> Option<HostDiskReport> {
         available,
         used,
     })
-}
-
-fn sum_optional_sizes<T>(values: T) -> Option<i64>
-where
-    T: Iterator<Item = Option<i64>>,
-{
-    let mut total = 0i64;
-    let mut any = false;
-    for value in values {
-        let Some(value) = value else {
-            continue;
-        };
-        if value < 0 {
-            continue;
-        }
-        total += value;
-        any = true;
-    }
-    if any { Some(total) } else { None }
 }
 
 fn format_delta_i64(after: Option<i64>, before: Option<i64>) -> Option<String> {
