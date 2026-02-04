@@ -340,7 +340,7 @@ fn should_skip_broker_fallback_line(line: &str, args: &LogsArgs) -> bool {
 }
 
 fn broker_log_matches(line: &str) -> bool {
-    line.contains("opencode_broker") || line.contains("opencode-broker")
+    line.contains("opencode_broker::") || line.contains("opencode-broker")
 }
 
 fn log_output_to_line(output: LogOutput) -> Option<String> {
