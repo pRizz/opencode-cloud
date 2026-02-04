@@ -38,7 +38,7 @@ pub struct HostConfig {
 }
 
 fn default_user() -> String {
-    whoami::username()
+    whoami::username().unwrap_or_else(|_| "user".to_string())
 }
 
 impl Default for HostConfig {
