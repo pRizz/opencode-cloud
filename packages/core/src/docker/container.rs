@@ -197,6 +197,9 @@ pub async fn create_container(
             mounts: Some(mounts),
             port_bindings: Some(port_bindings),
             auto_remove: Some(false),
+            // CAP_SETUID and CAP_SETGID required for opencode-broker to spawn
+            // PTY processes as different users via setuid/setgid syscalls
+            cap_add: Some(vec!["SETUID".to_string(), "SETGID".to_string()]),
             ..Default::default()
         }
     };
