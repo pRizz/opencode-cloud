@@ -1407,12 +1407,23 @@ mod tests {
         TcpListener::bind(("127.0.0.1", 0)).is_ok()
     }
 
+    /// Returns true if we're running in an environment where privileged port binding
+    /// succeeds (e.g., root, sandboxed environment, or elevated capabilities).
+    fn can_bind_privileged_ports() -> bool {
+        TcpListener::bind(("127.0.0.1", 1)).is_ok()
+    }
+
     #[test]
     fn port_check_returns_false_for_privileged_ports() {
-        // Port 1 is privileged and typically unavailable
-        // This test may pass if run as root, but that's unlikely in dev
-        // Instead, test the logic with a known available port
-        assert!(!check_port_available("127.0.0.1", 1)); // Privileged, should fail on non-root
+        // Port 1 is privileged and typically unavailable on non-root systems.
+        // Skip this test in sandboxed/elevated environments where it would pass.
+        if can_bind_privileged_ports() {
+            eprintln!(
+                "Skipping test: privileged ports are bindable in this environment (sandbox/root)."
+            );
+            return;
+        }
+        assert!(!check_port_available("127.0.0.1", 1));
     }
 
     #[test]

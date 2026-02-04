@@ -65,6 +65,7 @@ test-rust-fast:
 
 # Run Node tests
 test-node:
+    cargo build -p opencode-cloud
     pnpm -C packages/cli-node build
     pnpm -r test
 
