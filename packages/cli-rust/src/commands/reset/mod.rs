@@ -6,6 +6,10 @@ use crate::commands::cleanup::{
     cleanup_mounts, collect_config_mounts, is_remote_host, load_config_for_mounts,
     remove_mounts_from_config,
 };
+use crate::commands::disk_usage::{
+    DiskUsageReport, HostDiskReport, format_disk_usage_report, format_host_disk_report,
+    get_disk_usage_report, get_host_disk_report,
+};
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::commands::start::{StartArgs, cmd_start};
 use crate::output::{CommandSpinner, show_docker_error};
@@ -16,11 +20,18 @@ use dialoguer::Confirm;
 use opencode_cloud_core::config::paths::{get_config_dir, get_data_dir};
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, container_exists, remove_all_volumes,
+    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, clear_state, container_exists, remove_all_volumes,
+    remove_images_by_name,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::fs;
 use std::path::PathBuf;
+
+#[derive(Clone, Copy, Default)]
+struct DiskUsageSnapshot {
+    docker: Option<DiskUsageReport>,
+    host: Option<HostDiskReport>,
+}
 
 /// Reset command arguments
 #[derive(Args)]
@@ -45,6 +56,10 @@ pub struct ResetContainerArgs {
     #[arg(long)]
     pub volumes: bool,
 
+    /// Also remove opencode-cloud-sandbox Docker images (requires --force)
+    #[arg(long)]
+    pub images: bool,
+
     /// Clean contents of configured bind mounts (requires --force)
     #[arg(long, conflicts_with = "purge_mounts")]
     pub clean_mounts: bool,
@@ -68,6 +83,10 @@ pub struct ResetHostArgs {
     /// Skip confirmation prompts
     #[arg(long)]
     pub force: bool,
+
+    /// Also remove opencode-cloud-sandbox Docker images
+    #[arg(long)]
+    pub images: bool,
 }
 
 pub async fn cmd_reset(
@@ -86,17 +105,198 @@ pub async fn cmd_reset(
     }
 }
 
+/// Capture Docker + host disk usage for reporting before/after destructive steps.
+async fn capture_disk_usage_snapshot(
+    client: &opencode_cloud_core::docker::DockerClient,
+    quiet: bool,
+    emit_remote_note: bool,
+) -> DiskUsageSnapshot {
+    if quiet {
+        return DiskUsageSnapshot::default();
+    }
+
+    let docker = match get_disk_usage_report(client).await {
+        Ok(report) => Some(report),
+        Err(err) => {
+            println!("{} {err}", style("Warning:").yellow().bold());
+            None
+        }
+    };
+
+    let host = match get_host_disk_report(client) {
+        Ok(Some(report)) => Some(report),
+        Ok(None) => {
+            if emit_remote_note && client.is_remote() {
+                println!(
+                    "{} Host disk stats unavailable for remote Docker hosts.",
+                    style("Note:").yellow()
+                );
+            }
+            None
+        }
+        Err(err) => {
+            println!("{} {err}", style("Warning:").yellow().bold());
+            None
+        }
+    };
+
+    DiskUsageSnapshot { docker, host }
+}
+
+/// Print disk usage lines, optionally including delta vs a baseline snapshot.
+fn print_disk_usage_snapshot(
+    stage: &str,
+    snapshot: DiskUsageSnapshot,
+    baseline: Option<DiskUsageSnapshot>,
+) {
+    if let Some(report) = snapshot.docker {
+        for line in format_disk_usage_report(stage, report, baseline.and_then(|b| b.docker)) {
+            println!("{line}");
+        }
+        println!();
+    }
+
+    if let Some(report) = snapshot.host {
+        for line in format_host_disk_report(stage, report, baseline.and_then(|b| b.host)) {
+            println!("{line}");
+        }
+        println!();
+    }
+}
+
+/// Remove all managed volumes with consistent spinner output and error capture.
+async fn remove_volumes_with_spinner(
+    client: &opencode_cloud_core::docker::DockerClient,
+    host_name: Option<&str>,
+    quiet: bool,
+    errors: &mut Vec<String>,
+) {
+    let spinner = CommandSpinner::new_maybe(
+        &crate::format_host_message(host_name, "Removing Docker volumes..."),
+        quiet,
+    );
+    match remove_all_volumes(client).await {
+        Ok(()) => spinner.success(&crate::format_host_message(
+            host_name,
+            "Docker volumes removed",
+        )),
+        Err(err) => {
+            spinner.fail(&crate::format_host_message(
+                host_name,
+                "Failed to remove Docker volumes",
+            ));
+            show_docker_error(&err);
+            errors.push(format!("Failed to remove Docker volumes: {err}"));
+        }
+    }
+}
+
+/// Stop/remove the service container and then remove all managed volumes.
+async fn remove_container_and_volumes_for_host_reset(
+    client: &opencode_cloud_core::docker::DockerClient,
+    host_name: Option<&str>,
+    quiet: bool,
+    errors: &mut Vec<String>,
+) {
+    if container_exists(client, CONTAINER_NAME)
+        .await
+        .unwrap_or(false)
+    {
+        let stop_result = stop_service_with_spinner(
+            client,
+            host_name,
+            quiet,
+            true,
+            DEFAULT_STOP_TIMEOUT_SECS,
+            StopSpinnerMessages {
+                action_message: "Stopping service...",
+                update_label: "Stopping service",
+                success_base_message: "Service stopped and removed",
+                failure_message: "Failed to stop service",
+            },
+        )
+        .await;
+        if let Err(err) = stop_result {
+            errors.push(format!("Failed to remove container: {err}"));
+        }
+    } else if !quiet {
+        println!(
+            "{}",
+            style(crate::format_host_message(
+                host_name,
+                "Service container is already removed"
+            ))
+            .dim()
+        );
+    }
+
+    remove_volumes_with_spinner(client, host_name, quiet, errors).await;
+}
+
+/// Remove matching images and print disk usage before/after.
+async fn remove_images_with_usage(
+    client: &opencode_cloud_core::docker::DockerClient,
+    host_name: Option<&str>,
+    quiet: bool,
+    emit_remote_note: bool,
+    clear_state_after: bool,
+    errors: &mut Vec<String>,
+) {
+    let before_snapshot = capture_disk_usage_snapshot(client, quiet, emit_remote_note).await;
+    if !quiet {
+        print_disk_usage_snapshot("before image removal", before_snapshot, None);
+    }
+
+    let spinner = CommandSpinner::new_maybe(
+        &crate::format_host_message(host_name, "Removing Docker images..."),
+        quiet,
+    );
+    match remove_images_by_name(client, CONTAINER_NAME, true).await {
+        Ok(0) => spinner.success(&crate::format_host_message(
+            host_name,
+            "No matching Docker images found",
+        )),
+        Ok(_) => {
+            spinner.success(&crate::format_host_message(
+                host_name,
+                "Docker images removed",
+            ));
+            if clear_state_after {
+                'clear_state: {
+                    let Err(err) = clear_state() else {
+                        break 'clear_state;
+                    };
+                    errors.push(format!("Failed to clear image state: {err}"));
+                }
+            }
+        }
+        Err(err) => {
+            spinner.fail(&crate::format_host_message(
+                host_name,
+                "Failed to remove Docker images",
+            ));
+            show_docker_error(&err);
+            errors.push(format!("Failed to remove Docker images: {err}"));
+        }
+    }
+
+    if !quiet {
+        let after_snapshot = capture_disk_usage_snapshot(client, quiet, false).await;
+        print_disk_usage_snapshot("after image removal", after_snapshot, Some(before_snapshot));
+    }
+}
+
 async fn cmd_reset_container(
     args: &ResetContainerArgs,
     maybe_host: Option<&str>,
     quiet: bool,
     verbose: u8,
 ) -> Result<()> {
-    let destructive = args.volumes || args.clean_mounts || args.purge_mounts;
+    let destructive = args.volumes || args.images || args.clean_mounts || args.purge_mounts;
     if destructive && !args.force {
         bail!(
             "Data-destructive flags require --force.\n\
-             Use --force to confirm volume or mount deletion."
+             Use --force to confirm volume, image, or mount deletion."
         );
     }
 
@@ -145,24 +345,19 @@ async fn cmd_reset_container(
     }
 
     if args.volumes {
-        let spinner = CommandSpinner::new_maybe(
-            &crate::format_host_message(host_name.as_deref(), "Removing Docker volumes..."),
+        remove_volumes_with_spinner(&client, host_name.as_deref(), quiet, &mut errors).await;
+    }
+
+    if args.images {
+        remove_images_with_usage(
+            &client,
+            host_name.as_deref(),
             quiet,
-        );
-        match remove_all_volumes(&client).await {
-            Ok(()) => spinner.success(&crate::format_host_message(
-                host_name.as_deref(),
-                "Docker volumes removed",
-            )),
-            Err(err) => {
-                spinner.fail(&crate::format_host_message(
-                    host_name.as_deref(),
-                    "Failed to remove Docker volumes",
-                ));
-                show_docker_error(&err);
-                errors.push(format!("Failed to remove Docker volumes: {err}"));
-            }
-        }
+            true,
+            true,
+            &mut errors,
+        )
+        .await;
     }
 
     if args.clean_mounts || args.purge_mounts {
@@ -268,10 +463,15 @@ async fn cmd_reset_host(
     }
 
     if !args.force {
+        let mut prompt =
+            "This will remove all opencode-cloud data, config, mounts, and containers".to_string();
+        if args.images {
+            prompt.push_str(", and Docker images");
+        }
+        prompt.push_str(". Continue?");
+
         let confirmed = Confirm::new()
-            .with_prompt(
-                "This will remove all opencode-cloud data, config, mounts, and containers. Continue?",
-            )
+            .with_prompt(prompt)
             .default(false)
             .interact()?;
         if !confirmed {
@@ -300,56 +500,29 @@ async fn cmd_reset_host(
         }
     };
 
-    if let Some((client, host_name)) = docker_client.as_ref() {
-        if container_exists(client, CONTAINER_NAME)
-            .await
-            .unwrap_or(false)
-        {
-            let stop_result = stop_service_with_spinner(
+    'docker_cleanup: {
+        let Some((client, host_name)) = docker_client.as_ref() else {
+            break 'docker_cleanup;
+        };
+
+        remove_container_and_volumes_for_host_reset(
+            client,
+            host_name.as_deref(),
+            quiet,
+            &mut errors,
+        )
+        .await;
+
+        if args.images {
+            remove_images_with_usage(
                 client,
                 host_name.as_deref(),
                 quiet,
-                true,
-                DEFAULT_STOP_TIMEOUT_SECS,
-                StopSpinnerMessages {
-                    action_message: "Stopping service...",
-                    update_label: "Stopping service",
-                    success_base_message: "Service stopped and removed",
-                    failure_message: "Failed to stop service",
-                },
+                false,
+                false,
+                &mut errors,
             )
             .await;
-            if let Err(err) = stop_result {
-                errors.push(format!("Failed to remove container: {err}"));
-            }
-        } else if !quiet {
-            println!(
-                "{}",
-                style(crate::format_host_message(
-                    host_name.as_deref(),
-                    "Service container is already removed"
-                ))
-                .dim()
-            );
-        }
-
-        let spinner = CommandSpinner::new_maybe(
-            &crate::format_host_message(host_name.as_deref(), "Removing Docker volumes..."),
-            quiet,
-        );
-        match remove_all_volumes(client).await {
-            Ok(()) => spinner.success(&crate::format_host_message(
-                host_name.as_deref(),
-                "Docker volumes removed",
-            )),
-            Err(err) => {
-                spinner.fail(&crate::format_host_message(
-                    host_name.as_deref(),
-                    "Failed to remove Docker volumes",
-                ));
-                show_docker_error(&err);
-                errors.push(format!("Failed to remove Docker volumes: {err}"));
-            }
         }
     }
 

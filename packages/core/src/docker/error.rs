@@ -34,6 +34,10 @@ pub enum DockerError {
     #[error("Docker pull failed: {0}")]
     Pull(String),
 
+    /// Image operation failed
+    #[error("Docker image operation failed: {0}")]
+    Image(String),
+
     /// Container operation failed
     #[error("Container operation failed: {0}")]
     Container(String),

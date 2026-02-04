@@ -42,7 +42,7 @@ pub use health::{
 pub use dockerfile::{DOCKERFILE, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 
 // Image operations
-pub use image::{build_image, image_exists, pull_image};
+pub use image::{build_image, image_exists, pull_image, remove_images_by_name};
 
 // Update operations
 pub use update::{UpdateResult, has_previous_image, rollback_image, update_image};
