@@ -2,7 +2,6 @@
 //!
 //! Streams container logs with optional filtering, timestamps, and follow mode.
 
-use crate::cli_platform::is_dev_binary;
 use crate::output::{format_docker_error_anyhow, log_level_style};
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -149,13 +148,24 @@ async fn stream_broker_logs(
     line_prefix: Option<&str>,
     quiet: bool,
 ) -> Result<()> {
-    ensure_systemd_available(client).await?;
-    let cmd = build_broker_journalctl_command(args)?;
-    let exec_id = create_broker_exec(client, cmd).await?;
-    stream_broker_exec_output(args, client, &exec_id, line_prefix, quiet).await
+    if ensure_systemd_available(client).await? {
+        let cmd = build_broker_journalctl_command(args)?;
+        let exec_id = create_broker_exec(client, cmd).await?;
+        stream_broker_exec_output(args, client, &exec_id, line_prefix, quiet).await
+    } else {
+        if !quiet {
+            eprintln!(
+                "{}",
+                style("Systemd/journald not available. Falling back to container logs (filtered).")
+                    .yellow()
+            );
+            eprintln!();
+        }
+        stream_broker_logs_from_container(args, client, line_prefix, quiet).await
+    }
 }
 
-async fn ensure_systemd_available(client: &DockerClient) -> Result<()> {
+async fn ensure_systemd_available(client: &DockerClient) -> Result<bool> {
     let systemd_available = exec_command_exit_code(
         client,
         CONTAINER_NAME,
@@ -165,28 +175,7 @@ async fn ensure_systemd_available(client: &DockerClient) -> Result<()> {
     .unwrap_or(1)
         == 0;
 
-    if systemd_available {
-        Ok(())
-    } else {
-        let remove_cmd = if is_dev_binary() {
-            "just run stop --remove"
-        } else {
-            "occ stop --remove"
-        };
-        let start_cmd = if is_dev_binary() {
-            "just run start"
-        } else {
-            "occ start"
-        };
-
-        Err(anyhow!(
-            "Broker logs require systemd/journald inside the container.\n\
-This host doesn't support systemd-in-container or the container was created in Tini mode.\n\
-Recreate the container on a supported Linux host with:\n  {}\n  {}",
-            style(remove_cmd).cyan(),
-            style(start_cmd).cyan()
-        ))
-    }
+    Ok(systemd_available)
 }
 
 fn build_broker_journalctl_command(args: &LogsArgs) -> Result<Vec<String>> {
@@ -294,6 +283,64 @@ async fn stream_broker_exec_output(
     }
 
     Ok(())
+}
+
+async fn stream_broker_logs_from_container(
+    args: &LogsArgs,
+    client: &DockerClient,
+    line_prefix: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
+    let follow = !args.no_follow;
+    let options = LogsOptions {
+        stdout: true,
+        stderr: true,
+        follow,
+        tail: args.lines.clone(),
+        timestamps: args.timestamps,
+        ..Default::default()
+    };
+
+    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(output) => {
+                if let Some(line) = log_output_to_line(output) {
+                    if should_skip_broker_fallback_line(&line, args) {
+                        continue;
+                    }
+                    emit_log_line(&line, args, line_prefix, quiet);
+                }
+            }
+            Err(_) => {
+                if follow
+                    && !container_is_running(client, CONTAINER_NAME)
+                        .await
+                        .unwrap_or(false)
+                    && !quiet
+                {
+                    eprintln!();
+                    eprintln!("{}", style("Container stopped").dim());
+                }
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn should_skip_broker_fallback_line(line: &str, args: &LogsArgs) -> bool {
+    if args.grep.is_some() {
+        return false;
+    }
+
+    !broker_log_matches(line)
+}
+
+fn broker_log_matches(line: &str) -> bool {
+    line.contains("opencode_broker") || line.contains("opencode-broker")
 }
 
 fn log_output_to_line(output: LogOutput) -> Option<String> {
