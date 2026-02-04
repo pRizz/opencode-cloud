@@ -191,6 +191,34 @@ opencode_setup_wait_for_docker
 opencode_setup_align_mount_ownership
 opencode_setup_bootstrap_config
 
+opencode_setup_log "opencode-cloud setup: configure opencode trustProxy"
+config_dir="${OPENCODE_SETUP_HOME:-/home/ubuntu}/.config/opencode"
+mkdir -p "$config_dir"
+cat > "${config_dir}/opencode.jsonc" <<'EOF'
+{
+  "auth": {
+    "enabled": true,
+    "trustProxy": true
+  }
+}
+EOF
+if [ -n "${OPENCODE_SETUP_USER:-}" ]; then
+  chown -R "${OPENCODE_SETUP_USER}:${OPENCODE_SETUP_USER}" "$config_dir"
+fi
+
+if docker ps -q --filter "name=${HOST_CONTAINER_NAME}" | grep -q .; then
+  opencode_setup_log "opencode-cloud setup: update opencode.jsonc inside container"
+  docker exec "${HOST_CONTAINER_NAME}" sh -lc "cat > /home/opencode/.config/opencode/opencode.jsonc <<'EOF'
+{
+  \"auth\": {
+    \"enabled\": true,
+    \"trustProxy\": true
+  }
+}
+EOF
+chown opencode:opencode /home/opencode/.config/opencode/opencode.jsonc"
+fi
+
 # Use system-level boot mode for CloudFormation deployments.
 # During cloud-init, user-level systemd sessions aren't available, so
 # `systemctl --user daemon-reload` would fail with "No medium found".
