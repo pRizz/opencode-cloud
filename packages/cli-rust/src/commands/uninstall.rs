@@ -59,7 +59,7 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
     // 4. Get service manager with correct boot_mode
     let manager = get_service_manager(&config.boot_mode)?;
 
-    // 4. Check if installed
+    // 5. Check if installed
     if !manager.is_installed()? {
         if !quiet {
             println!("{}", style("Service not installed.").dim());
@@ -67,7 +67,7 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         return Ok(()); // Exit 0 - idempotent
     }
 
-    // 5. Confirm uninstallation (unless --force)
+    // 6. Confirm uninstallation (unless --force)
     if !args.force {
         let confirm = Confirm::new()
             .with_prompt("This will remove the service registration. Continue?")
@@ -83,26 +83,26 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         }
     }
 
-    // 6. Stop container if running (using existing stop logic)
+    // 7. Stop container if running (using existing stop logic)
     let spinner = CommandSpinner::new_maybe("Stopping service...", quiet);
     // Try to stop - ignore errors if not running
     let _ = stop_container_if_running().await;
     spinner.success("Service stopped");
 
-    // 7. Uninstall service registration
+    // 8. Uninstall service registration
     let spinner = CommandSpinner::new_maybe("Removing service registration...", quiet);
     let service_file = manager.service_file_path();
     manager.uninstall()?;
     spinner.success("Service registration removed");
 
-    // 8. Optionally remove volumes
+    // 9. Optionally remove volumes
     if args.volumes {
         let spinner = CommandSpinner::new_maybe("Removing Docker volumes...", quiet);
         remove_volumes().await?;
         spinner.success("Docker volumes removed");
     }
 
-    // 9. Print what was removed
+    // 10. Print what was removed
     if !quiet {
         println!();
         println!("Removed: {}", style(service_file.display()).dim());
@@ -112,7 +112,7 @@ pub async fn cmd_uninstall(args: &UninstallArgs, quiet: bool, _verbose: u8) -> R
         println!();
         println!("Service will no longer start automatically.");
 
-        // 10. Show remaining files for manual cleanup
+        // 11. Show remaining files for manual cleanup
         let config_dir = get_config_dir()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "~/.config/opencode-cloud".to_string());

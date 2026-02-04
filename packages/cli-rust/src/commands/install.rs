@@ -49,7 +49,7 @@ pub async fn cmd_install(args: &InstallArgs, quiet: bool, _verbose: u8) -> Resul
     // 3. Get service manager with correct boot_mode
     let manager = get_service_manager(&config.boot_mode)?;
 
-    // 3. Check if already installed
+    // 4. Check if already installed
     if manager.is_installed()? {
         if args.dry_run {
             println!(
@@ -87,13 +87,13 @@ pub async fn cmd_install(args: &InstallArgs, quiet: bool, _verbose: u8) -> Resul
         return Ok(());
     }
 
-    // 4. Show spinner during install
+    // 5. Show spinner during install
     let spinner = CommandSpinner::new_maybe("Installing service...", quiet);
 
-    // 5. Get executable path (current binary)
+    // 6. Get executable path (current binary)
     let executable_path = std::env::current_exe()?;
 
-    // 6. Build ServiceConfig (config already loaded above for boot_mode)
+    // 7. Build ServiceConfig (config already loaded above for boot_mode)
     let service_config = ServiceConfig {
         executable_path,
         restart_retries: config.restart_retries,
