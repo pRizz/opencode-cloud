@@ -10,9 +10,9 @@ use super::volume::{
     VOLUME_CACHE, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE, VOLUME_USERS,
 };
 use super::{DockerClient, DockerError};
-use bollard::container::{
-    Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
-    StopContainerOptions,
+use bollard::models::ContainerCreateBody;
+use bollard::query_parameters::{
+    CreateContainerOptions, RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
 };
 use bollard::service::{
     HostConfig, Mount, MountPointTypeEnum, MountTypeEnum, PortBinding, PortMap,
@@ -155,11 +155,10 @@ pub async fn create_container(
         );
     }
 
-    // Create exposed ports map
-    let mut exposed_ports = HashMap::new();
-    exposed_ports.insert("3000/tcp".to_string(), HashMap::new());
+    // Create exposed ports list (bollard v0.20+ uses Vec<String>)
+    let mut exposed_ports = vec!["3000/tcp".to_string()];
     if cockpit_enabled_val {
-        exposed_ports.insert("9090/tcp".to_string(), HashMap::new());
+        exposed_ports.push("9090/tcp".to_string());
     }
 
     // Create host config
@@ -224,8 +223,8 @@ pub async fn create_container(
     }
     let final_env = if env.is_empty() { None } else { Some(env) };
 
-    // Create container config
-    let config = Config {
+    // Create container config (bollard v0.20+ uses ContainerCreateBody)
+    let config = ContainerCreateBody {
         image: Some(image_name.to_string()),
         hostname: Some(CONTAINER_NAME.to_string()),
         working_dir: Some("/home/opencode/workspace".to_string()),
@@ -237,8 +236,8 @@ pub async fn create_container(
 
     // Create container
     let options = CreateContainerOptions {
-        name: container_name,
-        platform: None,
+        name: Some(container_name.to_string()),
+        platform: String::new(),
     };
 
     let response = client
@@ -266,7 +265,7 @@ pub async fn start_container(client: &DockerClient, name: &str) -> Result<(), Do
 
     client
         .inner()
-        .start_container(name, None::<StartContainerOptions<String>>)
+        .start_container(name, None::<StartContainerOptions>)
         .await
         .map_err(|e| DockerError::Container(format!("Failed to start container {name}: {e}")))?;
 
@@ -285,10 +284,13 @@ pub async fn stop_container(
     name: &str,
     timeout_secs: Option<i64>,
 ) -> Result<(), DockerError> {
-    let timeout = timeout_secs.unwrap_or(10);
+    let timeout = timeout_secs.unwrap_or(10) as i32;
     debug!("Stopping container {} with {}s timeout", name, timeout);
 
-    let options = StopContainerOptions { t: timeout };
+    let options = StopContainerOptions {
+        signal: None,
+        t: Some(timeout),
+    };
 
     client
         .inner()

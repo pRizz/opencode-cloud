@@ -7,7 +7,8 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use futures_util::StreamExt;
-use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
+use opencode_cloud_core::bollard::container::LogOutput;
+use opencode_cloud_core::bollard::query_parameters::LogsOptions;
 use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
 
 /// Arguments for the logs command
@@ -82,7 +83,7 @@ pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) ->
     }
 
     // Create log options
-    let options = LogsOptions::<String> {
+    let options = LogsOptions {
         stdout: true,
         stderr: true,
         follow,

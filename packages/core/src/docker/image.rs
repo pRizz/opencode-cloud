@@ -7,13 +7,14 @@ use super::progress::ProgressReporter;
 use super::{
     DOCKERFILE, DockerClient, DockerError, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
 };
-use bollard::image::{BuildImageOptions, BuilderVersion, CreateImageOptions};
 use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
+use bollard::query_parameters::{BuildImageOptions, BuilderVersion, CreateImageOptions};
 use bytes::Bytes;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use futures_util::StreamExt;
+use http_body_util::{Either, Full};
 use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -103,18 +104,20 @@ pub async fn build_image(
     );
     let build_args = build_args.unwrap_or_default();
     let options = BuildImageOptions {
-        t: full_name.clone(),
+        t: Some(full_name.clone()),
         dockerfile: "Dockerfile".to_string(),
         version: BuilderVersion::BuilderBuildKit,
         session: Some(session_id),
         rm: true,
         nocache: no_cache,
-        buildargs: build_args,
+        buildargs: Some(build_args),
+        platform: String::new(),
+        target: String::new(),
         ..Default::default()
     };
 
     // Create build body from context
-    let body = Bytes::from(context);
+    let body: Either<Full<Bytes>, _> = Either::Left(Full::new(Bytes::from(context)));
 
     // Start build with streaming output
     let mut stream = client.inner().build_image(options, None, Some(body));
@@ -137,10 +140,12 @@ pub async fn build_image(
 
         handle_stream_message(&info, progress, &mut log_state);
 
-        if let Some(error_msg) = info.error {
-            progress.abandon_all(&error_msg);
+        if let Some(error_detail) = &info.error_detail
+            && let Some(error_msg) = &error_detail.message
+        {
+            progress.abandon_all(error_msg);
             let context = format_build_error_with_context(
-                &error_msg,
+                error_msg,
                 &log_state.recent_logs,
                 &log_state.error_logs,
                 &log_state.recent_buildkit_logs,
@@ -620,8 +625,9 @@ async fn do_pull(
     let full_name = format!("{image}:{tag}");
 
     let options = CreateImageOptions {
-        from_image: image,
-        tag,
+        from_image: Some(image.to_string()),
+        tag: Some(tag.to_string()),
+        platform: String::new(),
         ..Default::default()
     };
 
@@ -634,9 +640,11 @@ async fn do_pull(
         match result {
             Ok(info) => {
                 // Handle errors from the stream
-                if let Some(error_msg) = info.error {
-                    progress.abandon_all(&error_msg);
-                    return Err(DockerError::Pull(error_msg));
+                if let Some(error_detail) = &info.error_detail
+                    && let Some(error_msg) = &error_detail.message
+                {
+                    progress.abandon_all(error_msg);
+                    return Err(DockerError::Pull(error_msg.to_string()));
                 }
 
                 // Handle layer progress

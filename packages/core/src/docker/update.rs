@@ -6,7 +6,7 @@
 use super::image::{image_exists, pull_image};
 use super::progress::ProgressReporter;
 use super::{DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
-use bollard::image::TagImageOptions;
+use bollard::query_parameters::TagImageOptions;
 use tracing::debug;
 
 /// Tag for the previous image version (used for rollback)
@@ -45,8 +45,8 @@ pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), Docker
 
     // Tag current as previous
     let options = TagImageOptions {
-        repo: IMAGE_NAME_GHCR,
-        tag: PREVIOUS_TAG,
+        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        tag: Some(PREVIOUS_TAG.to_string()),
     };
 
     client
@@ -124,8 +124,8 @@ pub async fn rollback_image(client: &DockerClient) -> Result<(), DockerError> {
 
     // Re-tag previous as latest
     let options = TagImageOptions {
-        repo: IMAGE_NAME_GHCR,
-        tag: IMAGE_TAG_DEFAULT,
+        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        tag: Some(IMAGE_TAG_DEFAULT.to_string()),
     };
 
     client

@@ -13,7 +13,8 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
 use futures_util::stream::StreamExt;
-use opencode_cloud_core::bollard::container::{LogOutput, LogsOptions};
+use opencode_cloud_core::bollard::container::LogOutput;
+use opencode_cloud_core::bollard::query_parameters::LogsOptions;
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
@@ -1230,7 +1231,7 @@ const FATAL_ERROR_PATTERNS: &[&str] = &[
 
 /// Check container logs for fatal errors that indicate the service cannot start
 async fn check_for_fatal_errors(client: &DockerClient) -> Option<String> {
-    let options = LogsOptions::<String> {
+    let options = LogsOptions {
         stdout: true,
         stderr: true,
         tail: "20".to_string(),
@@ -1368,7 +1369,7 @@ pub(crate) async fn wait_for_broker_ready(
 
 /// Show recent container logs for debugging
 async fn show_recent_logs(client: &DockerClient, lines: usize) {
-    let options = LogsOptions::<String> {
+    let options = LogsOptions {
         stdout: true,
         stderr: true,
         tail: lines.to_string(),

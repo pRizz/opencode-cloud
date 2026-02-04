@@ -39,7 +39,7 @@ napi = { version = "2", features = ["tokio_rt", "napi9"], optional = true }
 napi-derive = { version = "2", optional = true }
 
 # Docker integration
-bollard = { version = "0.18", features = ["chrono", "buildkit"] }
+bollard = { version = "0.20.1", features = ["chrono", "buildkit"] }
 futures-util = "0.3"
 tar = "0.4"
 flate2 = "1.0"

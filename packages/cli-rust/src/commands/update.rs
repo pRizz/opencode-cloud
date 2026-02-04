@@ -1246,9 +1246,10 @@ async fn purge_unused_docker_resources(client: &DockerClient, quiet: bool) -> Re
     let mut reclaimed = 0i64;
     let mut has_reclaimed = false;
 
+    use opencode_cloud_core::bollard::query_parameters::PruneContainersOptions;
     let container_prune = client
         .inner()
-        .prune_containers::<String>(None)
+        .prune_containers(None::<PruneContainersOptions>)
         .await
         .map_err(|e| anyhow!("Failed to prune containers: {e}"))?;
     if let Some(value) = container_prune.space_reclaimed {
@@ -1256,9 +1257,12 @@ async fn purge_unused_docker_resources(client: &DockerClient, quiet: bool) -> Re
         has_reclaimed = true;
     }
 
+    use opencode_cloud_core::bollard::query_parameters::{
+        PruneImagesOptions, PruneNetworksOptions,
+    };
     let image_prune = client
         .inner()
-        .prune_images::<String>(None)
+        .prune_images(None::<PruneImagesOptions>)
         .await
         .map_err(|e| anyhow!("Failed to prune images: {e}"))?;
     if let Some(value) = image_prune.space_reclaimed {
@@ -1268,7 +1272,7 @@ async fn purge_unused_docker_resources(client: &DockerClient, quiet: bool) -> Re
 
     client
         .inner()
-        .prune_networks::<String>(None)
+        .prune_networks(None::<PruneNetworksOptions>)
         .await
         .map_err(|e| anyhow!("Failed to prune networks: {e}"))?;
 
