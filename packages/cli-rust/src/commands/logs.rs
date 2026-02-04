@@ -2,6 +2,7 @@
 //!
 //! Streams container logs with optional filtering, timestamps, and follow mode.
 
+use crate::cli_platform::is_dev_binary;
 use crate::output::{format_docker_error_anyhow, log_level_style};
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -167,12 +168,23 @@ async fn ensure_systemd_available(client: &DockerClient) -> Result<()> {
     if systemd_available {
         Ok(())
     } else {
+        let remove_cmd = if is_dev_binary() {
+            "just run stop --remove"
+        } else {
+            "occ stop --remove"
+        };
+        let start_cmd = if is_dev_binary() {
+            "just run start"
+        } else {
+            "occ start"
+        };
+
         Err(anyhow!(
             "Broker logs require systemd/journald inside the container.\n\
 This host doesn't support systemd-in-container or the container was created in Tini mode.\n\
 Recreate the container on a supported Linux host with:\n  {}\n  {}",
-            style("occ stop --remove").cyan(),
-            style("occ start").cyan()
+            style(remove_cmd).cyan(),
+            style(start_cmd).cyan()
         ))
     }
 }
