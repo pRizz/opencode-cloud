@@ -35,7 +35,7 @@
 FROM ubuntu:25.10 AS base
 
 # OCI Labels for image metadata
-LABEL org.opencontainers.image.title="opencode-cloud"
+LABEL org.opencontainers.image.title="opencode-cloud-sandbox"
 # NOTE: This exact label format is parsed by scripts/extract-oci-description.py
 # (called from .github/workflows/docker-publish.yml) to populate multi-arch
 # manifest annotations for GHCR. If you change this line (format, quoting, or

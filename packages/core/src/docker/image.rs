@@ -102,7 +102,7 @@ const LABEL_TITLE: &str = "org.opencontainers.image.title";
 const LABEL_SOURCE: &str = "org.opencontainers.image.source";
 const LABEL_URL: &str = "org.opencontainers.image.url";
 
-const LABEL_TITLE_VALUE: &str = "opencode-cloud";
+const LABEL_TITLE_VALUE: &str = "opencode-cloud-sandbox";
 const LABEL_SOURCE_VALUE: &str = "https://github.com/pRizz/opencode-cloud";
 const LABEL_URL_VALUE: &str = "https://github.com/pRizz/opencode-cloud";
 
