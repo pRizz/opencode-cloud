@@ -28,6 +28,7 @@ use opencode_cloud_core::docker::{
 };
 use serde::Deserialize;
 use std::process::Command;
+use tokio::time::{Duration, sleep};
 
 /// Arguments for the update command
 #[derive(Args)]
@@ -1068,27 +1069,7 @@ pub(crate) async fn cmd_update_opencode(
 
     let spinner = CommandSpinner::new_maybe("Updating opencode...", quiet);
 
-    // Stop opencode processes inside the container
-    let stop_cmd = r#"set -euo pipefail
-pkill -f "/opt/opencode/bin/opencode" || true
-pkill -f "opencode-broker" || true
-"#;
-    let (stop_output, stop_status) =
-        exec_command_with_status(&client, CONTAINER_NAME, vec!["bash", "-lc", stop_cmd])
-            .await
-            .map_err(|e| anyhow!("Failed to stop opencode processes: {e}"))?;
-    if !quiet && !stop_output.trim().is_empty() {
-        eprintln!(
-            "{} Stop output:\n{}",
-            style("[info]").cyan(),
-            stop_output.trim()
-        );
-    }
-    if stop_status != 0 {
-        return Err(anyhow!(
-            "Failed to stop opencode processes (exit {stop_status}).\n{stop_output}"
-        ));
-    }
+    stop_opencode_for_update(&client, quiet).await?;
 
     let update_script = format!(
         r#"set -euo pipefail
@@ -1190,6 +1171,195 @@ async fn get_current_opencode_commit(client: &DockerClient) -> Option<String> {
         None
     } else {
         Some(short_commit(commit))
+    }
+}
+
+async fn stop_opencode_for_update(client: &DockerClient, quiet: bool) -> Result<()> {
+    let pid1_comm = get_pid1_comm(client).await;
+    let is_systemd = pid1_comm == "systemd";
+    let (running, pids) = check_opencode_running(client).await?;
+
+    if is_systemd {
+        return stop_opencode_systemd(client, quiet, running).await;
+    }
+
+    if !running {
+        print_already_stopped(quiet);
+        return Ok(());
+    }
+
+    stop_opencode_non_systemd(client, quiet, &pid1_comm, pids).await
+}
+
+async fn stop_opencode_systemd(client: &DockerClient, quiet: bool, running: bool) -> Result<()> {
+    if !running {
+        print_already_stopped(quiet);
+        return Ok(());
+    }
+
+    let (output, status) = exec_command_with_status(
+        client,
+        CONTAINER_NAME,
+        vec![
+            "bash",
+            "-lc",
+            "systemctl stop opencode.service opencode-broker.service",
+        ],
+    )
+    .await
+    .map_err(|e| anyhow!("Failed to stop opencode services via systemd: {e}"))?;
+
+    if status != 0 {
+        warn_systemd_stop_failed(quiet, status, &output);
+    }
+
+    Ok(())
+}
+
+async fn stop_opencode_non_systemd(
+    client: &DockerClient,
+    quiet: bool,
+    pid1_comm: &str,
+    initial_pids: String,
+) -> Result<()> {
+    if pid1_comm.contains("opencode") {
+        warn_pid1_skip(quiet);
+        return Ok(());
+    }
+
+    let stop_output = stop_opencode_processes(client).await?;
+    if let Some(still_pids) = wait_for_opencode_exit(client, initial_pids).await? {
+        return Err(build_stop_failure(pid1_comm, &still_pids, &stop_output));
+    }
+
+    Ok(())
+}
+
+async fn stop_opencode_processes(client: &DockerClient) -> Result<String> {
+    let (output, _status) = exec_command_with_status(
+        client,
+        CONTAINER_NAME,
+        vec![
+            "bash",
+            "-lc",
+            "pkill -TERM -f \"/opt/opencode/bin/opencode\"; pkill -TERM -f \"opencode-broker\"",
+        ],
+    )
+    .await
+    .map_err(|e| anyhow!("Failed to stop opencode processes: {e}"))?;
+    Ok(output)
+}
+
+async fn wait_for_opencode_exit(
+    client: &DockerClient,
+    initial_pids: String,
+) -> Result<Option<String>> {
+    let mut last_pids = initial_pids;
+    for _ in 0..10 {
+        sleep(Duration::from_millis(300)).await;
+        let (still_running, current_pids) = check_opencode_running(client).await?;
+        if !still_running {
+            return Ok(None);
+        }
+        if !current_pids.is_empty() {
+            last_pids = current_pids;
+        }
+    }
+
+    Ok(Some(last_pids))
+}
+
+fn build_stop_failure(pid1_comm: &str, still_pids: &str, stop_output: &str) -> anyhow::Error {
+    let mut msg = format!(
+        "Failed to stop opencode processes (init={pid1_comm}). Still running: {still_pids}."
+    );
+    if !stop_output.trim().is_empty() {
+        msg.push_str(&format!("\nOutput:\n{}", stop_output.trim()));
+    }
+    msg.push_str("\nHint: If opencode is PID 1, stopping it will stop the container.");
+    anyhow!(msg)
+}
+
+fn print_already_stopped(quiet: bool) {
+    if quiet {
+        return;
+    }
+
+    eprintln!(
+        "{} Opencode is already stopped; it will be restarted after the update.",
+        style("Note:").yellow()
+    );
+}
+
+fn warn_pid1_skip(quiet: bool) {
+    if quiet {
+        return;
+    }
+
+    eprintln!(
+        "{} Opencode is PID 1 in this container. Stopping it would stop the container, so skipping.\n{} The service will be restarted after the update.",
+        style("Warning:").yellow().bold(),
+        style("Note:").yellow()
+    );
+}
+
+fn warn_systemd_stop_failed(quiet: bool, status: i64, output: &str) {
+    if quiet {
+        return;
+    }
+
+    eprintln!(
+        "{} Failed to stop opencode via systemd (exit {status}). Continuing update.",
+        style("Warning:").yellow().bold()
+    );
+    if !output.trim().is_empty() {
+        eprintln!("{} {}", style("Output:").dim(), output.trim());
+    }
+}
+
+async fn get_pid1_comm(client: &DockerClient) -> String {
+    match exec_command(
+        client,
+        CONTAINER_NAME,
+        vec!["bash", "-lc", "ps -o comm= -p 1"],
+    )
+    .await
+    {
+        Ok(output) => {
+            let comm = output.lines().next().unwrap_or("").trim();
+            if comm.is_empty() {
+                "unknown".to_string()
+            } else {
+                comm.to_string()
+            }
+        }
+        Err(_) => "unknown".to_string(),
+    }
+}
+
+async fn check_opencode_running(client: &DockerClient) -> Result<(bool, String)> {
+    let (output, status) = exec_command_with_status(
+        client,
+        CONTAINER_NAME,
+        vec!["bash", "-lc", "pgrep -f \"/opt/opencode/bin/opencode\""],
+    )
+    .await
+    .map_err(|e| anyhow!("Failed to check opencode process status: {e}"))?;
+
+    match status {
+        0 => {
+            let pids: Vec<&str> = output
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect();
+            let joined = pids.join(" ");
+            Ok((!joined.is_empty(), joined))
+        }
+        1 => Ok((false, String::new())),
+        _ => Err(anyhow!(
+            "Failed to check opencode process status (exit {status}).\n{output}"
+        )),
     }
 }
 
