@@ -5,6 +5,7 @@
 mod cleanup;
 mod cockpit;
 mod config;
+pub(crate) mod container;
 mod disk_usage;
 mod host;
 mod install;
@@ -35,5 +36,5 @@ pub use start::{StartArgs, cmd_start};
 pub use status::{StatusArgs, cmd_status};
 pub use stop::{StopArgs, cmd_stop};
 pub use uninstall::{UninstallArgs, cmd_uninstall};
-pub use update::{UpdateArgs, cmd_update};
+pub use update::{UpdateArgs, UpdateCommand, UpdateOpencodeArgs, cmd_update};
 pub use user::{UserArgs, cmd_user};

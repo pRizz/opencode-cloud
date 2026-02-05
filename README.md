@@ -238,6 +238,26 @@ occ mount clean --purge --force
 # Factory reset host (container, volumes, mounts, config/data)
 occ reset host --force
 
+### Container Mode
+
+When `occ` runs inside the opencode container, it will auto-detect this and switch to **container runtime**.
+Override if needed:
+
+```bash
+occ --runtime host <command>
+OPENCODE_RUNTIME=host occ <command>
+```
+
+Supported commands in container runtime:
+- `occ status`
+- `occ logs`
+- `occ user`
+- `occ update opencode`
+
+Notes:
+- Host/Docker lifecycle commands are disabled in container runtime.
+- `occ logs` and `occ update opencode` require systemd inside the container. If systemd is not available, run those commands from the host instead.
+
 ### Webapp-triggered update (command file)
 
 When running in foreground mode (for example via `occ install`, which uses `occ start --no-daemon`),

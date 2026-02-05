@@ -10,13 +10,14 @@ mod passwords;
 pub mod wizard;
 
 use anyhow::{Result, anyhow};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use console::style;
 use dialoguer::Confirm;
 use opencode_cloud_core::{
     DockerClient, InstanceLock, SingletonError, config, get_version, load_config_or_default,
     load_hosts, save_config,
 };
+use std::path::Path;
 
 /// Manage your opencode cloud service
 #[derive(Parser)]
@@ -47,6 +48,10 @@ struct Cli {
     /// Force local Docker (ignores default_host)
     #[arg(long, global = true, conflicts_with = "remote_host")]
     local: bool,
+
+    /// Runtime mode (auto-detect container vs host)
+    #[arg(long, global = true, value_enum)]
+    runtime: Option<RuntimeChoice>,
 }
 
 #[derive(Subcommand)]
@@ -82,6 +87,19 @@ enum Commands {
     Cockpit(commands::CockpitArgs),
     /// Manage remote hosts
     Host(commands::HostArgs),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum RuntimeChoice {
+    Auto,
+    Host,
+    Container,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeMode {
+    Host,
+    Container,
 }
 
 /// Get the ASCII banner for help display
@@ -157,6 +175,93 @@ pub fn format_host_message(host_name: Option<&str>, message: &str) -> String {
     }
 }
 
+fn container_runtime_from_markers(is_container: bool, is_opencode_image: bool) -> bool {
+    is_container && is_opencode_image
+}
+
+fn detect_container_runtime() -> bool {
+    let is_container =
+        Path::new("/.dockerenv").exists() || Path::new("/run/.containerenv").exists();
+    let is_opencode_image = Path::new("/etc/opencode-cloud-version").exists()
+        || Path::new("/opt/opencode/COMMIT").exists();
+    container_runtime_from_markers(is_container, is_opencode_image)
+}
+
+fn runtime_choice_from_env() -> Option<RuntimeChoice> {
+    let value = std::env::var("OPENCODE_RUNTIME").ok()?;
+    match value.to_lowercase().as_str() {
+        "auto" => Some(RuntimeChoice::Auto),
+        "host" => Some(RuntimeChoice::Host),
+        "container" => Some(RuntimeChoice::Container),
+        _ => None,
+    }
+}
+
+fn resolve_runtime(choice: RuntimeChoice) -> (RuntimeMode, bool) {
+    let auto_container = detect_container_runtime();
+    resolve_runtime_with_autodetect(choice, auto_container)
+}
+
+fn resolve_runtime_with_autodetect(
+    choice: RuntimeChoice,
+    auto_container: bool,
+) -> (RuntimeMode, bool) {
+    match choice {
+        RuntimeChoice::Host => (RuntimeMode::Host, false),
+        RuntimeChoice::Container => (RuntimeMode::Container, false),
+        RuntimeChoice::Auto => {
+            let mode = if auto_container {
+                RuntimeMode::Container
+            } else {
+                RuntimeMode::Host
+            };
+            (mode, auto_container)
+        }
+    }
+}
+
+fn container_mode_unsupported_error() -> anyhow::Error {
+    anyhow!(
+        "Command not supported in container runtime.\n\
+Supported commands:\n  occ status\n  occ logs\n  occ user\n  occ update opencode\n\
+To force host runtime:\n  occ --runtime host <command>\n  OPENCODE_RUNTIME=host occ <command>"
+    )
+}
+
+fn run_container_mode(cli: &Cli) -> Result<()> {
+    let rt = tokio::runtime::Runtime::new()?;
+
+    match cli.command {
+        Some(Commands::Status(ref args)) => rt.block_on(commands::container::cmd_status_container(
+            args,
+            cli.quiet,
+            cli.verbose,
+        )),
+        Some(Commands::Logs(ref args)) => {
+            rt.block_on(commands::container::cmd_logs_container(args, cli.quiet))
+        }
+        Some(Commands::User(ref args)) => rt.block_on(commands::container::cmd_user_container(
+            args,
+            cli.quiet,
+            cli.verbose,
+        )),
+        Some(Commands::Update(ref args)) => rt.block_on(commands::container::cmd_update_container(
+            args,
+            cli.quiet,
+            cli.verbose,
+        )),
+        Some(_) => Err(container_mode_unsupported_error()),
+        None => {
+            let status_args = commands::StatusArgs {};
+            rt.block_on(commands::container::cmd_status_container(
+                &status_args,
+                cli.quiet,
+                cli.verbose,
+            ))
+        }
+    }
+}
+
 pub fn run() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
@@ -173,6 +278,33 @@ pub fn run() -> Result<()> {
         style("Warning:").yellow().bold()
     );
     eprintln!();
+
+    let runtime_choice = cli
+        .runtime
+        .or_else(runtime_choice_from_env)
+        .unwrap_or(RuntimeChoice::Auto);
+    let (runtime_mode, auto_container) = resolve_runtime(runtime_choice);
+
+    if runtime_mode == RuntimeMode::Container {
+        if cli.remote_host.is_some() || cli.local {
+            return Err(anyhow!(
+                "Remote and local Docker flags are not supported in container runtime.\n\
+Use host mode instead:\n  occ --runtime host <command>"
+            ));
+        }
+
+        if auto_container && runtime_choice == RuntimeChoice::Auto && !cli.quiet {
+            eprintln!(
+                "{} Detected opencode container; using container runtime. Override with {} or {}.",
+                style("Info:").cyan(),
+                style("--runtime host").green(),
+                style("OPENCODE_RUNTIME=host").green()
+            );
+            eprintln!();
+        }
+
+        return run_container_mode(&cli);
+    }
 
     let config_path = config::paths::get_config_path()
         .ok_or_else(|| anyhow!("Could not determine config path"))?;
@@ -486,5 +618,40 @@ fn display_singleton_error(err: &SingletonError) {
                 style("Tip:").cyan()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn container_marker_logic_requires_both_markers() {
+        assert!(container_runtime_from_markers(true, true));
+        assert!(!container_runtime_from_markers(true, false));
+        assert!(!container_runtime_from_markers(false, true));
+        assert!(!container_runtime_from_markers(false, false));
+    }
+
+    #[test]
+    fn runtime_precedence_respects_explicit_choice() {
+        let (mode, auto) = resolve_runtime_with_autodetect(RuntimeChoice::Host, true);
+        assert_eq!(mode, RuntimeMode::Host);
+        assert!(!auto);
+
+        let (mode, auto) = resolve_runtime_with_autodetect(RuntimeChoice::Container, false);
+        assert_eq!(mode, RuntimeMode::Container);
+        assert!(!auto);
+    }
+
+    #[test]
+    fn runtime_auto_uses_detection() {
+        let (mode, auto) = resolve_runtime_with_autodetect(RuntimeChoice::Auto, true);
+        assert_eq!(mode, RuntimeMode::Container);
+        assert!(auto);
+
+        let (mode, auto) = resolve_runtime_with_autodetect(RuntimeChoice::Auto, false);
+        assert_eq!(mode, RuntimeMode::Host);
+        assert!(!auto);
     }
 }

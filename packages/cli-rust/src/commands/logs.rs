@@ -352,7 +352,7 @@ fn log_output_to_line(output: LogOutput) -> Option<String> {
     }
 }
 
-fn emit_log_line(line: &str, args: &LogsArgs, prefix: Option<&str>, quiet: bool) {
+pub(crate) fn emit_log_line(line: &str, args: &LogsArgs, prefix: Option<&str>, quiet: bool) {
     if let Some(pattern) = args.grep.as_deref()
         && !line.contains(pattern)
     {

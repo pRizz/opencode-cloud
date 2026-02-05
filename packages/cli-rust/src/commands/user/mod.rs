@@ -12,10 +12,15 @@ use anyhow::{Result, bail};
 use clap::{Args, Subcommand};
 use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
 
+pub use add::UserAddArgs;
 pub use add::cmd_user_add;
+pub use enable::{UserDisableArgs, UserEnableArgs};
 pub use enable::{cmd_user_disable, cmd_user_enable};
+pub use list::UserListArgs;
 pub use list::cmd_user_list;
+pub use passwd::UserPasswdArgs;
 pub use passwd::cmd_user_passwd;
+pub use remove::UserRemoveArgs;
 pub use remove::cmd_user_remove;
 
 /// User management command arguments
