@@ -32,6 +32,26 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+  marketplace-validate:
+    name: Marketplace Packer Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: "1.10.0"
+
+      - name: Packer init
+        run: packer init infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+
+      - name: Packer fmt
+        run: packer fmt -check infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+
+      - name: Packer validate
+        run: packer validate -var-file=infra/digitalocean/packer/variables.pkr.hcl infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
   # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)

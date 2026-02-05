@@ -24,13 +24,13 @@ https://github.com/pRizz/opencode-cloud (mirror: https://gitea.com/pRizz/opencod
 Pull the image:
 
 ```
-docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
+docker pull prizz/opencode-cloud-sandbox:latest
 ```
 
 Run the container:
 
 ```
-docker run --rm -it -p 3000:3000 ghcr.io/prizz/opencode-cloud-sandbox:latest
+docker run --rm -it -p 3000:3000 prizz/opencode-cloud-sandbox:latest
 ```
 
 The opencode web UI is available at `http://localhost:3000`.

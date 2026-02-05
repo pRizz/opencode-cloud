@@ -145,6 +145,21 @@ lint-shell:
 check-updates:
     ./scripts/check-dockerfile-updates.sh
 
+# --- DigitalOcean Marketplace ---
+
+# Validate the DigitalOcean Marketplace Packer template
+do-marketplace-validate:
+    packer init infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+    packer fmt -check infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+    packer validate -var-file=infra/digitalocean/packer/variables.pkr.hcl \
+        infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+
+# Build the DigitalOcean Marketplace snapshot
+do-marketplace-build:
+    packer init infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+    packer build -var-file=infra/digitalocean/packer/variables.pkr.hcl \
+        infra/digitalocean/packer/opencode-marketplace.pkr.hcl
+
 # Pre-commit checks (without Docker build - faster, works without Docker)
 pre-commit: fmt lint build test-all-fast
 

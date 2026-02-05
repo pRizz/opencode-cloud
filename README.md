@@ -3,9 +3,9 @@
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
-[![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
 [![Docker Hub](https://img.shields.io/docker/v/prizz/opencode-cloud-sandbox?label=docker&sort=semver)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
 [![Docker Pulls](https://img.shields.io/docker/pulls/prizz/opencode-cloud-sandbox)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
+[![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
 [![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -51,6 +51,15 @@ Quick deploy provisions a private EC2 instance behind a public ALB with HTTPS.
 Docs: `docs/deploy/aws.md` (includes teardown steps and S3 hosting setup for forks)
 Credentials: `docs/deploy/aws.md#retrieving-credentials`
 
+## Deploy to DigitalOcean
+
+[![Deploy on DigitalOcean](https://img.shields.io/badge/Deploy-DigitalOcean-0080FF?logo=digitalocean&logoColor=white)](https://marketplace.digitalocean.com/apps/opencode-cloud)
+
+Marketplace one-click deploy provisions a Droplet that bootstraps opencode-cloud
+on first boot.
+
+Docs: `docs/deploy/digitalocean-marketplace.md`
+
 ## Features
 
 - **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
@@ -77,12 +86,12 @@ The sandbox container image is named **`opencode-cloud-sandbox`** (not `opencode
 
 **Why use the CLI?** It configures volumes, ports, and upgrades safely, so you don’t have to manage `docker run` flags or image updates yourself.
 
-The image is published to both registries:
+The image is published to both registries (Docker Hub is the primary distribution):
 
 | Registry | Image |
 |----------|-------|
-| GitHub Container Registry | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
 | Docker Hub | [`prizz/opencode-cloud-sandbox`](https://hub.docker.com/r/prizz/opencode-cloud-sandbox) |
+| GitHub Container Registry | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
 
 Pull commands:
 

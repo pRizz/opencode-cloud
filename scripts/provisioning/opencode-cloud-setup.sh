@@ -14,6 +14,10 @@ set -euo pipefail
 # - scripts/provisioning/opencode-cloud-setup-cloud-init.sh
 #   - cloud-init status/motd handling (no AWS APIs)
 #
+# DigitalOcean wrapper:
+# - scripts/provisioning/opencode-cloud-setup-digitalocean.sh
+#   - cloud-init status/motd handling for Marketplace droplets
+#
 # Fetch strategy (templates):
 # - CloudFormation + cloud-init user-data install a tiny bootstrap at
 #   /usr/local/bin/opencode-cloud-setup.sh that downloads these repo scripts
@@ -82,7 +86,7 @@ opencode_setup_apply_defaults() {
   # - HOST_CONTAINER_* applies to the Ubuntu host (Docker image/name)
   # - CONTAINER_* applies inside the opencode container (user credentials)
   # - PUBLIC_* applies to public URLs used in outputs/secrets
-  : "${HOST_CONTAINER_IMAGE:=${OPENCODE_IMAGE:-ghcr.io/prizz/opencode-cloud-sandbox:latest}}"
+  : "${HOST_CONTAINER_IMAGE:=${OPENCODE_IMAGE:-prizz/opencode-cloud-sandbox:latest}}"
   : "${HOST_CONTAINER_NAME:=${OPENCODE_CONTAINER_NAME:-opencode-cloud-sandbox}}"
   : "${CONTAINER_USERNAME:=${OPENCODE_USERNAME:-opencode}}"
   : "${PUBLIC_OPENCODE_DOMAIN_URL:=${OPENCODE_DOMAIN_URL:-}}"

@@ -477,7 +477,7 @@ Resources:
               - path: /etc/opencode-cloud/stack.env
                 permissions: "0600"
                 content: |
-                  HOST_CONTAINER_IMAGE=ghcr.io/prizz/opencode-cloud-sandbox:latest
+                  HOST_CONTAINER_IMAGE=prizz/opencode-cloud-sandbox:latest
                   HOST_CONTAINER_NAME=opencode-cloud-sandbox
                   CONTAINER_USERNAME=${OpencodeUsername}
                   PUBLIC_OPENCODE_DOMAIN_URL=https://${DomainName}
