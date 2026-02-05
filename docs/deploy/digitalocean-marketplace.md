@@ -76,8 +76,33 @@ just do-marketplace-validate
 just do-marketplace-build
 ```
 
-### Marketplace validation scripts
+## Marketplace submission checklist (aligned with `marketplace-partners`)
 
-DigitalOcean provides `img_check.sh` and `cleanup.sh` in their Marketplace
-partners repo. Copy them into `infra/digitalocean/marketplace/` and run them
-against your built snapshot before submitting the image.
+- [ ] Base image is supported (Ubuntu 24.04 LTS).
+- [ ] Build droplet uses smallest practical size (default `s-1vcpu-1gb`) to
+      maximize customer plan compatibility.
+- [ ] Build droplet DO features disabled: monitoring, IPv6, private networking,
+      and DO agent.
+- [ ] First-boot automation lives in `/var/lib/cloud/scripts/per-instance/` and
+      is numerically prefixed (we use `001-opencode-cloud.sh`).
+- [ ] Security updates applied (handled by `90-cleanup.sh`).
+- [ ] No SSH keys / host keys / cloud-init instance state in the snapshot
+      (handled by `90-cleanup.sh`).
+- [ ] Firewall configured (we enable + activate `ufw` during build).
+- [ ] DO image check passes (run automatically by Packer via `99-img-check.sh`;
+      review WARN/FAIL output in the build logs).
+- [ ] MOTD uses `/etc/update-motd.d/99-*` (we write `99-opencode-cloud`).
+- [ ] Smoke test: create a droplet from the snapshot, wait for cloud-init,
+      verify `deploy-status.json` exists and UI is reachable.
+
+### Marketplace cleanup + validation scripts
+
+This repo vendors DigitalOcean's Marketplace image cleanup + validation scripts
+from `digitalocean/marketplace-partners` into `infra/digitalocean/marketplace/`:
+
+- `infra/digitalocean/marketplace/90-cleanup.sh`
+- `infra/digitalocean/marketplace/99-img-check.sh`
+
+The Packer build runs these scripts as the final step to ensure the snapshot is
+ready for submission. Note that `90-cleanup.sh` zero-fills free disk space, so
+the final phase of `packer build` can take several minutes.

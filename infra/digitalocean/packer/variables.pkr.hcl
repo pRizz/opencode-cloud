@@ -1,6 +1,6 @@
 do_token            = "DUMMY"
 region              = "nyc3"
-size                = "s-2vcpu-4gb"
+size                = "s-1vcpu-1gb"
 source_image        = "ubuntu-24-04-x64"
 snapshot_name       = "opencode-cloud-marketplace-dev"
 droplet_name        = "opencode-cloud-marketplace"

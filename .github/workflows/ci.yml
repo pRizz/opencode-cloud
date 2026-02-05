@@ -38,6 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Assert Marketplace scripts
+        run: |
+          test -f infra/digitalocean/marketplace/90-cleanup.sh
+          test -f infra/digitalocean/marketplace/99-img-check.sh
+
       - name: Setup Packer
         uses: hashicorp/setup-packer@v3
         with:
