@@ -19,7 +19,7 @@ variable "region" {
 
 variable "size" {
   type    = string
-  default = "s-2vcpu-4gb"
+  default = "s-1vcpu-1gb"
 }
 
 variable "source_image" {
@@ -68,12 +68,24 @@ source "digitalocean" "marketplace" {
   image         = var.source_image
   droplet_name  = var.droplet_name
   snapshot_name = var.snapshot_name
-  ssh_username  = "root"
-  ssh_timeout   = "10m"
+  monitoring    = false
+  ipv6          = false
+  # Keep the build droplet close to the base image (avoid extra DO config).
+  private_networking = false
+  droplet_agent      = false
+  ssh_username       = "root"
+  ssh_timeout        = "10m"
 }
 
 build {
   sources = ["source.digitalocean.marketplace"]
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cloud-init status --wait"
+    ]
+  }
 
   provisioner "shell" {
     inline = [
@@ -144,6 +156,15 @@ build {
     inline = [
       "install -d -m 0755 /var/lib/digitalocean",
       "printf '%s\\n' \"application_name=$APPLICATION_NAME\" \"application_version=$APPLICATION_VERSION\" > /var/lib/digitalocean/application.info"
+    ]
+  }
+
+  # DigitalOcean Marketplace cleanup + validation scripts MUST be the final step
+  # (they remove SSH keys and clear cloud-init state).
+  provisioner "shell" {
+    scripts = [
+      "infra/digitalocean/marketplace/90-cleanup.sh",
+      "infra/digitalocean/marketplace/99-img-check.sh"
     ]
   }
 }

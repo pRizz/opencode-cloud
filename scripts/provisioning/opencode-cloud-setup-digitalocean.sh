@@ -32,7 +32,10 @@ chmod 600 "${STATUS_FILE}"
 opencode_setup_log "opencode-cloud setup: status file written"
 
 opencode_setup_log "opencode-cloud setup: write motd"
-cat > /etc/motd <<EOF_MOTD
+install -d -m 0755 /etc/update-motd.d
+cat > /etc/update-motd.d/99-opencode-cloud <<EOF_MOTD
+#!/usr/bin/env bash
+cat <<EOF
 opencode-cloud ready. (digitalocean)
 init logs:
   /var/log/opencode-cloud-setup.log
@@ -46,7 +49,9 @@ Fetch credentials (root-only):
 
 Access:
   http://<droplet-public-ip>:3000
+EOF
 EOF_MOTD
+chmod 0755 /etc/update-motd.d/99-opencode-cloud
 opencode_setup_log "opencode-cloud setup: motd written"
 
 opencode_setup_mark_provisioned
