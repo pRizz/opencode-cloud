@@ -35,6 +35,14 @@ docker run --rm -it -p 3000:3000 ghcr.io/prizz/opencode-cloud-sandbox:latest
 
 The opencode web UI is available at `http://localhost:3000`.
 
+## App Platform
+
+- Set `http_port` to `3000` or provide `PORT`/`OPENCODE_PORT` so the health check hits the right port.
+- App Platform storage is ephemeral. Workspace, config, and PAM users reset on redeploy unless you add external storage.
+- Logs are visible in the App Platform UI without extra setup.
+- Provide `OPENCODE_BOOTSTRAP_USER` with either `OPENCODE_BOOTSTRAP_PASSWORD` or `OPENCODE_BOOTSTRAP_PASSWORD_HASH` for first-boot access.
+- App Platform supports Linux/AMD64 images and favors smaller image sizes.
+
 ## Install the opencode-cloud CLI
 
 Cargo:

@@ -647,7 +647,7 @@ RUN printf '%s\n' \
     'Type=simple' \
     'User=opencode' \
     'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/opt/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0' \
+    'ExecStart=/bin/bash -lc "OPENCODE_PORT=$${OPENCODE_PORT:-$${PORT:-3000}}; OPENCODE_HOST=$${OPENCODE_HOST:-0.0.0.0}; exec /opt/opencode/bin/opencode web --port $${OPENCODE_PORT} --hostname $${OPENCODE_HOST}"' \
     'Restart=always' \
     'RestartSec=5' \
     'Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/home/opencode/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
@@ -686,14 +686,115 @@ RUN ls -la /home/opencode/.config/opencode/opencode.jsonc && cat /home/opencode/
 # Note: Entrypoint runs as root to support both modes; tini mode drops to opencode user
 RUN printf '%s\n' \
     '#!/bin/bash' \
-    'if [ "${USE_SYSTEMD}" = "1" ]; then' \
+    'set -euo pipefail' \
+    '' \
+    'log() {' \
+    '    echo "[opencode-cloud] $*"' \
+    '}' \
+    '' \
+    'OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"' \
+    'OPENCODE_HOST="${OPENCODE_HOST:-0.0.0.0}"' \
+    'export OPENCODE_PORT OPENCODE_HOST' \
+    '' \
+    'if [ "${USE_SYSTEMD:-}" = "1" ]; then' \
     '    exec /sbin/init' \
     'else' \
     '    # Ensure broker socket directory exists' \
     '    install -d -m 0755 /run/opencode' \
+    '' \
+    '    # Ensure user records directory exists (ephemeral unless mounted)' \
+    '    install -d -m 0700 /var/lib/opencode-users' \
+    '' \
+    '    restore_users() {' \
+    '        shopt -s nullglob' \
+    '        local records=(/var/lib/opencode-users/*.json)' \
+    '        if [ ${#records[@]} -eq 0 ]; then' \
+    '            return 1' \
+    '        fi' \
+    '        for record in "${records[@]}"; do' \
+    '            local username password_hash locked' \
+    '            username="$(jq -r ".username // empty" "${record}")"' \
+    '            password_hash="$(jq -r ".password_hash // empty" "${record}")"' \
+    '            locked="$(jq -r ".locked // false" "${record}")"' \
+    '            if [ -z "${username}" ]; then' \
+    '                log "Skipping invalid user record: ${record}"' \
+    '                continue' \
+    '            fi' \
+    '            if ! id -u "${username}" >/dev/null 2>&1; then' \
+    '                log "Creating user: ${username}"' \
+    '                useradd -m -s /bin/bash "${username}"' \
+    '            fi' \
+    '            if [ -n "${password_hash}" ]; then' \
+    '                usermod -p "${password_hash}" "${username}"' \
+    '            fi' \
+    '            if [ "${locked}" = "true" ]; then' \
+    '                passwd -l "${username}" >/dev/null' \
+    '            else' \
+    '                passwd -u "${username}" >/dev/null || true' \
+    '            fi' \
+    '            log "Restored user: ${username}"' \
+    '        done' \
+    '        return 0' \
+    '    }' \
+    '' \
+    '    persist_user_record() {' \
+    '        local username="$1"' \
+    '        local shadow_hash' \
+    '        shadow_hash="$(getent shadow "${username}" | cut -d: -f2)"' \
+    '        if [ -z "${shadow_hash}" ]; then' \
+    '            log "Failed to read shadow hash for ${username}"' \
+    '            return 1' \
+    '        fi' \
+    '        local status locked' \
+    '        status="$(passwd -S "${username}" | tr -s " " | cut -d" " -f2)"' \
+    '        locked="false"' \
+    '        if [ "${status}" = "L" ]; then' \
+    '            locked="true"' \
+    '        fi' \
+    '        local record_path="/var/lib/opencode-users/${username}.json"' \
+    '        umask 077' \
+    '        jq -n --arg username "${username}" --arg hash "${shadow_hash}" --argjson locked "${locked}" '"'"'{username:$username,password_hash:$hash,locked:$locked}'"'"' > "${record_path}"' \
+    '        chmod 600 "${record_path}"' \
+    '        log "Persisted user record: ${username}"' \
+    '    }' \
+    '' \
+    '    bootstrap_user() {' \
+    '        local username="${OPENCODE_BOOTSTRAP_USER:-}"' \
+    '        local password="${OPENCODE_BOOTSTRAP_PASSWORD:-}"' \
+    '        local password_hash="${OPENCODE_BOOTSTRAP_PASSWORD_HASH:-}"' \
+    '        if [ -z "${username}" ]; then' \
+    '            return 1' \
+    '        fi' \
+    '        if [ -z "${password_hash}" ] && [ -z "${password}" ]; then' \
+    '            log "OPENCODE_BOOTSTRAP_USER is set but no password or hash provided"' \
+    '            exit 1' \
+    '        fi' \
+    '        if ! id -u "${username}" >/dev/null 2>&1; then' \
+    '            log "Creating bootstrap user: ${username}"' \
+    '            useradd -m -s /bin/bash "${username}"' \
+    '        fi' \
+    '        if [ -n "${password_hash}" ]; then' \
+    '            usermod -p "${password_hash}" "${username}"' \
+    '        else' \
+    '            echo "${username}:${password}" | chpasswd' \
+    '        fi' \
+    '        persist_user_record "${username}"' \
+    '        log "Bootstrap user ready: ${username}"' \
+    '        return 0' \
+    '    }' \
+    '' \
+    '    if restore_users; then' \
+    '        log "User records restored"' \
+    '    else' \
+    '        if ! bootstrap_user; then' \
+    '            log "No persisted users and no bootstrap user configured"' \
+    '        fi' \
+    '    fi' \
+    '' \
+    '    log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"' \
     '    /usr/local/bin/opencode-broker &' \
     '    # Use runuser to switch to opencode user without password prompt' \
-    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /opt/opencode/bin/opencode web --port 3000 --hostname 0.0.0.0"' \
+    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /opt/opencode/bin/opencode web --port ${OPENCODE_PORT} --hostname ${OPENCODE_HOST}"' \
     'fi' \
     > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
@@ -706,7 +807,7 @@ RUN printf '%s\n' \
 # Check that opencode main page responds
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f -H "Accept: text/html" http://localhost:3000/ || exit 1
+    CMD ["sh", "-c", "OPENCODE_PORT=\"${OPENCODE_PORT:-${PORT:-3000}}\"; curl -f -H \"Accept: text/html\" \"http://localhost:${OPENCODE_PORT}/\" || exit 1"]
 
 # -----------------------------------------------------------------------------
 # opencode Artifacts
