@@ -1,0 +1,15 @@
+[Unit]
+Description=opencode Web Interface
+After=network.target opencode-broker.service
+
+[Service]
+Type=simple
+User=opencode
+WorkingDirectory=/home/opencode/workspace
+ExecStart=/bin/bash -lc "OPENCODE_PORT=${OPENCODE_PORT:-${PORT:-3000}}; OPENCODE_HOST=${OPENCODE_HOST:-0.0.0.0}; exec /opt/opencode/bin/opencode web --port ${OPENCODE_PORT} --hostname ${OPENCODE_HOST}"
+Restart=always
+RestartSec=5
+Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/home/opencode/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target

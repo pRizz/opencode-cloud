@@ -61,6 +61,11 @@ variable "container_username" {
   default = "opencode"
 }
 
+variable "opencode_cloud_env" {
+  type    = string
+  default = "digitalocean_docker_droplet"
+}
+
 source "digitalocean" "marketplace" {
   api_token     = var.do_token
   region        = var.region
@@ -139,11 +144,12 @@ build {
     environment_vars = [
       "HOST_CONTAINER_IMAGE=${var.container_image}",
       "HOST_CONTAINER_NAME=${var.container_name}",
-      "CONTAINER_USERNAME=${var.container_username}"
+      "CONTAINER_USERNAME=${var.container_username}",
+      "OPENCODE_CLOUD_ENV=${var.opencode_cloud_env}"
     ]
     inline = [
       "install -d -m 0700 /etc/opencode-cloud",
-      "printf '%s\\n' \"HOST_CONTAINER_IMAGE=$HOST_CONTAINER_IMAGE\" \"HOST_CONTAINER_NAME=$HOST_CONTAINER_NAME\" \"CONTAINER_USERNAME=$CONTAINER_USERNAME\" \"PUBLIC_OPENCODE_DOMAIN_URL=\" \"PUBLIC_OPENCODE_ALB_URL=\" > /etc/opencode-cloud/stack.env",
+      "printf '%s\\n' \"HOST_CONTAINER_IMAGE=$HOST_CONTAINER_IMAGE\" \"HOST_CONTAINER_NAME=$HOST_CONTAINER_NAME\" \"CONTAINER_USERNAME=$CONTAINER_USERNAME\" \"OPENCODE_CLOUD_ENV=$OPENCODE_CLOUD_ENV\" \"PUBLIC_OPENCODE_DOMAIN_URL=\" \"PUBLIC_OPENCODE_ALB_URL=\" > /etc/opencode-cloud/stack.env",
       "chmod 0600 /etc/opencode-cloud/stack.env"
     ]
   }

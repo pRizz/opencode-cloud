@@ -20,6 +20,7 @@ use futures_util::StreamExt;
 use http_body_util::{Either, Full};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Builder as TarBuilder;
 use tracing::{debug, warn};
@@ -887,13 +888,49 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
 
         // Add Dockerfile to archive
         let dockerfile_bytes = DOCKERFILE.as_bytes();
-        let mut header = tar::Header::new_gnu();
-        header.set_path("Dockerfile")?;
-        header.set_size(dockerfile_bytes.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-
-        tar.append(&header, dockerfile_bytes)?;
+        append_bytes(&mut tar, "Dockerfile", dockerfile_bytes, 0o644)?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/entrypoint.sh",
+            include_bytes!("files/entrypoint.sh"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/opencode-broker.service",
+            include_bytes!("files/opencode-broker.service"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/opencode.service",
+            include_bytes!("files/opencode.service"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/pam/opencode",
+            include_bytes!("files/pam/opencode"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/opencode.jsonc",
+            include_bytes!("files/opencode.jsonc"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/starship.toml",
+            include_bytes!("files/starship.toml"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
+            "packages/core/src/docker/files/bashrc.extra",
+            include_bytes!("files/bashrc.extra"),
+            0o644,
+        )?;
         tar.finish()?;
 
         // Finish gzip encoding
@@ -904,11 +941,30 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
     Ok(archive_buffer)
 }
 
+fn append_bytes<W: Write>(
+    tar: &mut TarBuilder<W>,
+    path: &str,
+    contents: &[u8],
+    mode: u32,
+) -> Result<(), std::io::Error> {
+    let mut header = tar::Header::new_gnu();
+    header.set_path(path)?;
+    header.set_size(contents.len() as u64);
+    header.set_mode(mode);
+    header.set_cksum();
+
+    tar.append(&header, contents)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use bollard::models::ImageSummary;
+    use flate2::read::GzDecoder;
     use std::collections::HashMap;
+    use std::io::Cursor;
+    use tar::Archive;
 
     fn make_image_summary(
         id: &str,
@@ -942,6 +998,26 @@ mod tests {
         // Verify it's gzip-compressed (gzip magic bytes)
         assert_eq!(context[0], 0x1f, "should be gzip compressed");
         assert_eq!(context[1], 0x8b, "should be gzip compressed");
+    }
+
+    #[test]
+    fn build_context_includes_docker_assets() {
+        let context = create_build_context().expect("should create context");
+        let cursor = Cursor::new(context);
+        let decoder = GzDecoder::new(cursor);
+        let mut archive = Archive::new(decoder);
+        let mut found = false;
+
+        for entry in archive.entries().expect("should read archive entries") {
+            let entry = entry.expect("should read entry");
+            let path = entry.path().expect("should read entry path");
+            if path == std::path::Path::new("packages/core/src/docker/files/entrypoint.sh") {
+                found = true;
+                break;
+            }
+        }
+
+        assert!(found, "entrypoint asset should be in the build context");
     }
 
     #[test]

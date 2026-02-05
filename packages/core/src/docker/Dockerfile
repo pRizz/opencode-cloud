@@ -452,61 +452,12 @@ RUN git config --global init.defaultBranch main \
     && git config --global diff.colorMoved default
 
 # Starship configuration (minimal, fast prompt)
-RUN mkdir -p /home/opencode/.config \
-    && printf '%s\n' \
-    '# Minimal starship config for fast prompt' \
-    'format = """' \
-    '$directory\' \
-    '$git_branch\' \
-    '$git_status\' \
-    '$character"""' \
-    '' \
-    '[directory]' \
-    'truncation_length = 3' \
-    'truncate_to_repo = true' \
-    '' \
-    '[git_branch]' \
-    'format = "[$branch]($style) "' \
-    'style = "bold purple"' \
-    '' \
-    '[git_status]' \
-    'format = '"'"'([$all_status$ahead_behind]($style) )'"'"'' \
-    '' \
-    '[character]' \
-    'success_symbol = "[>](bold green)"' \
-    'error_symbol = "[>](bold red)"' \
-    > /home/opencode/.config/starship.toml
+COPY --chown=opencode:opencode packages/core/src/docker/files/starship.toml /home/opencode/.config/starship.toml
 
 # Shell aliases
-RUN printf '%s\n' \
-    '' \
-    '# Modern CLI aliases' \
-    'alias ls="eza --icons"' \
-    'alias ll="eza -l --icons"' \
-    'alias la="eza -la --icons"' \
-    'alias lt="eza --tree --icons"' \
-    'alias grep="rg"' \
-    'alias top="btop"' \
-    '' \
-    '# Git aliases' \
-    'alias g="git"' \
-    'alias gs="git status"' \
-    'alias gd="git diff"' \
-    'alias gc="git commit"' \
-    'alias gp="git push"' \
-    'alias gl="git pull"' \
-    'alias gco="git checkout"' \
-    'alias gb="git branch"' \
-    'alias lg="lazygit"' \
-    '' \
-    '# Docker aliases (for Docker-in-Docker)' \
-    'alias d="docker"' \
-    'alias dc="docker compose"' \
-    '' \
-    >> /home/opencode/.bashrc
-
-# Set up pipx path
-RUN echo 'export PATH="/home/opencode/.local/bin:$PATH"' >> /home/opencode/.bashrc
+COPY --chown=opencode:opencode packages/core/src/docker/files/bashrc.extra /home/opencode/.bashrc.extra
+RUN cat /home/opencode/.bashrc.extra >> /home/opencode/.bashrc \
+    && rm /home/opencode/.bashrc.extra
 
 # -----------------------------------------------------------------------------
 # Stage 2: opencode build
@@ -575,18 +526,8 @@ ENV PATH="/opt/opencode/bin:${PATH}"
 # This allows opencode to authenticate users via PAM (same users as Cockpit)
 # NOTE: Requires root privileges to write to /etc/pam.d/
 USER root
-RUN printf '%s\n' \
-    '# PAM configuration for OpenCode authentication' \
-    '# Install to /etc/pam.d/opencode' \
-    '' \
-    '# Standard UNIX authentication' \
-    'auth required pam_unix.so' \
-    'account required pam_unix.so' \
-    '' \
-    '# Optional: Enable TOTP 2FA (uncomment when pam_google_authenticator is installed)' \
-    '# auth required pam_google_authenticator.so' \
-    > /etc/pam.d/opencode \
-    && chmod 644 /etc/pam.d/opencode
+COPY packages/core/src/docker/files/pam/opencode /etc/pam.d/opencode
+RUN chmod 644 /etc/pam.d/opencode
 
 # Verify PAM config file exists
 RUN ls -la /etc/pam.d/opencode && cat /etc/pam.d/opencode
@@ -596,38 +537,7 @@ RUN ls -la /etc/pam.d/opencode && cat /etc/pam.d/opencode
 # -----------------------------------------------------------------------------
 # Create opencode-broker service for PAM authentication
 # NOTE: Requires root privileges to write to /etc/systemd/system/
-RUN printf '%s\n' \
-    '[Unit]' \
-    'Description=OpenCode Authentication Broker' \
-    'Documentation=https://github.com/pRizz/opencode' \
-    'After=network.target' \
-    '' \
-    '[Service]' \
-    'Type=notify' \
-    'ExecStart=/usr/local/bin/opencode-broker' \
-    'ExecReload=/bin/kill -HUP $MAINPID' \
-    'Restart=always' \
-    'RestartSec=5' \
-    '' \
-    '# Security hardening' \
-    'NoNewPrivileges=false' \
-    'ProtectSystem=strict' \
-    'ProtectHome=read-only' \
-    'PrivateTmp=true' \
-    'ReadWritePaths=/run/opencode' \
-    '' \
-    '# Socket directory' \
-    'RuntimeDirectory=opencode' \
-    'RuntimeDirectoryMode=0755' \
-    '' \
-    '# Logging' \
-    'StandardOutput=journal' \
-    'StandardError=journal' \
-    'SyslogIdentifier=opencode-broker' \
-    '' \
-    '[Install]' \
-    'WantedBy=multi-user.target' \
-    > /etc/systemd/system/opencode-broker.service
+COPY packages/core/src/docker/files/opencode-broker.service /etc/systemd/system/opencode-broker.service
 
 # Enable opencode-broker service
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
@@ -638,23 +548,7 @@ RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
 # -----------------------------------------------------------------------------
 # Create opencode as a systemd service for Cockpit integration
 # NOTE: Requires root privileges to write to /etc/systemd/system/
-RUN printf '%s\n' \
-    '[Unit]' \
-    'Description=opencode Web Interface' \
-    'After=network.target opencode-broker.service' \
-    '' \
-    '[Service]' \
-    'Type=simple' \
-    'User=opencode' \
-    'WorkingDirectory=/home/opencode/workspace' \
-    'ExecStart=/bin/bash -lc "OPENCODE_PORT=$${OPENCODE_PORT:-$${PORT:-3000}}; OPENCODE_HOST=$${OPENCODE_HOST:-0.0.0.0}; exec /opt/opencode/bin/opencode web --port $${OPENCODE_PORT} --hostname $${OPENCODE_HOST}"' \
-    'Restart=always' \
-    'RestartSec=5' \
-    'Environment=PATH=/opt/opencode/bin:/home/opencode/.local/bin:/home/opencode/.cargo/bin:/home/opencode/.local/share/mise/shims:/home/opencode/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
-    '' \
-    '[Install]' \
-    'WantedBy=multi-user.target' \
-    > /etc/systemd/system/opencode.service
+COPY packages/core/src/docker/files/opencode.service /etc/systemd/system/opencode.service
 
 # Enable opencode service to start at boot (manual symlink since systemctl doesn't work during build)
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
@@ -664,15 +558,9 @@ RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
 # opencode Configuration
 # -----------------------------------------------------------------------------
 # Create opencode.jsonc config file with PAM authentication enabled
-RUN mkdir -p /home/opencode/.config/opencode \
-    && printf '%s\n' \
-    '{' \
-    '  "auth": {' \
-    '    "enabled": true' \
-    '  }' \
-    '}' \
-    > /home/opencode/.config/opencode/opencode.jsonc \
-    && chown -R opencode:opencode /home/opencode/.config/opencode \
+RUN mkdir -p /home/opencode/.config/opencode
+COPY --chown=opencode:opencode packages/core/src/docker/files/opencode.jsonc /home/opencode/.config/opencode/opencode.jsonc
+RUN chown -R opencode:opencode /home/opencode/.config/opencode \
     && chmod 644 /home/opencode/.config/opencode/opencode.jsonc
 
 # Verify config file exists
@@ -684,119 +572,8 @@ RUN ls -la /home/opencode/.config/opencode/opencode.jsonc && cat /home/opencode/
 # Supports both tini (default, works everywhere) and systemd (for Cockpit on Linux)
 # Set USE_SYSTEMD=1 environment variable to use systemd init
 # Note: Entrypoint runs as root to support both modes; tini mode drops to opencode user
-RUN printf '%s\n' \
-    '#!/bin/bash' \
-    'set -euo pipefail' \
-    '' \
-    'log() {' \
-    '    echo "[opencode-cloud] $*"' \
-    '}' \
-    '' \
-    'OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"' \
-    'OPENCODE_HOST="${OPENCODE_HOST:-0.0.0.0}"' \
-    'export OPENCODE_PORT OPENCODE_HOST' \
-    '' \
-    'if [ "${USE_SYSTEMD:-}" = "1" ]; then' \
-    '    exec /sbin/init' \
-    'else' \
-    '    # Ensure broker socket directory exists' \
-    '    install -d -m 0755 /run/opencode' \
-    '' \
-    '    # Ensure user records directory exists (ephemeral unless mounted)' \
-    '    install -d -m 0700 /var/lib/opencode-users' \
-    '' \
-    '    restore_users() {' \
-    '        shopt -s nullglob' \
-    '        local records=(/var/lib/opencode-users/*.json)' \
-    '        if [ ${#records[@]} -eq 0 ]; then' \
-    '            return 1' \
-    '        fi' \
-    '        for record in "${records[@]}"; do' \
-    '            local username password_hash locked' \
-    '            username="$(jq -r ".username // empty" "${record}")"' \
-    '            password_hash="$(jq -r ".password_hash // empty" "${record}")"' \
-    '            locked="$(jq -r ".locked // false" "${record}")"' \
-    '            if [ -z "${username}" ]; then' \
-    '                log "Skipping invalid user record: ${record}"' \
-    '                continue' \
-    '            fi' \
-    '            if ! id -u "${username}" >/dev/null 2>&1; then' \
-    '                log "Creating user: ${username}"' \
-    '                useradd -m -s /bin/bash "${username}"' \
-    '            fi' \
-    '            if [ -n "${password_hash}" ]; then' \
-    '                usermod -p "${password_hash}" "${username}"' \
-    '            fi' \
-    '            if [ "${locked}" = "true" ]; then' \
-    '                passwd -l "${username}" >/dev/null' \
-    '            else' \
-    '                passwd -u "${username}" >/dev/null || true' \
-    '            fi' \
-    '            log "Restored user: ${username}"' \
-    '        done' \
-    '        return 0' \
-    '    }' \
-    '' \
-    '    persist_user_record() {' \
-    '        local username="$1"' \
-    '        local shadow_hash' \
-    '        shadow_hash="$(getent shadow "${username}" | cut -d: -f2)"' \
-    '        if [ -z "${shadow_hash}" ]; then' \
-    '            log "Failed to read shadow hash for ${username}"' \
-    '            return 1' \
-    '        fi' \
-    '        local status locked' \
-    '        status="$(passwd -S "${username}" | tr -s " " | cut -d" " -f2)"' \
-    '        locked="false"' \
-    '        if [ "${status}" = "L" ]; then' \
-    '            locked="true"' \
-    '        fi' \
-    '        local record_path="/var/lib/opencode-users/${username}.json"' \
-    '        umask 077' \
-    '        jq -n --arg username "${username}" --arg hash "${shadow_hash}" --argjson locked "${locked}" '"'"'{username:$username,password_hash:$hash,locked:$locked}'"'"' > "${record_path}"' \
-    '        chmod 600 "${record_path}"' \
-    '        log "Persisted user record: ${username}"' \
-    '    }' \
-    '' \
-    '    bootstrap_user() {' \
-    '        local username="${OPENCODE_BOOTSTRAP_USER:-}"' \
-    '        local password="${OPENCODE_BOOTSTRAP_PASSWORD:-}"' \
-    '        local password_hash="${OPENCODE_BOOTSTRAP_PASSWORD_HASH:-}"' \
-    '        if [ -z "${username}" ]; then' \
-    '            return 1' \
-    '        fi' \
-    '        if [ -z "${password_hash}" ] && [ -z "${password}" ]; then' \
-    '            log "OPENCODE_BOOTSTRAP_USER is set but no password or hash provided"' \
-    '            exit 1' \
-    '        fi' \
-    '        if ! id -u "${username}" >/dev/null 2>&1; then' \
-    '            log "Creating bootstrap user: ${username}"' \
-    '            useradd -m -s /bin/bash "${username}"' \
-    '        fi' \
-    '        if [ -n "${password_hash}" ]; then' \
-    '            usermod -p "${password_hash}" "${username}"' \
-    '        else' \
-    '            echo "${username}:${password}" | chpasswd' \
-    '        fi' \
-    '        persist_user_record "${username}"' \
-    '        log "Bootstrap user ready: ${username}"' \
-    '        return 0' \
-    '    }' \
-    '' \
-    '    if restore_users; then' \
-    '        log "User records restored"' \
-    '    else' \
-    '        if ! bootstrap_user; then' \
-    '            log "No persisted users and no bootstrap user configured"' \
-    '        fi' \
-    '    fi' \
-    '' \
-    '    log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"' \
-    '    /usr/local/bin/opencode-broker &' \
-    '    # Use runuser to switch to opencode user without password prompt' \
-    '    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /opt/opencode/bin/opencode web --port ${OPENCODE_PORT} --hostname ${OPENCODE_HOST}"' \
-    'fi' \
-    > /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
+COPY packages/core/src/docker/files/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Note: Don't set USER here - entrypoint needs root to use runuser
 # The tini mode drops privileges to opencode user via runuser

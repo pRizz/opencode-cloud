@@ -1,0 +1,25 @@
+
+# Modern CLI aliases
+alias ls="eza --icons"
+alias ll="eza -l --icons"
+alias la="eza -la --icons"
+alias lt="eza --tree --icons"
+alias grep="rg"
+alias top="btop"
+
+# Git aliases
+alias g="git"
+alias gs="git status"
+alias gd="git diff"
+alias gc="git commit"
+alias gp="git push"
+alias gl="git pull"
+alias gco="git checkout"
+alias gb="git branch"
+alias lg="lazygit"
+
+# Docker aliases (for Docker-in-Docker)
+alias d="docker"
+alias dc="docker compose"
+
+export PATH="/home/opencode/.local/bin:$PATH"

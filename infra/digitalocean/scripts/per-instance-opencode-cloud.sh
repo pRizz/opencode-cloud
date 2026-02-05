@@ -10,6 +10,7 @@ if [ ! -f "$STACK_ENV" ]; then
 HOST_CONTAINER_IMAGE=prizz/opencode-cloud-sandbox:15.2.0
 HOST_CONTAINER_NAME=opencode-cloud-sandbox
 CONTAINER_USERNAME=opencode
+OPENCODE_CLOUD_ENV=digitalocean_docker_droplet
 PUBLIC_OPENCODE_DOMAIN_URL=
 PUBLIC_OPENCODE_ALB_URL=
 EOF_STACK

@@ -882,12 +882,19 @@ pub async fn cmd_start(
         .await?;
     }
 
+    let env_vars = std::env::var("OPENCODE_CLOUD_ENV")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| vec![format!("OPENCODE_CLOUD_ENV={value}")]);
+
     // Start container
     let msg = crate::format_host_message(host_name.as_deref(), "Starting container...");
     let spinner = CommandSpinner::new_maybe(&msg, quiet);
     let container_id = match start_container(
         &client,
         port,
+        env_vars,
         bind_addr,
         config.cockpit_port,
         config.cockpit_enabled && COCKPIT_EXPOSED,
@@ -1166,9 +1173,11 @@ fn prompt_image_source_choice(
 }
 
 /// Start the container, returning the container ID or error
+#[allow(clippy::too_many_arguments)]
 async fn start_container(
     client: &DockerClient,
     port: u16,
+    env_vars: Option<Vec<String>>,
     bind_address: &str,
     cockpit_port: u16,
     cockpit_enabled: bool,
@@ -1178,7 +1187,7 @@ async fn start_container(
     setup_and_start(
         client,
         Some(port),
-        None,
+        env_vars,
         Some(bind_address),
         Some(cockpit_port),
         Some(cockpit_enabled),
