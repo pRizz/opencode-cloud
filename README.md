@@ -56,9 +56,10 @@ Credentials: `docs/deploy/aws.md#retrieving-credentials`
 [![Deploy on DigitalOcean](https://img.shields.io/badge/Deploy-DigitalOcean-0080FF?logo=digitalocean&logoColor=white)](https://marketplace.digitalocean.com/apps/opencode-cloud)
 
 Marketplace one-click deploy provisions a Droplet that bootstraps opencode-cloud
-on first boot.
+on first boot (listing pending).
 
-Docs: `docs/deploy/digitalocean-marketplace.md`
+Manual Droplet setup: `docs/deploy/digitalocean-droplet.md`
+Marketplace docs: `docs/deploy/digitalocean-marketplace.md`
 
 ## Features
 

@@ -4,6 +4,9 @@ This deployment path packages opencode-cloud as a DigitalOcean Marketplace 1-cli
 Droplet image. Users deploy from the Marketplace listing and the instance
 bootstraps itself on first boot.
 
+> Note: Marketplace listing pending. For manual Droplet setup now, see
+> `docs/deploy/digitalocean-droplet.md`.
+
 ## Deploy from the Marketplace
 
 1. Click the **Deploy on DigitalOcean** button in the root README.
