@@ -52,3 +52,8 @@ When updating versions or metadata, keep these files in sync:
 - `packages/core/Cargo.toml` - explicit values for version, edition, rust-version, license, repository, homepage, documentation, keywords, categories
 
 The `scripts/set-all-versions.sh` script handles version updates automatically. For other metadata changes, update both files manually.
+
+## Git Workflow
+
+- Always use rebase pulls (e.g., `git pull --rebase`).
+- When pushing, push to `main` (do not push to feature branches unless explicitly requested).
