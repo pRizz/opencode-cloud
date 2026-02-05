@@ -897,6 +897,12 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
         )?;
         append_bytes(
             &mut tar,
+            "packages/core/src/docker/files/healthcheck.sh",
+            include_bytes!("files/healthcheck.sh"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
             "packages/core/src/docker/files/opencode-broker.service",
             include_bytes!("files/opencode-broker.service"),
             0o644,
@@ -1006,18 +1012,31 @@ mod tests {
         let cursor = Cursor::new(context);
         let decoder = GzDecoder::new(cursor);
         let mut archive = Archive::new(decoder);
-        let mut found = false;
+        let mut found_entrypoint = false;
+        let mut found_healthcheck = false;
 
         for entry in archive.entries().expect("should read archive entries") {
             let entry = entry.expect("should read entry");
             let path = entry.path().expect("should read entry path");
             if path == std::path::Path::new("packages/core/src/docker/files/entrypoint.sh") {
-                found = true;
+                found_entrypoint = true;
+            }
+            if path == std::path::Path::new("packages/core/src/docker/files/healthcheck.sh") {
+                found_healthcheck = true;
+            }
+            if found_entrypoint && found_healthcheck {
                 break;
             }
         }
 
-        assert!(found, "entrypoint asset should be in the build context");
+        assert!(
+            found_entrypoint,
+            "entrypoint asset should be in the build context"
+        );
+        assert!(
+            found_healthcheck,
+            "healthcheck asset should be in the build context"
+        );
     }
 
     #[test]

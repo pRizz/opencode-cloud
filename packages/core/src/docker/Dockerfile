@@ -1,6 +1,12 @@
 # =============================================================================
 # opencode-cloud Container Image
 # =============================================================================
+# IMPORTANT:
+# Keep scripts/service/config assets in `packages/core/src/docker/files/`
+# and COPY them into the image instead of embedding large inline shell blocks.
+# When adding files, also update `packages/core/src/docker/image.rs`
+# (`create_build_context`) so CLI-driven Docker builds include them.
+#
 # A comprehensive development environment for AI-assisted coding with opencode.
 #
 # Features:
@@ -578,20 +584,17 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 # Note: Don't set USER here - entrypoint needs root to use runuser
 # The tini mode drops privileges to opencode user via runuser
 
+# Healthcheck script asset
+COPY packages/core/src/docker/files/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
+
 # -----------------------------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------------------------
 # Check broker readiness (process + socket) and opencode web response
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD-SHELL OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"; \
-    if [ -d /run/systemd/system ]; then \
-        systemctl is-active --quiet opencode-broker.service; \
-    else \
-        pgrep -x opencode-broker >/dev/null; \
-    fi \
-    && test -S /run/opencode/auth.sock \
-    && curl -fsS -H "Accept: text/html" "http://localhost:${OPENCODE_PORT}/" >/dev/null || exit 1
+    CMD ["/usr/local/bin/healthcheck.sh"]
 
 # -----------------------------------------------------------------------------
 # opencode Artifacts
