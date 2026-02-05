@@ -17,6 +17,13 @@ enum OpencodeHealthStatus {
     Failed,
 }
 
+#[derive(Clone, Copy)]
+enum BrokerHealthStatus {
+    Healthy,
+    Degraded,
+    Unhealthy,
+}
+
 pub async fn cmd_status_container(
     _args: &crate::commands::StatusArgs,
     quiet: bool,
@@ -45,6 +52,7 @@ pub async fn cmd_status_container(
     };
 
     let broker_socket = Path::new("/run/opencode/auth.sock").exists();
+    let broker_health = map_broker_health_status(broker_running, broker_socket);
 
     let opencode_version = read_opencode_version().await;
     let opencode_commit = read_opencode_commit();
@@ -84,15 +92,9 @@ pub async fn cmd_status_container(
     };
     println!("{}", format_kv("Opencode:", opencode_display));
 
-    let broker_state = if broker_running { "running" } else { "stopped" };
-    let socket_state = if broker_socket {
-        "socket ok"
-    } else {
-        "socket missing"
-    };
     println!(
         "{}",
-        format_kv("Broker:", format!("{broker_state} ({socket_state})"))
+        format_kv("Broker:", format_broker_health_status(broker_health))
     );
 
     let runtime = if systemd { "systemd" } else { "tini" };
@@ -166,4 +168,20 @@ async fn get_opencode_health_status(include_probe: bool) -> Option<OpencodeHealt
 
 fn format_kv(label: &str, value: impl std::fmt::Display) -> String {
     format!("{label:<STATUS_LABEL_WIDTH$} {value}")
+}
+
+fn map_broker_health_status(process_ok: bool, socket_ok: bool) -> BrokerHealthStatus {
+    match (process_ok, socket_ok) {
+        (true, true) => BrokerHealthStatus::Healthy,
+        (true, false) | (false, true) => BrokerHealthStatus::Degraded,
+        (false, false) => BrokerHealthStatus::Unhealthy,
+    }
+}
+
+fn format_broker_health_status(status: BrokerHealthStatus) -> String {
+    match status {
+        BrokerHealthStatus::Healthy => style("Healthy").green().to_string(),
+        BrokerHealthStatus::Degraded => style("Degraded").yellow().to_string(),
+        BrokerHealthStatus::Unhealthy => style("Unhealthy").red().to_string(),
+    }
 }

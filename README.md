@@ -192,7 +192,7 @@ occ start --port 8080
 # Start and open browser
 occ start --open
 
-# Check service status
+# Check service status (includes broker health: Healthy/Degraded/Unhealthy)
 occ status
 
 # View logs
@@ -204,7 +204,7 @@ occ logs -f
 # View opencode-broker logs (systemd/journald required)
 occ logs --broker
 
-# Dump opencode-broker logs (no follow)
+# Troubleshoot broker health issues reported by `occ status`
 occ logs --broker --no-follow
 
 # Note: Broker logs require systemd/journald. This is enabled by default on supported Linux

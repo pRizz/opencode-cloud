@@ -581,10 +581,17 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 # -----------------------------------------------------------------------------
 # Health Check
 # -----------------------------------------------------------------------------
-# Check that opencode main page responds
+# Check broker readiness (process + socket) and opencode web response
 # Works for both tini and systemd modes
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["sh", "-c", "OPENCODE_PORT=\"${OPENCODE_PORT:-${PORT:-3000}}\"; curl -f -H \"Accept: text/html\" \"http://localhost:${OPENCODE_PORT}/\" || exit 1"]
+    CMD-SHELL OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"; \
+    if [ -d /run/systemd/system ]; then \
+        systemctl is-active --quiet opencode-broker.service; \
+    else \
+        pgrep -x opencode-broker >/dev/null; \
+    fi \
+    && test -S /run/opencode/auth.sock \
+    && curl -fsS -H "Accept: text/html" "http://localhost:${OPENCODE_PORT}/" >/dev/null || exit 1
 
 # -----------------------------------------------------------------------------
 # opencode Artifacts

@@ -20,8 +20,8 @@ use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, HealthError, MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION,
-    MOUNT_STATE, OPENCODE_WEB_PORT, ParsedMount, check_health, exec_command, get_cli_version,
-    get_image_version, load_state,
+    MOUNT_STATE, OPENCODE_WEB_PORT, ParsedMount, check_health, exec_command,
+    exec_command_with_status, get_cli_version, get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::collections::HashMap;
@@ -440,6 +440,14 @@ enum OpencodeHealthStatus {
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BrokerHealthStatus {
+    Healthy,
+    Degraded,
+    Unhealthy,
+    CheckFailed,
+}
+
 async fn get_opencode_health_status(
     include_probe: bool,
     bind_addr: &str,
@@ -456,6 +464,42 @@ async fn get_opencode_health_status(
         }
         Err(HealthError::Unhealthy(code)) => Some(OpencodeHealthStatus::Unhealthy(code)),
         Err(_) => Some(OpencodeHealthStatus::Failed),
+    }
+}
+
+fn map_broker_health_status(process_ok: bool, socket_ok: bool) -> BrokerHealthStatus {
+    match (process_ok, socket_ok) {
+        (true, true) => BrokerHealthStatus::Healthy,
+        (true, false) | (false, true) => BrokerHealthStatus::Degraded,
+        (false, false) => BrokerHealthStatus::Unhealthy,
+    }
+}
+
+async fn get_broker_health_status(
+    client: &opencode_cloud_core::docker::DockerClient,
+) -> BrokerHealthStatus {
+    let process_probe = exec_command_with_status(
+        client,
+        CONTAINER_NAME,
+        vec![
+            "sh",
+            "-lc",
+            "if [ -d /run/systemd/system ]; then systemctl is-active --quiet opencode-broker.service; else pgrep -x opencode-broker >/dev/null; fi",
+        ],
+    )
+    .await;
+    let socket_probe = exec_command_with_status(
+        client,
+        CONTAINER_NAME,
+        vec!["sh", "-lc", "test -S /run/opencode/auth.sock"],
+    )
+    .await;
+
+    match (process_probe, socket_probe) {
+        (Ok((_, process_status)), Ok((_, socket_status))) => {
+            map_broker_health_status(process_status == 0, socket_status == 0)
+        }
+        _ => BrokerHealthStatus::CheckFailed,
     }
 }
 
@@ -503,6 +547,7 @@ async fn print_opencode_section(
     {
         print_opencode_health(health_status);
     }
+    print_broker_health(get_broker_health_status(client).await);
 
     print_opencode_version_commit(client).await;
     print_uptime(started_at);
@@ -644,6 +689,16 @@ fn print_opencode_health(status: OpencodeHealthStatus) {
         OpencodeHealthStatus::Failed => style("Check failed").yellow().to_string(),
     };
     println!("{}", format_kv("Health:", value));
+}
+
+fn print_broker_health(status: BrokerHealthStatus) {
+    let value = match status {
+        BrokerHealthStatus::Healthy => style("Healthy").green().to_string(),
+        BrokerHealthStatus::Degraded => style("Degraded").yellow().to_string(),
+        BrokerHealthStatus::Unhealthy => style("Unhealthy").red().to_string(),
+        BrokerHealthStatus::CheckFailed => style("Check failed").yellow().to_string(),
+    };
+    println!("{}", format_kv("Broker:", value));
 }
 
 async fn print_opencode_version_commit(client: &opencode_cloud_core::docker::DockerClient) {
@@ -1002,5 +1057,37 @@ mod tests {
 
         // Assert
         assert!(commit.is_none());
+    }
+
+    #[test]
+    fn broker_health_mapping_healthy() {
+        assert_eq!(
+            map_broker_health_status(true, true),
+            BrokerHealthStatus::Healthy
+        );
+    }
+
+    #[test]
+    fn broker_health_mapping_degraded_process_only() {
+        assert_eq!(
+            map_broker_health_status(true, false),
+            BrokerHealthStatus::Degraded
+        );
+    }
+
+    #[test]
+    fn broker_health_mapping_degraded_socket_only() {
+        assert_eq!(
+            map_broker_health_status(false, true),
+            BrokerHealthStatus::Degraded
+        );
+    }
+
+    #[test]
+    fn broker_health_mapping_unhealthy() {
+        assert_eq!(
+            map_broker_health_status(false, false),
+            BrokerHealthStatus::Unhealthy
+        );
     }
 }
