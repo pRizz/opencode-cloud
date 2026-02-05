@@ -13,6 +13,7 @@ mod logs;
 mod mount;
 mod reset;
 mod restart;
+pub(crate) mod runtime_shared;
 mod service;
 mod setup;
 mod start;

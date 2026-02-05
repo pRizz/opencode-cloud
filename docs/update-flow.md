@@ -170,3 +170,15 @@ These are not implemented but are viable options for future work:
 3. **Docker socket from container**
    - Webapp triggers a helper that calls Docker directly.
    - Not recommended due to high privileges in the container.
+
+## Runtime Parity Refactor Checklist
+
+This project now has a shared runtime command core in
+`packages/cli-rust/src/commands/runtime_shared/` to prevent host/container drift.
+
+- [x] Move status health mapping + probes into shared runtime core.
+- [x] Route host/container status implementations through shared status model.
+- [x] Reuse shared broker readiness semantics in startup readiness checks.
+- [ ] Migrate logs command builder/normalization into shared runtime core.
+- [ ] Migrate user command domain flow into shared runtime core.
+- [ ] Migrate `update opencode` shared checks/restart semantics into shared runtime core.

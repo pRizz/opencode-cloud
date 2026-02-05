@@ -1,28 +1,17 @@
 //! Container-mode status command implementation.
 
-use crate::commands::container::{exec_command, exec_command_with_status, systemd_available};
+use crate::commands::container::{exec_command_with_status, systemd_available};
+use crate::commands::runtime_shared::backend::{ContainerBackend, default_container_port};
+use crate::commands::runtime_shared::collect_status_view;
+use crate::commands::runtime_shared::status_model::{
+    OpencodeHealthStatus, format_broker_health_label,
+};
 use crate::output::state_style;
 use anyhow::Result;
 use console::style;
-use opencode_cloud_core::docker::{HealthError, OPENCODE_WEB_PORT, check_health, get_cli_version};
-use std::fs;
-use std::path::Path;
+use opencode_cloud_core::docker::get_cli_version;
 
 const STATUS_LABEL_WIDTH: usize = 15;
-
-enum OpencodeHealthStatus {
-    Healthy,
-    Starting,
-    Unhealthy,
-    Failed,
-}
-
-#[derive(Clone, Copy)]
-enum BrokerHealthStatus {
-    Healthy,
-    Degraded,
-    Unhealthy,
-}
 
 pub async fn cmd_status_container(
     _args: &crate::commands::StatusArgs,
@@ -45,31 +34,17 @@ pub async fn cmd_status_container(
         }
     }
 
-    let broker_running = if systemd {
-        systemd_service_active("opencode-broker.service").await?
-    } else {
-        process_running("pgrep", &["-x", "opencode-broker"]).await?
-    };
-
-    let broker_socket = Path::new("/run/opencode/auth.sock").exists();
-    let broker_health = map_broker_health_status(broker_running, broker_socket);
-
-    let opencode_version = read_opencode_version().await;
-    let opencode_commit = read_opencode_commit();
-    let opencode_cloud_version = read_opencode_cloud_version();
-
-    let health = if opencode_running {
-        get_opencode_health_status(true).await
-    } else {
-        None
-    };
+    let backend = ContainerBackend::new(systemd);
+    let host_port = default_container_port();
+    let status_view =
+        collect_status_view(&backend, opencode_running, "127.0.0.1", host_port).await?;
 
     let state_label = if opencode_running {
-        match health {
+        match status_view.opencode_health {
             Some(OpencodeHealthStatus::Healthy) | None => "running".to_string(),
             Some(OpencodeHealthStatus::Starting) => "starting".to_string(),
-            Some(OpencodeHealthStatus::Unhealthy) => "unhealthy".to_string(),
-            Some(OpencodeHealthStatus::Failed) => "unknown".to_string(),
+            Some(OpencodeHealthStatus::Unhealthy(_)) => "unhealthy".to_string(),
+            Some(OpencodeHealthStatus::CheckFailed) => "unknown".to_string(),
         }
     } else {
         "stopped".to_string()
@@ -80,28 +55,33 @@ pub async fn cmd_status_container(
         "{}",
         format_kv(
             "URL:",
-            style(format!("http://127.0.0.1:{OPENCODE_WEB_PORT}")).cyan()
+            style(format!("http://127.0.0.1:{host_port}")).cyan()
         )
     );
 
-    let opencode_display = match (opencode_version.as_deref(), opencode_commit.as_deref()) {
-        (Some(version), Some(commit)) => format!("{version} ({commit})"),
-        (Some(version), None) => version.to_string(),
-        (None, Some(commit)) => format!("unknown ({commit})"),
-        (None, None) => "unknown".to_string(),
-    };
+    let opencode_display =
+        format_opencode_display(&status_view.opencode_version, &status_view.opencode_commit);
     println!("{}", format_kv("Opencode:", opencode_display));
 
     println!(
         "{}",
-        format_kv("Broker:", format_broker_health_status(broker_health))
+        format_kv(
+            "Broker:",
+            format_broker_health_label(status_view.broker_health)
+        )
     );
 
-    let runtime = if systemd { "systemd" } else { "tini" };
+    let runtime = if status_view
+        .capabilities
+        .systemd_available
+        .unwrap_or(systemd)
+    {
+        "systemd"
+    } else {
+        "tini"
+    };
     println!("{}", format_kv("Runtime:", runtime));
-
-    let image_version = opencode_cloud_version.unwrap_or_else(|| "unknown".to_string());
-    println!("{}", format_kv("Image:", image_version));
+    println!("{}", format_kv("Image:", &status_view.image_version));
 
     let cli_version = get_cli_version();
     println!("{}", format_kv("CLI:", format!("v{cli_version}")));
@@ -110,8 +90,8 @@ pub async fn cmd_status_container(
 }
 
 async fn systemd_service_active(service: &str) -> Result<bool> {
-    let (output, _status) = exec_command_with_status("systemctl", &["is-active", service]).await?;
-    Ok(output.lines().next().map(|line| line.trim()) == Some("active"))
+    let (_output, status) = exec_command_with_status("systemctl", &["is-active", service]).await?;
+    Ok(status == 0)
 }
 
 async fn process_running(cmd: &str, args: &[&str]) -> Result<bool> {
@@ -119,69 +99,15 @@ async fn process_running(cmd: &str, args: &[&str]) -> Result<bool> {
     Ok(status == 0)
 }
 
-async fn read_opencode_version() -> Option<String> {
-    let output = exec_command("/opt/opencode/bin/opencode", &["--version"])
-        .await
-        .ok()?;
-    let version = output.lines().next()?.trim();
-    if version.is_empty() {
-        None
-    } else {
-        Some(version.to_string())
-    }
-}
-
-fn read_opencode_commit() -> Option<String> {
-    let contents = fs::read_to_string("/opt/opencode/COMMIT").ok()?;
-    let commit = contents.lines().next()?.trim();
-    if commit.is_empty() {
-        None
-    } else {
-        Some(commit.chars().take(7).collect())
-    }
-}
-
-fn read_opencode_cloud_version() -> Option<String> {
-    let contents = fs::read_to_string("/etc/opencode-cloud-version").ok()?;
-    let version = contents.lines().next()?.trim();
-    if version.is_empty() {
-        None
-    } else {
-        Some(version.to_string())
-    }
-}
-
-async fn get_opencode_health_status(include_probe: bool) -> Option<OpencodeHealthStatus> {
-    if !include_probe {
-        return None;
-    }
-
-    match check_health("127.0.0.1", OPENCODE_WEB_PORT).await {
-        Ok(_) => Some(OpencodeHealthStatus::Healthy),
-        Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-            Some(OpencodeHealthStatus::Starting)
-        }
-        Err(HealthError::Unhealthy(_code)) => Some(OpencodeHealthStatus::Unhealthy),
-        Err(_) => Some(OpencodeHealthStatus::Failed),
+fn format_opencode_display(version: &str, commit: &str) -> String {
+    match (version, commit) {
+        ("unknown", "unknown") => "unknown".to_string(),
+        ("unknown", commit) => format!("unknown ({commit})"),
+        (version, "unknown") => version.to_string(),
+        (version, commit) => format!("{version} ({commit})"),
     }
 }
 
 fn format_kv(label: &str, value: impl std::fmt::Display) -> String {
     format!("{label:<STATUS_LABEL_WIDTH$} {value}")
-}
-
-fn map_broker_health_status(process_ok: bool, socket_ok: bool) -> BrokerHealthStatus {
-    match (process_ok, socket_ok) {
-        (true, true) => BrokerHealthStatus::Healthy,
-        (true, false) | (false, true) => BrokerHealthStatus::Degraded,
-        (false, false) => BrokerHealthStatus::Unhealthy,
-    }
-}
-
-fn format_broker_health_status(status: BrokerHealthStatus) -> String {
-    match status {
-        BrokerHealthStatus::Healthy => style("Healthy").green().to_string(),
-        BrokerHealthStatus::Degraded => style("Degraded").yellow().to_string(),
-        BrokerHealthStatus::Unhealthy => style("Unhealthy").red().to_string(),
-    }
 }

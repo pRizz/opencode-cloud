@@ -3,6 +3,10 @@
 //! Starts the opencode service, building the image if needed.
 
 use crate::cli_platform::cli_platform_label;
+use crate::commands::runtime_shared::backend::HostBackend;
+use crate::commands::runtime_shared::{
+    broker_is_ready as broker_ready_from_status, probe_broker_health,
+};
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
@@ -20,8 +24,8 @@ use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
     IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image,
     check_container_path_warning, container_exists, container_is_running, docker_supports_systemd,
-    exec_command_with_status, get_cli_version, get_container_bind_mounts, get_container_ports,
-    get_image_version, image_exists, pull_image, save_state, setup_and_start, validate_mount_path,
+    get_cli_version, get_container_bind_mounts, get_container_ports, get_image_version,
+    image_exists, pull_image, save_state, setup_and_start, validate_mount_path,
     versions_compatible,
 };
 use std::net::{TcpListener, TcpStream};
@@ -1426,13 +1430,9 @@ pub(crate) async fn wait_for_service_ready(
 }
 
 async fn broker_is_ready(client: &DockerClient) -> Result<bool> {
-    let cmd = vec![
-        "sh",
-        "-lc",
-        "test -S /run/opencode/auth.sock && pgrep -x opencode-broker >/dev/null",
-    ];
-    let (_output, exit_code) = exec_command_with_status(client, CONTAINER_NAME, cmd).await?;
-    Ok(exit_code == 0)
+    let backend = HostBackend::new(client);
+    let health = probe_broker_health(&backend).await;
+    Ok(broker_ready_from_status(health))
 }
 
 /// Wait for the broker to be ready by checking socket + process inside container

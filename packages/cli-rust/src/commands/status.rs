@@ -7,10 +7,15 @@ use crate::cli_platform::cli_platform_label;
 use crate::commands::disk_usage::{
     format_disk_usage_report, format_host_disk_report, get_disk_usage_report, get_host_disk_report,
 };
+use crate::commands::runtime_shared::backend::HostBackend;
+use crate::commands::runtime_shared::collect_status_view;
+use crate::commands::runtime_shared::status_model::{
+    BrokerHealthStatus, OpencodeHealthStatus, format_broker_health_label,
+    format_opencode_health_label,
+};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
-    format_cockpit_url, format_docker_error_anyhow, normalize_bind_addr, resolve_remote_addr,
-    state_style,
+    format_cockpit_url, format_docker_error_anyhow, resolve_remote_addr, state_style,
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -19,9 +24,8 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, HealthError, MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION,
-    MOUNT_STATE, OPENCODE_WEB_PORT, ParsedMount, check_health, exec_command,
-    exec_command_with_status, get_cli_version, get_image_version, load_state,
+    CONTAINER_NAME, MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE,
+    OPENCODE_WEB_PORT, ParsedMount, get_cli_version, get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::collections::HashMap;
@@ -190,7 +194,7 @@ pub async fn cmd_status(
 
     if running {
         print_section_header("OpenCode");
-        print_opencode_section(
+        let broker_health = print_opencode_section(
             &client,
             host_name.as_deref(),
             maybe_remote_addr.as_deref(),
@@ -199,6 +203,9 @@ pub async fn cmd_status(
             started_at.as_deref(),
         )
         .await?;
+
+        print_section_header("OpenCode Broker");
+        print_opencode_broker_section(broker_health);
     }
 
     print_section_header("Sandbox");
@@ -404,116 +411,6 @@ fn format_duration(duration: Duration) -> String {
     format!("{days}d")
 }
 
-async fn get_opencode_commit(client: &opencode_cloud_core::docker::DockerClient) -> Option<String> {
-    if let Ok(output) =
-        exec_command(client, CONTAINER_NAME, vec!["cat", "/opt/opencode/COMMIT"]).await
-        && let Some(commit) = extract_short_commit(&output)
-    {
-        return Some(commit);
-    }
-    None
-}
-
-async fn get_opencode_version(
-    client: &opencode_cloud_core::docker::DockerClient,
-) -> Option<String> {
-    let output = exec_command(
-        client,
-        CONTAINER_NAME,
-        vec!["/opt/opencode/bin/opencode", "--version"],
-    )
-    .await
-    .ok()?;
-
-    let version = output.lines().next()?.trim();
-    if version.is_empty() {
-        None
-    } else {
-        Some(version.to_string())
-    }
-}
-
-enum OpencodeHealthStatus {
-    Healthy,
-    Starting,
-    Unhealthy(u16),
-    Failed,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BrokerHealthStatus {
-    Healthy,
-    Degraded,
-    Unhealthy,
-    CheckFailed,
-}
-
-async fn get_opencode_health_status(
-    include_probe: bool,
-    bind_addr: &str,
-    host_port: u16,
-) -> Option<OpencodeHealthStatus> {
-    if !include_probe {
-        return None;
-    }
-
-    match check_health(normalize_bind_addr(bind_addr), host_port).await {
-        Ok(_) => Some(OpencodeHealthStatus::Healthy),
-        Err(HealthError::ConnectionRefused) | Err(HealthError::Timeout) => {
-            Some(OpencodeHealthStatus::Starting)
-        }
-        Err(HealthError::Unhealthy(code)) => Some(OpencodeHealthStatus::Unhealthy(code)),
-        Err(_) => Some(OpencodeHealthStatus::Failed),
-    }
-}
-
-fn map_broker_health_status(process_ok: bool, socket_ok: bool) -> BrokerHealthStatus {
-    match (process_ok, socket_ok) {
-        (true, true) => BrokerHealthStatus::Healthy,
-        (true, false) | (false, true) => BrokerHealthStatus::Degraded,
-        (false, false) => BrokerHealthStatus::Unhealthy,
-    }
-}
-
-async fn get_broker_health_status(
-    client: &opencode_cloud_core::docker::DockerClient,
-) -> BrokerHealthStatus {
-    let process_probe = exec_command_with_status(
-        client,
-        CONTAINER_NAME,
-        vec![
-            "sh",
-            "-lc",
-            "if [ -d /run/systemd/system ]; then systemctl is-active --quiet opencode-broker.service; else pgrep -x opencode-broker >/dev/null; fi",
-        ],
-    )
-    .await;
-    let socket_probe = exec_command_with_status(
-        client,
-        CONTAINER_NAME,
-        vec!["sh", "-lc", "test -S /run/opencode/auth.sock"],
-    )
-    .await;
-
-    match (process_probe, socket_probe) {
-        (Ok((_, process_status)), Ok((_, socket_status))) => {
-            map_broker_health_status(process_status == 0, socket_status == 0)
-        }
-        _ => BrokerHealthStatus::CheckFailed,
-    }
-}
-
-fn extract_short_commit(version_output: &str) -> Option<String> {
-    version_output
-        .split(|ch: char| !ch.is_ascii_hexdigit())
-        .find(|token| {
-            token.len() >= 7
-                && token.chars().all(|ch| ch.is_ascii_hexdigit())
-                && token.chars().any(|ch| matches!(ch, 'a'..='f' | 'A'..='F'))
-        })
-        .map(|token| token.chars().take(7).collect())
-}
-
 fn format_kv(label: &str, value: impl std::fmt::Display) -> String {
     format!("{} {}", format_label(label), value)
 }
@@ -539,21 +436,26 @@ async fn print_opencode_section(
     bind_addr: &str,
     host_port: u16,
     started_at: Option<&str>,
-) -> Result<()> {
+) -> Result<BrokerHealthStatus> {
+    let backend = HostBackend::new(client);
+    let status_view =
+        collect_status_view(&backend, maybe_host_name.is_none(), bind_addr, host_port).await?;
+
     print_urls(maybe_remote_addr, bind_addr, host_port);
 
-    if let Some(health_status) =
-        get_opencode_health_status(maybe_host_name.is_none(), bind_addr, host_port).await
-    {
+    if let Some(health_status) = status_view.opencode_health {
         print_opencode_health(health_status);
     }
-    print_broker_health(get_broker_health_status(client).await);
 
-    print_opencode_version_commit(client).await;
+    print_opencode_version_commit(&status_view.opencode_version, &status_view.opencode_commit);
     print_uptime(started_at);
     print_port(host_port);
 
-    Ok(())
+    Ok(status_view.broker_health)
+}
+
+fn print_opencode_broker_section(status: BrokerHealthStatus) {
+    print_broker_health_line(status);
 }
 
 fn print_urls(maybe_remote_addr: Option<&str>, bind_addr: &str, host_port: u16) {
@@ -680,37 +582,18 @@ fn print_stopped_section(finished_at: Option<&str>) {
 }
 
 fn print_opencode_health(status: OpencodeHealthStatus) {
-    let value = match status {
-        OpencodeHealthStatus::Healthy => style("Healthy").green().to_string(),
-        OpencodeHealthStatus::Starting => style("Service starting...").yellow().to_string(),
-        OpencodeHealthStatus::Unhealthy(code) => {
-            format!("{} (HTTP {})", style("Unhealthy").red(), code)
-        }
-        OpencodeHealthStatus::Failed => style("Check failed").yellow().to_string(),
-    };
+    let value = format_opencode_health_label(status);
     println!("{}", format_kv("Health:", value));
 }
 
-fn print_broker_health(status: BrokerHealthStatus) {
-    let value = match status {
-        BrokerHealthStatus::Healthy => style("Healthy").green().to_string(),
-        BrokerHealthStatus::Degraded => style("Degraded").yellow().to_string(),
-        BrokerHealthStatus::Unhealthy => style("Unhealthy").red().to_string(),
-        BrokerHealthStatus::CheckFailed => style("Check failed").yellow().to_string(),
-    };
-    println!("{}", format_kv("Broker:", value));
+fn print_broker_health_line(status: BrokerHealthStatus) {
+    let value = format_broker_health_label(status);
+    println!("{}", format_kv("Health:", value));
 }
 
-async fn print_opencode_version_commit(client: &opencode_cloud_core::docker::DockerClient) {
-    let version = get_opencode_version(client)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
-    println!("{}", format_kv("Version:", &version));
-
-    let commit = get_opencode_commit(client)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
-    println!("{}", format_kv("Commit:", &commit));
+fn print_opencode_version_commit(version: &str, commit: &str) {
+    println!("{}", format_kv("Version:", version));
+    println!("{}", format_kv("Commit:", commit));
 
     if commit != "unknown" {
         let repo_url = format!("https://github.com/pRizz/opencode/commit/{commit}");
@@ -1033,61 +916,5 @@ mod tests {
         let display = result.unwrap();
         assert!(display.contains("2024-01-15"));
         assert!(display.contains("10:30:00"));
-    }
-
-    #[test]
-    fn extract_short_commit_from_version_output() {
-        // Arrange
-        let output = "opencode v0.0.0 (commit df9b40be451372e5473b22b33a68fb359267ca7e)";
-
-        // Act
-        let commit = extract_short_commit(output);
-
-        // Assert
-        assert_eq!(commit.as_deref(), Some("df9b40b"));
-    }
-
-    #[test]
-    fn extract_short_commit_ignores_numeric_versions() {
-        // Arrange
-        let output = "0.0.0--202601311855";
-
-        // Act
-        let commit = extract_short_commit(output);
-
-        // Assert
-        assert!(commit.is_none());
-    }
-
-    #[test]
-    fn broker_health_mapping_healthy() {
-        assert_eq!(
-            map_broker_health_status(true, true),
-            BrokerHealthStatus::Healthy
-        );
-    }
-
-    #[test]
-    fn broker_health_mapping_degraded_process_only() {
-        assert_eq!(
-            map_broker_health_status(true, false),
-            BrokerHealthStatus::Degraded
-        );
-    }
-
-    #[test]
-    fn broker_health_mapping_degraded_socket_only() {
-        assert_eq!(
-            map_broker_health_status(false, true),
-            BrokerHealthStatus::Degraded
-        );
-    }
-
-    #[test]
-    fn broker_health_mapping_unhealthy() {
-        assert_eq!(
-            map_broker_health_status(false, false),
-            BrokerHealthStatus::Unhealthy
-        );
     }
 }

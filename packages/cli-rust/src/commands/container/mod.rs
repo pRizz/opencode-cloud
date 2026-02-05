@@ -1,4 +1,12 @@
 //! Container-mode command implementations and helpers.
+//!
+//! Runtime parity note:
+//! - Dual-runtime commands should keep domain semantics in `commands/runtime_shared`.
+//! - Container modules should stay as thin runtime adapters and delegate shared logic.
+//! - Remaining parity migrations:
+//!   - `logs`
+//!   - `user`
+//!   - `update opencode`
 
 pub mod logs;
 pub mod status;
