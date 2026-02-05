@@ -69,6 +69,7 @@ async fn cmd_user_add_container(args: &UserAddArgs, quiet: bool, _verbose: u8) -
         bail!("User '{username}' already exists in the container");
     }
 
+    let mut generated = args.generate;
     let password =
         if args.generate {
             generate_random_password()
@@ -93,15 +94,27 @@ async fn cmd_user_add_container(args: &UserAddArgs, quiet: bool, _verbose: u8) -
                     style("Tip:").cyan(),
                     style("--generate (-g)").bold()
                 );
+                println!(
+                    "  {} Press Enter to auto-generate and display a secure password.",
+                    style("Tip:").cyan()
+                );
             }
-            let pwd = Password::new()
-                .with_prompt("Password")
-                .with_confirmation("Confirm password", "Passwords do not match")
-                .interact()?;
-            if pwd.is_empty() {
-                bail!("Password cannot be empty");
+            loop {
+                let pwd = Password::new()
+                    .with_prompt("Password")
+                    .allow_empty_password(true)
+                    .interact()?;
+                if pwd.is_empty() {
+                    generated = true;
+                    break generate_random_password();
+                }
+                let confirm = Password::new().with_prompt("Confirm password").interact()?;
+                if pwd != confirm {
+                    eprintln!("{}", style("Passwords do not match").red());
+                    continue;
+                }
+                break pwd;
             }
-            pwd
         };
 
     create_user(&username).await?;
@@ -119,7 +132,7 @@ async fn cmd_user_add_container(args: &UserAddArgs, quiet: bool, _verbose: u8) -
             style("Success:").green().bold(),
             username
         );
-        if args.generate {
+        if generated {
             print_generated_password(
                 &password,
                 "Save this password securely - it won't be shown again.",

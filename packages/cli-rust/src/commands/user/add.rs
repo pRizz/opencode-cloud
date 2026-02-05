@@ -15,7 +15,7 @@ use opencode_cloud_core::{load_config_or_default, save_config};
 /// Arguments for the user add command
 #[derive(Args)]
 #[command(
-    after_help = "Tip: Use --generate (-g) to auto-generate a secure password instead of typing one."
+    after_help = "Tip: Press Enter at the password prompt to auto-generate and display a secure password, or use --generate (-g) for non-interactive use."
 )]
 pub struct UserAddArgs {
     /// Username to create (default: opencode if not provided)
@@ -79,6 +79,7 @@ pub async fn cmd_user_add(
     }
 
     // Get password
+    let mut generated = args.generate;
     let password = if args.generate {
         generate_random_password()
     } else {
@@ -105,16 +106,30 @@ pub async fn cmd_user_add(
                 style("Tip:").cyan(),
                 style("--generate (-g)").bold()
             );
+            println!(
+                "  {} Press Enter to auto-generate and display a secure password.",
+                style("Tip:").cyan()
+            );
         }
-        let pwd = Password::new()
-            .with_prompt("Password")
-            .with_confirmation("Confirm password", "Passwords do not match")
-            .interact()?;
+        loop {
+            let pwd = Password::new()
+                .with_prompt("Password")
+                .allow_empty_password(true)
+                .interact()?;
 
-        if pwd.is_empty() {
-            bail!("Password cannot be empty");
+            if pwd.is_empty() {
+                generated = true;
+                break generate_random_password();
+            }
+
+            let confirm = Password::new().with_prompt("Confirm password").interact()?;
+            if pwd != confirm {
+                eprintln!("{}", style("Passwords do not match").red());
+                continue;
+            }
+
+            break pwd;
         }
-        pwd
     };
 
     // Create the user
@@ -146,7 +161,7 @@ pub async fn cmd_user_add(
             username
         );
 
-        if args.generate {
+        if generated {
             print_generated_password(
                 &password,
                 "Save this password securely - it won't be shown again.",
