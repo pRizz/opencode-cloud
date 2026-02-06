@@ -3,6 +3,8 @@
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
+[![Crates Downloads](https://img.shields.io/crates/d/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
+[![npm Downloads](https://img.shields.io/npm/dt/opencode-cloud?logo=npm)](https://www.npmjs.com/package/opencode-cloud)
 [![Docker Hub](https://img.shields.io/docker/v/prizz/opencode-cloud-sandbox?label=docker&sort=semver)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
 [![Docker Pulls](https://img.shields.io/docker/pulls/prizz/opencode-cloud-sandbox)](https://hub.docker.com/r/prizz/opencode-cloud-sandbox)
 [![GHCR](https://img.shields.io/badge/ghcr.io-sandbox-blue?logo=github)](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox)
