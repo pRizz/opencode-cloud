@@ -32,7 +32,14 @@ if [[ -f "${gitmodules}" ]]; then
   fi
 fi
 
-git -C "${submodule_dir}" fetch --prune origin "${submodule_branch}"
+# In GitHub Actions, submodule URLs may be SSH-style from .gitmodules
+# (git@github.com:...), but runners usually do not have an SSH key.
+# Rewrite those URLs to HTTPS for this fetch so CI can read the repo.
+git \
+  -C "${submodule_dir}" \
+  -c url."https://github.com/".insteadOf=git@github.com: \
+  -c url."https://github.com/".insteadOf=ssh://git@github.com/ \
+  fetch --prune origin "${submodule_branch}"
 latest_commit="$(git -C "${submodule_dir}" rev-parse FETCH_HEAD)"
 if [[ -z "${latest_commit}" ]]; then
   echo "Failed to resolve latest commit for branch ${submodule_branch}." >&2
