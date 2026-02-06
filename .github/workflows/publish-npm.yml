@@ -51,7 +51,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Download darwin-arm64 binary
         uses: actions/download-artifact@v5
@@ -100,7 +100,6 @@ jobs:
 
       - name: Build Node packages
         run: |
-          pnpm -C packages/core build
           pnpm -C packages/cli-node build
 
       - name: Publish @opencode-cloud/cli-node-darwin-arm64
