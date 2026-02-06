@@ -11,6 +11,7 @@ import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createRequire } from 'module';
+import { ensureExecutable } from './permissions.js';
 
 const require = createRequire(import.meta.url);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -101,6 +102,8 @@ if (!binaryPath) {
   process.exit(1);
 }
 
+ensureExecutable(binaryPath);
+
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: 'inherit',
 });
@@ -109,8 +112,13 @@ child.on('close', (code: number | null) => {
   process.exit(code ?? 1);
 });
 
-child.on('error', (err: Error) => {
+child.on('error', (err: NodeJS.ErrnoException) => {
   console.error(`Error: Failed to spawn binary at ${binaryPath}`);
+  if (err.code === 'EACCES') {
+    console.error(
+      `Permission denied executing binary. Try: chmod +x ${binaryPath}\n`
+    );
+  }
   console.error(`Error: ${err.message}\n`);
   console.error('Try reinstalling: npm install opencode-cloud');
   process.exit(1);

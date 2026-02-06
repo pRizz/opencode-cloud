@@ -12,6 +12,9 @@
   "homepage": "https://github.com/pRizz/opencode-cloud",
   "os": ["darwin"],
   "cpu": ["arm64"],
+  "publishConfig": {
+    "executableFiles": ["bin/occ"]
+  },
   "files": ["bin"],
   "main": "index.js"
 }

@@ -13,6 +13,9 @@
   "os": ["linux"],
   "cpu": ["arm64"],
   "libc": ["glibc"],
+  "publishConfig": {
+    "executableFiles": ["bin/occ"]
+  },
   "files": ["bin"],
   "main": "index.js"
 }

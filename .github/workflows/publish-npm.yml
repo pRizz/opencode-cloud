@@ -98,6 +98,9 @@ jobs:
           chmod +x packages/cli-node-linux-x64-musl/bin/occ
           chmod +x packages/cli-node-linux-arm64-musl/bin/occ
 
+      - name: Verify packaged binary permissions
+        run: bash scripts/verify-cli-node-pack-perms.sh
+
       - name: Build Node packages
         run: |
           pnpm -C packages/cli-node build
