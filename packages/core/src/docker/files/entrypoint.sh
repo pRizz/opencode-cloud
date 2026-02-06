@@ -5,9 +5,43 @@ log() {
     echo "[opencode-cloud] $*"
 }
 
+read_opencode_cloud_version() {
+    local version_file="/etc/opencode-cloud-version"
+    local version
+
+    if [ -r "${version_file}" ]; then
+        version="$(head -n 1 "${version_file}" 2>/dev/null | tr -d "\r\n")"
+    else
+        version=""
+    fi
+
+    if [ -z "${version}" ]; then
+        printf "dev"
+    else
+        printf "%s" "${version}"
+    fi
+}
+
+print_welcome_banner() {
+    local version
+    version="$(read_opencode_cloud_version)"
+
+    log "----------------------------------------------------------------------"
+    log "Welcome to opencode-cloud-sandbox"
+    log "You are running opencode-cloud v${version}"
+    log "For questions, problems, and feature requests, file an issue:"
+    log "  https://github.com/pRizz/opencode-cloud/issues"
+    log "opencode-cloud runs opencode in a Docker sandbox; use occ/opencode-cloud CLI to manage users, mounts, and updates."
+    log "Quick start: occ user add <username> | occ status | occ logs -f"
+    log "Docs: https://github.com/pRizz/opencode-cloud#readme"
+    log "----------------------------------------------------------------------"
+}
+
 OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"
 OPENCODE_HOST="${OPENCODE_HOST:-0.0.0.0}"
 export OPENCODE_PORT OPENCODE_HOST
+
+print_welcome_banner
 
 detect_droplet() {
     local hint="${OPENCODE_CLOUD_ENV:-}"
@@ -62,13 +96,6 @@ if [ -n "${non_persistent_paths}" ]; then
     log "Configure persistence: https://github.com/pRizz/opencode-cloud#readme"
     log "================================================================="
 fi
-
-log "----------------------------------------------------------------------"
-log "If you created this container via opencode-cloud CLI, add users with:"
-log "  occ user add   (or: opencode-cloud user add)"
-log "Learn more: occ --help (or: opencode-cloud --help)"
-log "Docs: https://github.com/pRizz/opencode-cloud#readme"
-log "----------------------------------------------------------------------"
 
 if [ "${USE_SYSTEMD:-}" = "1" ]; then
     exec /sbin/init
