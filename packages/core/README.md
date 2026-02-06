@@ -51,15 +51,15 @@ Quick deploy provisions a private EC2 instance behind a public ALB with HTTPS.
 Docs: `docs/deploy/aws.md` (includes teardown steps and S3 hosting setup for forks)
 Credentials: `docs/deploy/aws.md#retrieving-credentials`
 
-## Deploy to DigitalOcean
+## Deploy to DigitalOcean (Coming Soon)
 
-[![Deploy on DigitalOcean](https://img.shields.io/badge/Deploy-DigitalOcean-0080FF?logo=digitalocean&logoColor=white)](https://marketplace.digitalocean.com/apps/opencode-cloud)
+DigitalOcean Marketplace one-click deployment is not implemented yet. Support is coming soon.
 
-Marketplace one-click deploy provisions a Droplet that bootstraps opencode-cloud
-on first boot (listing pending).
+Warning: direct manual Droplet deployments are currently not recommended because persistence support is incomplete and data loss is likely.
 
-Manual Droplet setup: `docs/deploy/digitalocean-droplet.md`
-Marketplace docs: `docs/deploy/digitalocean-marketplace.md`
+For testing-only reference:
+- Manual Droplet setup: `docs/deploy/digitalocean-droplet.md`
+- Marketplace docs/status: `docs/deploy/digitalocean-marketplace.md`
 
 ## Features
 
