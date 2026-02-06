@@ -15,6 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Required for just test-all-slow (opencode submodule checks).
+          submodules: recursive
+
+      - name: Install Linux system dependencies
+        run: |
+          # Required by opencode-broker (libpam-sys links against -lpam).
+          sudo apt-get update
+          sudo apt-get install -y libpam0g-dev
 
       - name: Initialize opencode submodule
         run: |

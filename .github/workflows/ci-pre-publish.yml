@@ -33,6 +33,12 @@ jobs:
           git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
           git submodule status --recursive
 
+      - name: Install Linux system dependencies
+        run: |
+          # Required by opencode-broker (libpam-sys links against -lpam).
+          sudo apt-get update
+          sudo apt-get install -y libpam0g-dev
+
       - name: Log version
         if: inputs.version != ''
         run: echo "Running checks for version ${{ inputs.version }}"

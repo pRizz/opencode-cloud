@@ -69,6 +69,16 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Required for just targets that validate/build/test packages/opencode.
+          submodules: recursive
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Required by opencode-broker (libpam-sys links against -lpam).
+          sudo apt-get update
+          sudo apt-get install -y libpam0g-dev
 
       - name: Initialize opencode submodule
         run: |
