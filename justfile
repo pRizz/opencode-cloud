@@ -25,9 +25,29 @@ build: build-rust build-node build-opencode build-opencode-broker
 run *args:
     cargo run -p opencode-cloud --bin occ -- {{args}}
 
-# Build Rust packages
-build-rust:
+# --- Shared check/build base targets (used by local + CI wrappers) ---
+
+check-rust-format:
+    cargo fmt --all -- --check
+
+check-rust-clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+build-rust-workspace:
     cargo build --workspace
+
+verify-cli-version:
+    cargo run -p opencode-cloud -- --version
+
+build-core-bindings:
+    pnpm -C packages/core build
+
+check-opencode-stack: lint-opencode build-opencode lint-opencode-broker
+
+test-slow-suite: test-all-slow
+
+# Build Rust packages
+build-rust: build-rust-workspace
 
 # --- Node CLI (Mac / local dev) ---
 # Build Node CLI for Mac: compile Rust occ, copy to cli-node/bin/, then build the wrapper.
@@ -191,9 +211,7 @@ test-doc-slow:
 lint: lint-rust lint-node lint-shell lint-opencode lint-opencode-broker
 
 # Lint Rust code
-lint-rust:
-    cargo fmt --all -- --check
-    cargo clippy --all-targets --all-features -- -D warnings
+lint-rust: check-rust-format check-rust-clippy
 
 # Lint Rust code in Linux container (catches platform-gated code issues)
 # Use this before pushing to catch CI failures on Linux
@@ -213,6 +231,24 @@ lint-node:
 # Lint shell scripts
 lint-shell:
     shellcheck scripts/*.sh
+
+# --- CI wrappers (CI install remains stricter than local by design) ---
+
+ci-node-install:
+    pnpm install --frozen-lockfile --ignore-scripts
+
+ci-node-install-cli-only:
+    pnpm install --filter opencode-cloud --frozen-lockfile --ignore-scripts
+
+ci-lint: lint-rust check-opencode-stack
+
+ci-build: build-rust build-core-bindings
+
+ci-test: test-slow-suite
+
+ci-verify: verify-cli-version
+
+ci-checks: ci-lint ci-build ci-test ci-verify
 
 # Check for Dockerfile tool version updates
 check-updates:

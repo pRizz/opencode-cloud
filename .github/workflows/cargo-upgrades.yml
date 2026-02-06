@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # Required for just test-all-slow (opencode submodule checks).
+          # Required for shared just check targets that validate packages/opencode.
           submodules: recursive
 
       - name: Install Linux system dependencies
@@ -165,27 +165,28 @@ jobs:
             fi
             strip_ansi "${format_fix_output_path}" "${format_fix_output_plain_path}"
 
-            cargo fmt --all -- --check 2>&1 | tee "${format_output_path}"
+            # Project checks should run via shared just targets.
+            just check-rust-format 2>&1 | tee "${format_output_path}"
             format_exit=$?
             strip_ansi "${format_output_path}" "${format_output_plain_path}"
 
-            cargo clippy --all-targets --all-features -- -D warnings 2>&1 | tee "${clippy_output_path}"
+            just check-rust-clippy 2>&1 | tee "${clippy_output_path}"
             clippy_exit=$?
             strip_ansi "${clippy_output_path}" "${clippy_output_plain_path}"
 
-            cargo build --workspace 2>&1 | tee "${build_output_path}"
+            just build-rust 2>&1 | tee "${build_output_path}"
             build_exit=$?
             strip_ansi "${build_output_path}" "${build_output_plain_path}"
 
-            just test-all-slow 2>&1 | tee "${test_output_path}"
+            just ci-test 2>&1 | tee "${test_output_path}"
             test_exit=$?
             strip_ansi "${test_output_path}" "${test_output_plain_path}"
 
-            pnpm -C packages/core build 2>&1 | tee "${core_build_output_path}"
+            just build-core-bindings 2>&1 | tee "${core_build_output_path}"
             core_build_exit=$?
             strip_ansi "${core_build_output_path}" "${core_build_output_plain_path}"
 
-            cargo run -p opencode-cloud -- --version 2>&1 | tee "${verify_output_path}"
+            just ci-verify 2>&1 | tee "${verify_output_path}"
             verify_exit=$?
             strip_ansi "${verify_output_path}" "${verify_output_plain_path}"
 

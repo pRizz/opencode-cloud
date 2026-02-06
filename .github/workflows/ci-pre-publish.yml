@@ -67,34 +67,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: just ci-node-install
 
-      - name: Lint opencode packages
-        run: just lint-opencode
-
-      - name: Build opencode packages
-        run: just build-opencode
-
-      - name: Lint opencode broker
-        run: just lint-opencode-broker
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Build Rust
-        run: cargo build --workspace
-
-      - name: Test All (slow)
-        run: just test-all-slow
-
-      - name: Build Node packages
-        run: |
-          pnpm -C packages/core build
-          pnpm -C packages/cli-node build
-
-      - name: Verify CLI works
-        run: cargo run -p opencode-cloud -- --version
-        # Node CLI is deprecated and exits with error, so we don't verify it
+      # Project checks should run via shared just targets.
+      - name: Run CI checks
+        run: just ci-checks

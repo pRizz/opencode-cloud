@@ -111,31 +111,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: just ci-node-install
 
-      - name: Lint opencode packages
-        run: just lint-opencode
-
-      - name: Build opencode packages
-        run: just build-opencode
-
-      - name: Lint opencode broker
-        run: just lint-opencode-broker
-
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Build Rust
-        run: cargo build --workspace
-
-      - name: Test All (slow)
-        run: just test-all-slow
-
-      - name: Build core bindings
-        run: pnpm -C packages/core build
-
-      - name: Verify CLI works
-        run: cargo run -p opencode-cloud -- --version
+      # Project checks should run via shared just targets.
+      - name: Run CI checks
+        run: just ci-checks
 
       - name: Record CLI parity SHA
         if: matrix.os == 'ubuntu-latest'
@@ -158,6 +138,9 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/checkout@v6
+
+      - name: Install just
+        uses: extractions/setup-just@v3
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -185,7 +168,7 @@ jobs:
         run: chmod +x target/debug/opencode-cloud
 
       - name: Install Node dependencies (cli only)
-        run: pnpm install --filter opencode-cloud --frozen-lockfile --ignore-scripts
+        run: just ci-node-install-cli-only
 
       - name: Run CLI parity tests
         run: pnpm -C packages/cli-node test

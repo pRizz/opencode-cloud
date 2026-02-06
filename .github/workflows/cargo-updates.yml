@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # Required for just test-all-slow (opencode submodule checks).
+          # Required for shared just check targets that validate packages/opencode.
           submodules: recursive
 
       - name: Install Linux system dependencies
@@ -65,7 +65,8 @@ jobs:
 
           echo "updates_available=true" >> $GITHUB_OUTPUT
 
-          just test-all-slow 2>&1 | tee "${test_output_path}"
+          # Project checks should run via shared just targets.
+          just ci-test 2>&1 | tee "${test_output_path}"
           test_exit=$?
           sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g' "${test_output_path}" > "${test_output_plain_path}"
 
