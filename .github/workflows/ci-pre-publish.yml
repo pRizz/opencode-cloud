@@ -26,6 +26,8 @@ jobs:
         with:
           # If ref is not provided, checkout defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
+          # Required for just targets that validate/build/test packages/opencode.
+          submodules: recursive
 
       - name: Log version
         if: inputs.version != ''
