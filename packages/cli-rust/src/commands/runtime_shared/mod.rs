@@ -2,6 +2,7 @@
 
 pub mod backend;
 pub mod health;
+pub mod mounts;
 pub mod status_model;
 
 use anyhow::Result;

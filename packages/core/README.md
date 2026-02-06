@@ -245,8 +245,33 @@ occ mount clean --force
 # Purge bind mounts (data loss, removes config entries)
 occ mount clean --purge --force
 
+# Mount a local project into the workspace
+occ mount add /Users/<username>/Desktop/opencode:/home/opencode/workspace
+
+# Apply mount changes (you may be prompted to recreate the container)
+occ restart
+
 # Factory reset host (container, volumes, mounts, config/data)
 occ reset host --force
+
+### Workspace Mounts
+
+Use `/home/opencode/workspace` when you want your host project folder to appear in the
+web UI's project picker and inside the container workspace.
+
+Important behavior:
+- `/home/opencode/workspace` is a single mount target.
+- Adding a new mount to this same target replaces the previous mount entry.
+
+Recommended workflow:
+```bash
+occ mount add /Users/<username>/Desktop/opencode:/home/opencode/workspace
+occ restart
+```
+
+Verify the mount:
+1. Run `occ status` and check `Mounts` -> `Bind mounts` includes your host path mapped to `/home/opencode/workspace`.
+2. In the web UI, open the project picker and confirm your project files appear under `~/workspace`.
 
 ### Container Mode
 
