@@ -720,7 +720,10 @@ async fn run_selected_updates(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_cargo_info_versions;
+    use super::{
+        container_not_running_update_error, ensure_in_place_opencode_update_supported,
+        non_systemd_in_place_update_error, parse_cargo_info_versions,
+    };
 
     #[test]
     fn parse_cargo_info_versions_latest() {
@@ -744,6 +747,46 @@ mod tests {
         let parsed = parse_cargo_info_versions(output).expect("should parse version");
         assert_eq!(parsed.target, "11.0.0");
         assert!(parsed.compatible.is_none());
+    }
+
+    #[test]
+    fn in_place_update_preflight_allows_systemd() {
+        assert!(ensure_in_place_opencode_update_supported("systemd").is_ok());
+    }
+
+    #[test]
+    fn in_place_update_preflight_allows_unknown() {
+        assert!(ensure_in_place_opencode_update_supported("unknown").is_ok());
+    }
+
+    #[test]
+    fn in_place_update_preflight_rejects_non_systemd() {
+        let err = ensure_in_place_opencode_update_supported("runuser")
+            .expect_err("runuser init should be rejected");
+        let message = err.to_string();
+        assert!(message.contains("runuser"));
+        assert!(message.contains("occ update container"));
+        assert!(message.contains("prebuilt image"));
+        assert!(message.contains("occ config set image_source build"));
+    }
+
+    #[test]
+    fn non_systemd_error_includes_root_cause_and_remediation() {
+        let message = non_systemd_in_place_update_error("tini").to_string();
+        assert!(message.contains("non-systemd init"));
+        assert!(message.contains("stop the whole container"));
+        assert!(message.contains("occ update container"));
+        assert!(message.contains("prebuilt image"));
+        assert!(message.contains("from source"));
+        assert!(message.contains("systemd-capable"));
+    }
+
+    #[test]
+    fn container_not_running_error_mentions_non_systemd_hint() {
+        let message = container_not_running_update_error().to_string();
+        assert!(message.contains("Non-systemd init"));
+        assert!(message.contains("occ update container"));
+        assert!(message.contains("prebuilt image"));
     }
 }
 
@@ -1070,6 +1113,8 @@ pub(crate) async fn cmd_update_opencode(
     let spinner = CommandSpinner::new_maybe("Updating opencode...", quiet);
 
     ensure_container_running_for_update(&client, &config, quiet).await?;
+    let pid1_comm = get_pid1_comm(&client).await;
+    ensure_in_place_opencode_update_supported(&pid1_comm)?;
 
     stop_opencode_for_update(&client, quiet).await?;
 
@@ -1421,7 +1466,38 @@ fn container_not_running_update_error() -> anyhow::Error {
     anyhow!(
         "Container is not running; cannot update opencode.\n\
 Run:\n  occ start\n\
-If it exits immediately, run:\n  occ logs"
+If it exits immediately, run:\n  occ logs\n\
+Hint: Non-systemd init (for example runuser/tini) can stop the container during in-place updates.\n\
+Alternatives:\n\
+  - Update container with prebuilt image (default): occ update container\n\
+  - Update container from source (slower):\n    occ config set image_source build\n    occ update container"
+    )
+}
+
+fn ensure_in_place_opencode_update_supported(pid1_comm: &str) -> Result<()> {
+    let normalized = pid1_comm.trim().to_ascii_lowercase();
+    if normalized.is_empty() || normalized == "systemd" || normalized == "unknown" {
+        return Ok(());
+    }
+
+    Err(non_systemd_in_place_update_error(pid1_comm))
+}
+
+fn non_systemd_in_place_update_error(pid1_comm: &str) -> anyhow::Error {
+    let trimmed = pid1_comm.trim();
+    let init_name = if trimmed.is_empty() {
+        "unknown"
+    } else {
+        trimmed
+    };
+
+    anyhow!(
+        "In-place opencode update is not supported when container init is '{init_name}'.\n\
+This environment is running a non-systemd init, so stopping opencode can stop the whole container.\n\
+Alternatives:\n\
+  - Update container with prebuilt image (default): occ update container\n\
+  - Update container from source (slower):\n    occ config set image_source build\n    occ update container\n\
+If you need commit-pinned in-place updates, use a systemd-capable container runtime."
     )
 }
 
