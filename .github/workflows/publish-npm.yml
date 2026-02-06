@@ -19,7 +19,10 @@ on:
 jobs:
   build-binaries:
     name: Build CLI Binaries
+    # Build artifacts from the same ref as publish checkout to avoid stale binaries.
     uses: ./.github/workflows/build-cli-binaries.yml
+    with:
+      ref: ${{ inputs.ref }}
 
   publish:
     name: Publish to npm
@@ -97,6 +100,29 @@ jobs:
           chmod +x packages/cli-node-linux-arm64/bin/occ
           chmod +x packages/cli-node-linux-x64-musl/bin/occ
           chmod +x packages/cli-node-linux-arm64-musl/bin/occ
+
+      - name: Validate CLI binary version matches release version
+        run: |
+          set -euo pipefail
+
+          version_output="$(packages/cli-node-linux-x64/bin/occ --version)"
+          actual_version="$(printf '%s\n' "${version_output}" | awk '/^opencode-cloud / {print $2; exit}')"
+          expected_version="${{ inputs.version }}"
+
+          if [[ -z "${actual_version}" ]]; then
+            echo "Error: Failed to parse CLI version from linux-x64 binary output: ${version_output}"
+            exit 1
+          fi
+
+          if [[ "${actual_version}" != "${expected_version}" ]]; then
+            echo "Error: CLI binary version mismatch."
+            echo "Expected: ${expected_version}"
+            echo "Actual:   ${actual_version}"
+            echo "Output:   ${version_output}"
+            exit 1
+          fi
+
+          echo "CLI binary version check passed: ${actual_version}"
 
       - name: Verify packaged binary permissions
         run: bash scripts/verify-cli-node-pack-perms.sh
