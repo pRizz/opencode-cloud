@@ -22,9 +22,38 @@ read_opencode_cloud_version() {
     fi
 }
 
+format_url_host() {
+    local host="$1"
+
+    if [[ "${host}" == *:* ]] && [[ "${host}" != \[*] ]]; then
+        printf "[%s]" "${host}"
+    else
+        printf "%s" "${host}"
+    fi
+}
+
+display_local_host() {
+    local host="$1"
+
+    if [ "${host}" = "0.0.0.0" ] || [ "${host}" = "::" ]; then
+        printf "127.0.0.1"
+    else
+        printf "%s" "${host}"
+    fi
+}
+
+build_service_url() {
+    local host="$1"
+    local port="$2"
+    printf "http://%s:%s" "$(format_url_host "${host}")" "${port}"
+}
+
 print_welcome_banner() {
-    local version
+    local version local_host local_url bind_url
     version="$(read_opencode_cloud_version)"
+    local_host="$(display_local_host "${OPENCODE_HOST}")"
+    local_url="$(build_service_url "${local_host}" "${OPENCODE_PORT}")"
+    bind_url="$(build_service_url "${OPENCODE_HOST}" "${OPENCODE_PORT}")"
 
     log "----------------------------------------------------------------------"
     log "Welcome to opencode-cloud-sandbox"
@@ -32,7 +61,21 @@ print_welcome_banner() {
     log "For questions, problems, and feature requests, file an issue:"
     log "  https://github.com/pRizz/opencode-cloud/issues"
     log "opencode-cloud runs opencode in a Docker sandbox; use occ/opencode-cloud CLI to manage users, mounts, and updates."
-    log "Quick start: occ user add <username> | occ status | occ logs -f"
+    log ""
+    log "Getting started:"
+    log "  1) Create a login user:"
+    log "     occ user add <username>"
+    log "  2) Set or generate a password:"
+    log "     occ user add <username> --generate"
+    log "     occ user passwd <username>"
+    log "     occ user passwd <username> --generate"
+    log "  3) Access the web UI:"
+    log "     Local URL: ${local_url}"
+    log "     Bind URL:  ${bind_url}"
+    log "  4) Cloud note: external URL may differ based on DNS, reverse proxy/load balancer,"
+    log "     ingress, TLS termination, and port mappings."
+    log "  5) Log in with your created credentials. If prompted for optional 2FA setup,"
+    log "     you can skip it."
     log "Docs: https://github.com/pRizz/opencode-cloud#readme"
     log "----------------------------------------------------------------------"
 }
