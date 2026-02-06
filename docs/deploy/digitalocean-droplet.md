@@ -70,18 +70,31 @@ Pull and start the sandbox image:
 occ start --pull-sandbox-image
 ```
 
-### 6) Create the first PAM user
+### 6) Complete first-time signup with Initial One-Time Password (IOTP)
 
-Recommended: generate a strong password:
+After `occ start`, check logs for the IOTP:
+
+```bash
+occ logs
+```
+
+Extract just the IOTP value (optional):
+
+```bash
+occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
+Open the web login page through your SSH tunnel and use the first-time setup panel:
+- Enter the IOTP from logs
+- Choose username + password
+- Submit signup (this creates the first Linux user inside the container)
+
+The IOTP is invalidated after successful signup.
+
+Admin fallback:
 
 ```bash
 occ user add admin --generate
-```
-
-Scripting mode:
-
-```bash
-occ user add admin --generate --print-password-only
 ```
 
 ### 7) Access via SSH tunnel (recommended default)
@@ -96,7 +109,7 @@ Then open:
 
 - `http://localhost:3000`
 
-Log in with the user you created.
+Log in with the account you created in the first-time setup panel.
 
 ### 8) Enable reboot persistence via systemd (system-level)
 
@@ -240,8 +253,6 @@ docker run -d --name opencode-cloud-sandbox \
   -v opencode-workspace:/home/opencode/workspace \
   -v opencode-config:/home/opencode/.config/opencode \
   -v opencode-users:/var/lib/opencode-users \
-  -e OPENCODE_BOOTSTRAP_USER=admin \
-  -e OPENCODE_BOOTSTRAP_PASSWORD='change-me' \
   prizz/opencode-cloud-sandbox:15.2.0
 ```
 
@@ -259,6 +270,20 @@ ssh -L 3000:localhost:3000 root@<droplet-ip>
 ```
 
 Then open `http://localhost:3000`.
+
+Before signing in, read the container logs and copy the Initial One-Time Password (IOTP):
+
+```bash
+docker logs opencode-cloud-sandbox
+```
+
+Extract only the IOTP value:
+
+```bash
+docker logs opencode-cloud-sandbox 2>&1 | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
+Use the login page first-time setup panel with that IOTP, then create your username/password.
 
 ### 5) Expose publicly (optional)
 
@@ -286,4 +311,3 @@ systemd logs (if installed via `occ install`):
 ```bash
 journalctl -u opencode-cloud -f
 ```
-

@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Format: one JSON file per user with strict permissions (root-owned, 0700 dir, 0600 files).
 /// Stored on a managed Docker volume mounted at this path.
 const USERS_STORE_DIR: &str = MOUNT_USERS;
+const PROTECTED_SYSTEM_USER: &str = "opencode";
 
 /// Information about a container user
 #[derive(Debug, Clone, PartialEq)]
@@ -258,6 +259,9 @@ pub async fn list_users(
 
     for line in output.lines() {
         if let Some(info) = parse_passwd_line(line) {
+            if is_protected_system_user(&info.username) {
+                continue;
+            }
             // Check if user is locked
             let locked = is_user_locked(client, container, &info.username).await?;
 
@@ -282,6 +286,12 @@ pub async fn persist_user(
     container: &str,
     username: &str,
 ) -> Result<(), DockerError> {
+    if is_protected_system_user(username) {
+        return Err(DockerError::Container(format!(
+            "User '{username}' is protected and cannot be persisted"
+        )));
+    }
+
     ensure_users_store_dir(client, container).await?;
 
     let shadow_hash = get_user_shadow_hash(client, container, username).await?;
@@ -420,6 +430,9 @@ async fn read_user_records(
         let record: PersistedUserRecord = serde_json::from_str(&contents).map_err(|e| {
             DockerError::Container(format!("Failed to parse user record {path}: {e}"))
         })?;
+        if is_protected_system_user(&record.username) {
+            continue;
+        }
         records.push(record);
     }
 
@@ -428,6 +441,10 @@ async fn read_user_records(
 
 fn user_record_path(username: &str) -> String {
     format!("{USERS_STORE_DIR}/{username}.json")
+}
+
+fn is_protected_system_user(username: &str) -> bool {
+    username == PROTECTED_SYSTEM_USER
 }
 
 async fn write_user_record(
@@ -501,6 +518,12 @@ mod tests {
         assert!(parse_passwd_line("invalid").is_none());
         assert!(parse_passwd_line("too:few:fields").is_none());
         assert!(parse_passwd_line("user:x:not_a_number:1000::/home/user:/bin/bash").is_none());
+    }
+
+    #[test]
+    fn test_is_protected_system_user() {
+        assert!(is_protected_system_user("opencode"));
+        assert!(!is_protected_system_user("admin"));
     }
 
     #[test]

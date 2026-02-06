@@ -154,6 +154,15 @@ occ install
 occ start
 ```
 
+If this is the first startup with no configured users, the container logs will print an **Initial One-Time Password (IOTP)**.
+Open the login page, use the first-time setup panel, and create your first account. The IOTP is invalidated after successful signup.
+
+Quick IOTP extraction from logs:
+
+```bash
+occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
 ### From source (install locally)
 
 ```bash
@@ -338,7 +347,17 @@ occ config show
 
 ## Authentication
 
-opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication. Users created via `occ user add` authenticate to the opencode web UI.
+opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication.
+
+First boot path:
+- If no users are configured, startup logs print an Initial One-Time Password (IOTP).
+- Extract only the IOTP quickly: `occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'`
+- Enter that IOTP in the web login page first-time setup panel.
+- Complete signup (username + password) to create the first Linux user account in the container.
+- The IOTP is deleted after the first successful signup.
+
+Admin path:
+- You can always create/manage users directly via `occ user add`, `occ user passwd`, and related user commands.
 
 ### Creating Users
 
@@ -364,14 +383,6 @@ occ user add <username> --generate
 User accounts (including password hashes and lock status) persist across container updates and rebuilds.
 The CLI stores user records in a managed Docker volume mounted at `/var/lib/opencode-users` inside the container.
 No plaintext passwords are stored on the host.
-
-### Legacy Authentication Fields
-
-The `auth_username` and `auth_password` config fields are **deprecated** and ignored. They are kept in the config schema for backward compatibility with existing deployments, but new users should be created via `occ user add` instead.
-
-To migrate from legacy fields:
-1. Create a PAM user: `occ user add <username>`
-2. The legacy fields will be automatically cleared on next config save
 
 ### Rebuilding the Docker Image
 

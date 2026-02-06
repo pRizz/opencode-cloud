@@ -65,15 +65,17 @@ print_welcome_banner() {
     log "opencode-cloud runs opencode in a Docker sandbox; use occ/opencode-cloud CLI to manage users, mounts, and updates."
     log ""
     log "Getting started:"
-    log "  1) Create a login user:"
-    log "     occ user add <username>"
-    log "  2) Set or generate a password:"
-    log "     occ user add <username> --generate"
-    log "     occ user passwd <username>"
-    log "     occ user passwd <username> --generate"
-    log "  3) Access the web UI:"
+    log "  1) Access the web UI:"
     log "     Local URL: ${local_url}"
     log "     Bind URL:  ${bind_url}"
+    log "  2) First-time setup:"
+    log "     If no users are configured, this container prints an Initial One-Time Password (IOTP)"
+    log "     in the logs below. Enter it on the login page to create your first account."
+    log "     The IOTP is deleted immediately after first successful signup."
+    log "  3) Optional admin CLI path:"
+    log "     occ user add <username>"
+    log "     occ user add <username> --generate"
+    log "     occ user passwd <username>"
     log "  4) Cloud note: external URL may differ based on DNS, reverse proxy/load balancer,"
     log "     ingress, TLS termination, and port mappings."
     log "  5) Log in with your created credentials. If prompted for optional 2FA setup,"
@@ -85,6 +87,12 @@ print_welcome_banner() {
 OPENCODE_PORT="${OPENCODE_PORT:-${PORT:-3000}}"
 OPENCODE_HOST="${OPENCODE_HOST:-0.0.0.0}"
 export OPENCODE_PORT OPENCODE_HOST
+
+BOOTSTRAP_HELPER="/usr/local/bin/opencode-cloud-bootstrap"
+BOOTSTRAP_STATE_DIR="/var/lib/opencode-users"
+PROTECTED_USER="opencode"
+# NOTE: Do not change this prefix; admins may depend on it for log grep extraction.
+greppable_iotp_prefix="INITIAL ONE-TIME PASSWORD (IOTP): "
 
 print_welcome_banner
 
@@ -166,6 +174,10 @@ else
                 log "Skipping invalid user record: ${record}"
                 continue
             fi
+            if [ "${username}" = "${PROTECTED_USER}" ]; then
+                log "Skipping protected user record: ${record}"
+                continue
+            fi
             if ! id -u "${username}" >/dev/null 2>&1; then
                 log "Creating user: ${username}"
                 useradd -m -s /bin/bash "${username}"
@@ -185,6 +197,10 @@ else
 
     persist_user_record() {
         local username="$1"
+        if [ "${username}" = "${PROTECTED_USER}" ]; then
+            log "Skipping persistence for protected user: ${username}"
+            return 0
+        fi
         local shadow_hash
         shadow_hash="$(getent shadow "${username}" | cut -d: -f2)"
         if [ -z "${shadow_hash}" ]; then
@@ -229,13 +245,110 @@ else
         return 0
     }
 
-    if restore_users; then
-        log "User records restored"
-    else
-        if ! bootstrap_user; then
-            log "No persisted users and no bootstrap user configured"
+    has_non_protected_persisted_users() {
+        shopt -s nullglob
+        local records=(/var/lib/opencode-users/*.json)
+        local record username
+        for record in "${records[@]}"; do
+            username="$(jq -r ".username // empty" "${record}" 2>/dev/null || true)"
+            if [ -n "${username}" ] && [ "${username}" != "${PROTECTED_USER}" ]; then
+                return 0
+            fi
+        done
+
+        local line home
+        while IFS= read -r line; do
+            username="$(cut -d: -f1 <<< "${line}")"
+            home="$(cut -d: -f6 <<< "${line}")"
+            if [[ "${home}" == /home/* ]] && [ "${username}" != "${PROTECTED_USER}" ]; then
+                return 0
+            fi
+        done < <(getent passwd)
+
+        return 1
+    }
+
+    clear_bootstrap_state() {
+        rm -f \
+            "${BOOTSTRAP_STATE_DIR}/.initial-otp.json" \
+            "${BOOTSTRAP_STATE_DIR}/.initial-otp.secret" \
+            "${BOOTSTRAP_STATE_DIR}/.initial-otp.lock"
+    }
+
+    announce_bootstrap_mode() {
+        local bootstrap_json="$1"
+        local active otp created_at reason
+        active="$(jq -r ".active // false" <<< "${bootstrap_json}" 2>/dev/null || true)"
+        otp="$(jq -r ".otp // empty" <<< "${bootstrap_json}" 2>/dev/null || true)"
+        created_at="$(jq -r ".created_at // empty" <<< "${bootstrap_json}" 2>/dev/null || true)"
+        reason="$(jq -r ".reason // empty" <<< "${bootstrap_json}" 2>/dev/null || true)"
+
+        if [ "${active}" = "true" ] && [ -n "${otp}" ]; then
+            log "----------------------------------------------------------------------"
+            log "${greppable_iotp_prefix}${otp}"
+            if [ -n "${created_at}" ]; then
+                log "Issued at (UTC): ${created_at}"
+            fi
+            log "Use this IOTP on the web login page to complete first-time setup."
+            log "Find it in Docker logs and keep it private."
+            log "This IOTP is deleted after the first successful signup."
+            log "----------------------------------------------------------------------"
+            return
         fi
-    fi
+
+        if [ "${reason}" = "user_exists" ]; then
+            log "Bootstrap mode disabled: one or more configured users already exist."
+            return
+        fi
+
+        log "Bootstrap mode unavailable: ${reason:-unknown reason}"
+    }
+
+    restore_or_bootstrap_users() {
+        if restore_users; then
+            log "User records restored"
+            return
+        fi
+
+        if bootstrap_user; then
+            return
+        fi
+
+        log "No persisted users and no bootstrap user configured"
+    }
+
+    maybe_initialize_bootstrap_mode() {
+        local bootstrap_init_json
+
+        if [ ! -x "${BOOTSTRAP_HELPER}" ]; then
+            log "Bootstrap helper is missing; first-time setup is unavailable."
+            return
+        fi
+
+        bootstrap_init_json="$("${BOOTSTRAP_HELPER}" init 2>/dev/null || true)"
+        if [ -z "${bootstrap_init_json}" ]; then
+            log "Bootstrap helper returned no output; first-time setup may be unavailable."
+            return
+        fi
+
+        announce_bootstrap_mode "${bootstrap_init_json}"
+    }
+
+    sync_bootstrap_state() {
+        if has_non_protected_persisted_users; then
+            clear_bootstrap_state
+            return
+        fi
+
+        if [ -n "${OPENCODE_BOOTSTRAP_USER:-}" ]; then
+            return
+        fi
+
+        maybe_initialize_bootstrap_mode
+    }
+
+    restore_or_bootstrap_users
+    sync_bootstrap_state
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"
     /usr/local/bin/opencode-broker &

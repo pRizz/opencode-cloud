@@ -574,6 +574,28 @@ fn display_network_exposure_warning(bind_addr: &str) {
     eprintln!();
 }
 
+fn display_bootstrap_mode_warning(bind_addr: &str) {
+    eprintln!();
+    eprintln!(
+        "{} {}",
+        style("Bootstrap mode enabled:").yellow().bold(),
+        style("no preconfigured users were found.").yellow()
+    );
+    eprintln!();
+    eprintln!(
+        "The service will start on {} and print an Initial One-Time Password (IOTP) in container logs.",
+        style(bind_addr).cyan()
+    );
+    eprintln!("Open the login page and use the first-time setup panel with that IOTP.");
+    eprintln!("The IOTP is invalidated immediately after the first successful signup.");
+    eprintln!();
+    eprintln!(
+        "Admin alternative: {}",
+        style("occ user add <username>").dim()
+    );
+    eprintln!();
+}
+
 /// Start the opencode service
 ///
 /// This command:
@@ -683,20 +705,13 @@ pub async fn cmd_start(
         VersionMismatchAction::Continue => {}
     }
 
-    // Security check: block first start without security configured
+    // Determine whether this is first container start
     let is_first_start = !container_exists(&client, CONTAINER_NAME).await?;
 
-    if is_first_start && config.users.is_empty() && !config.allow_unauthenticated_network {
-        return Err(anyhow!(
-            "{}\n\n\
-             No users are configured for authentication.\n\
-             The service cannot start without security configured.\n\n\
-             Quick setup:\n  {}\n\n\
-             Or allow unauthenticated access (not recommended):\n  {}",
-            style("Security not configured").red().bold(),
-            style("occ setup").cyan(),
-            style("occ config set allow_unauthenticated_network true").dim()
-        ));
+    let bootstrap_mode =
+        is_first_start && config.users.is_empty() && !config.allow_unauthenticated_network;
+    if bootstrap_mode && !quiet {
+        display_bootstrap_mode_warning(bind_addr);
     }
 
     // Check for port mismatch on existing container

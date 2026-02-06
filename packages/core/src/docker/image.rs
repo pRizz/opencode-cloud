@@ -897,6 +897,12 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
         )?;
         append_bytes(
             &mut tar,
+            "packages/core/src/docker/files/opencode-cloud-bootstrap.sh",
+            include_bytes!("files/opencode-cloud-bootstrap.sh"),
+            0o644,
+        )?;
+        append_bytes(
+            &mut tar,
             "packages/core/src/docker/files/healthcheck.sh",
             include_bytes!("files/healthcheck.sh"),
             0o644,
@@ -1014,6 +1020,7 @@ mod tests {
         let mut archive = Archive::new(decoder);
         let mut found_entrypoint = false;
         let mut found_healthcheck = false;
+        let mut found_bootstrap_helper = false;
 
         for entry in archive.entries().expect("should read archive entries") {
             let entry = entry.expect("should read entry");
@@ -1024,7 +1031,14 @@ mod tests {
             if path == std::path::Path::new("packages/core/src/docker/files/healthcheck.sh") {
                 found_healthcheck = true;
             }
-            if found_entrypoint && found_healthcheck {
+            if path
+                == std::path::Path::new(
+                    "packages/core/src/docker/files/opencode-cloud-bootstrap.sh",
+                )
+            {
+                found_bootstrap_helper = true;
+            }
+            if found_entrypoint && found_healthcheck && found_bootstrap_helper {
                 break;
             }
         }
@@ -1036,6 +1050,10 @@ mod tests {
         assert!(
             found_healthcheck,
             "healthcheck asset should be in the build context"
+        );
+        assert!(
+            found_bootstrap_helper,
+            "bootstrap helper asset should be in the build context"
         );
     }
 

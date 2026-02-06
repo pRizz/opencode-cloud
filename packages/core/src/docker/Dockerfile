@@ -581,6 +581,10 @@ RUN ls -la /home/opencode/.config/opencode/opencode.jsonc && cat /home/opencode/
 COPY packages/core/src/docker/files/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Bootstrap helper for first-user onboarding (invoked by entrypoint and auth route via sudo)
+COPY packages/core/src/docker/files/opencode-cloud-bootstrap.sh /usr/local/bin/opencode-cloud-bootstrap
+RUN chmod 700 /usr/local/bin/opencode-cloud-bootstrap
+
 # Note: Don't set USER here - entrypoint needs root to use runuser
 # The tini mode drops privileges to opencode user via runuser
 
