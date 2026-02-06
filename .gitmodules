@@ -1,0 +1,4 @@
+[submodule "packages/opencode"]
+	path = packages/opencode
+	url = git@github.com:pRizz/opencode.git
+	branch = dev
