@@ -26,8 +26,12 @@ jobs:
         with:
           # If ref is not provided, checkout defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
-          # Required for just targets that validate/build/test packages/opencode.
-          submodules: recursive
+
+      - name: Initialize opencode submodule
+        run: |
+          git submodule sync --recursive
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
+          git submodule status --recursive
 
       - name: Log version
         if: inputs.version != ''
@@ -50,11 +54,23 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Lint opencode packages
+        run: just lint-opencode
+
+      - name: Build opencode packages
+        run: just build-opencode
+
+      - name: Lint opencode broker
+        run: just lint-opencode-broker
 
       - name: Check formatting
         run: cargo fmt --all -- --check

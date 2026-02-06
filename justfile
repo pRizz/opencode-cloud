@@ -10,6 +10,10 @@ list:
 # Setup development environment (run once after cloning)
 setup:
     git config core.hooksPath .githooks
+    git submodule sync --recursive
+    git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
+    @command -v bun >/dev/null 2>&1 || (echo "Error: bun is required for packages/opencode checks/builds. Install from https://bun.sh and rerun just setup." && exit 1)
+    bun install --cwd packages/opencode --frozen-lockfile
     pnpm install
     @echo "✓ Development environment ready!"
 
@@ -110,6 +114,10 @@ check-opencode-submodule-drift:
 # Update opencode submodule + Dockerfile OPENCODE_COMMIT pin
 update-opencode-commit:
     ./scripts/update-opencode-commit.sh
+
+# Format opencode-broker Rust crate
+fmt-opencode-broker: opencode-submodule-check
+    cargo fmt --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml --all
 
 # --- Docker Sandbox Image ---
 
@@ -233,7 +241,7 @@ pre-commit-full: fmt lint build test-all-fast build-docker
     @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything
-fmt:
+fmt: fmt-opencode-broker
     cargo fmt --all
     pnpm -r format
 

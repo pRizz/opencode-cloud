@@ -161,6 +161,8 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
+git submodule sync --recursive
+git submodule update --init --recursive packages/opencode
 cargo install --path packages/cli-rust
 ```
 
@@ -173,6 +175,13 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
+git submodule sync --recursive
+git submodule update --init --recursive packages/opencode
+ 
+# Bun is required for packages/opencode checks/builds
+bun --version
+
+just setup
 just build
 cargo run -p opencode-cloud -- --version
 ```
@@ -401,11 +410,11 @@ Data (PID files, etc.) is stored at:
 ## Development
 
 ```bash
-# Install dependencies
-pnpm install
+# Bun is required for packages/opencode checks/builds
+bun --version
 
-# Configure git hooks (once after cloning)
-git config core.hooksPath .githooks
+# One-time setup (hooks + deps + submodule bootstrap)
+just setup
 
 # Build everything
 just build

@@ -32,8 +32,15 @@ git clone https://github.com/pRizz/opencode-cloud.git
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
-# Install dependencies
-pnpm install
+# Initialize submodule checkout
+git submodule sync --recursive
+git submodule update --init --recursive packages/opencode
+
+# Bun is required for packages/opencode checks/builds
+bun --version
+
+# One-time setup (hooks + deps + submodule bootstrap)
+just setup
 
 # Build everything
 just build

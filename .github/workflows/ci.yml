@@ -70,6 +70,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Initialize opencode submodule
+        run: |
+          git submodule sync --recursive
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
+          git submodule status --recursive
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -88,11 +94,23 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Lint opencode packages
+        run: just lint-opencode
+
+      - name: Build opencode packages
+        run: just build-opencode
+
+      - name: Lint opencode broker
+        run: just lint-opencode-broker
 
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings

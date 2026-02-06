@@ -18,6 +18,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Initialize opencode submodule
+        run: |
+          git submodule sync --recursive
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
+          git submodule status --recursive
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
@@ -37,6 +43,6 @@ jobs:
             exit 0
           fi
 
-          git add packages/core/src/docker/Dockerfile
+          git add packages/core/src/docker/Dockerfile packages/opencode
           git commit -m "chore: update opencode commit"
           git push

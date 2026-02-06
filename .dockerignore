@@ -1,0 +1,16 @@
+# VCS / CI metadata
+.git
+.github
+
+# Local dependencies and build outputs
+node_modules
+target
+.pnpm-store
+.pnpm-debug.log*
+
+# OS noise
+.DS_Store
+
+# Submodule checkout is not needed in Docker build context
+packages/opencode
+packages/opencode/**
