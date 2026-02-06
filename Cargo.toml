@@ -4,6 +4,10 @@ members = [
     "packages/core",
     "packages/cli-rust",
 ]
+exclude = [
+    "packages/opencode/packages/opencode-broker",
+    "packages/opencode/packages/desktop/src-tauri",
+]
 
 [workspace.package]
 version = "19.0.1"

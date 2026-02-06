@@ -489,7 +489,7 @@ USER opencode
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # NOTE: OPENCODE_COMMIT is not tied to releases/tags; it tracks the latest stable
-# commit on the main branch of https://github.com/pRizz/opencode.
+# commit on the dev branch of https://github.com/pRizz/opencode.
 # Update it by running: ./scripts/update-opencode-commit.sh
 # Build opencode from source (BuildKit cache mounts disabled for now)
 RUN OPENCODE_COMMIT="ac8b3a8010c6a31d28e167c7f3cf1bd9e63c9229" \

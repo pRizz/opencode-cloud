@@ -14,7 +14,7 @@ setup:
     @echo "✓ Development environment ready!"
 
 # Build everything
-build: build-rust build-node
+build: build-rust build-node build-opencode build-opencode-broker
 
 # Compile and run the occ binary (arguments automatically get passed to the binary)
 # Example: just run --version
@@ -45,6 +45,71 @@ build-node:
     pnpm install
     pnpm -C packages/core build
     pnpm -r --filter="!@opencode-cloud/core" build
+
+# --- opencode Submodule Checks ---
+
+# Ensure opencode submodule is initialized in this worktree
+opencode-submodule-check:
+    @if [ -f packages/opencode/.git ] || [ -d packages/opencode/.git ]; then \
+        :; \
+    else \
+        echo "Submodule packages/opencode is not initialized."; \
+        echo "Run: git submodule update --init --recursive"; \
+        exit 1; \
+    fi
+
+# Install opencode dependencies when missing
+opencode-install-if-needed: opencode-submodule-check
+    @if [ ! -d packages/opencode/node_modules ]; then \
+        echo "Installing opencode submodule dependencies..."; \
+        bun install --cwd packages/opencode --frozen-lockfile; \
+    else \
+        echo "opencode submodule dependencies already installed."; \
+    fi
+
+# Typecheck opencode workspace
+lint-opencode: opencode-install-if-needed
+    bun --cwd packages/opencode turbo typecheck
+
+# Build the shared app package
+build-opencode-app: opencode-install-if-needed
+    bun run --cwd packages/opencode/packages/app build
+
+# Build opencode single-ui artifact using local models fixture for deterministic output
+build-opencode-single-ui: opencode-install-if-needed
+    @tmpfile="$(mktemp)"; \
+        trap 'rm -f "$tmpfile"' EXIT; \
+        perl -pe 'chomp if eof' "{{justfile_directory()}}/packages/opencode/packages/opencode/test/tool/fixtures/models-api.json" > "$tmpfile"; \
+        MODELS_DEV_API_JSON="$tmpfile" bun run --cwd packages/opencode/packages/opencode build-single-ui
+
+# Build opencode app and opencode binary/ui artifact
+build-opencode: build-opencode-app build-opencode-single-ui
+
+# Lint opencode-broker Rust crate
+lint-opencode-broker: opencode-submodule-check
+    cargo fmt --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml --all -- --check
+    cargo clippy --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml --all-targets -- -D warnings
+
+# Build opencode-broker Rust crate
+build-opencode-broker: opencode-submodule-check
+    cargo build --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml
+
+# Test opencode-broker Rust crate
+test-opencode-broker: opencode-submodule-check
+    cargo test --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml
+
+# Optional app unit test gate (not part of default pre-commit)
+test-opencode-ui: opencode-install-if-needed
+    bun run --cwd packages/opencode/packages/app test:unit
+
+# Optional submodule drift and dirty state check
+check-opencode-submodule-drift:
+    git submodule status --recursive
+    git submodule foreach --recursive 'git status --short --branch'
+
+# Update opencode submodule + Dockerfile OPENCODE_COMMIT pin
+update-opencode-commit:
+    ./scripts/update-opencode-commit.sh
 
 # --- Docker Sandbox Image ---
 
@@ -88,10 +153,10 @@ check-docker:
     @echo "✓ Dockerfile check passed"
 
 # Run all tests (fast)
-test-all-fast: test-rust-fast test-node
+test-all-fast: test-rust-fast test-node test-opencode-broker
 
 # Run all tests (slow, includes doc-tests)
-test-all-slow: test-rust test-node
+test-all-slow: test-rust test-node test-opencode-broker
 
 # Run all tests (fast)
 test: test-all-fast
@@ -115,7 +180,7 @@ test-doc-slow:
     cargo test --workspace --doc
 
 # Lint everything
-lint: lint-rust lint-node lint-shell
+lint: lint-rust lint-node lint-shell lint-opencode lint-opencode-broker
 
 # Lint Rust code
 lint-rust:
