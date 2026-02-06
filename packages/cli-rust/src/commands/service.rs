@@ -8,7 +8,6 @@ use console::style;
 use opencode_cloud_core::docker::{DockerClient, stop_service};
 use std::io::IsTerminal;
 use std::time::Instant;
-use tokio::io::AsyncBufReadExt;
 
 pub struct StopSpinnerMessages<'a> {
     pub action_message: &'a str,
@@ -63,14 +62,16 @@ pub async fn stop_service_with_spinner(
     let stop_future = stop_service(client, remove, Some(timeout_secs));
     tokio::pin!(stop_future);
 
-    let (stdin_handle, stdin_abort) = spawn_enter_listener();
+    let stdin_rx = spawn_enter_listener();
 
     let outcome = tokio::select! {
         result = &mut stop_future => {
-            stdin_abort.abort();
+            // stdin_rx is dropped, unblocking the oneshot.
+            // The std::thread reading stdin will exit once the process does;
+            // it is NOT in tokio's blocking pool so it won't block runtime shutdown.
             StopOutcome::Graceful(result)
         }
-        join_result = stdin_handle => {
+        join_result = stdin_rx => {
             if user_pressed_enter(join_result) {
                 spinner.update(&crate::format_host_message(
                     host_name,
@@ -168,26 +169,31 @@ fn stop_success_message(
     (message, should_warn)
 }
 
-/// Spawns an abortable task that waits for the user to press Enter.
+/// Spawns a detached thread that waits for the user to press Enter and signals
+/// back through a oneshot channel.
 ///
-/// Returns (JoinHandle, AbortHandle) so the caller can race against other futures
-/// and abort the stdin reader when no longer needed. This prevents the program from
-/// hanging, as tokio's async stdin spawns an internal blocking thread that persists
-/// even after the future is dropped.
-fn spawn_enter_listener() -> (
-    tokio::task::JoinHandle<std::io::Result<bool>>,
-    tokio::task::AbortHandle,
-) {
-    let handle = tokio::spawn(async move {
-        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
-        let mut input = String::new();
-        stdin.read_line(&mut input).await.map(|n| n > 0)
+/// Uses a plain `std::thread` instead of `tokio::task::spawn_blocking` so the
+/// thread is **not** part of tokio's blocking pool. This way the runtime can
+/// shut down cleanly even if the thread is still blocked on `read_line` — the
+/// OS will terminate the thread when the process exits.
+fn spawn_enter_listener() -> tokio::sync::oneshot::Receiver<bool> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        let pressed = match stdin.lock().read_line(&mut line) {
+            Ok(n) => n > 0,
+            Err(_) => false,
+        };
+        let _ = tx.send(pressed);
     });
-    let abort = handle.abort_handle();
-    (handle, abort)
+
+    rx
 }
 
-/// Returns true if the stdin task result indicates the user pressed Enter.
-fn user_pressed_enter(join_result: Result<std::io::Result<bool>, tokio::task::JoinError>) -> bool {
-    matches!(join_result, Ok(Ok(true)))
+/// Returns true if the stdin listener indicates the user pressed Enter.
+fn user_pressed_enter(result: Result<bool, tokio::sync::oneshot::error::RecvError>) -> bool {
+    matches!(result, Ok(true))
 }
