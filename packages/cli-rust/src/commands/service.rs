@@ -7,8 +7,6 @@ use anyhow::Result;
 use console::style;
 use opencode_cloud_core::docker::{DockerClient, stop_service};
 use std::io::IsTerminal;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 pub struct StopSpinnerMessages<'a> {
@@ -64,14 +62,16 @@ pub async fn stop_service_with_spinner(
     let stop_future = stop_service(client, remove, Some(timeout_secs));
     tokio::pin!(stop_future);
 
-    let (stdin_handle, cancel_flag) = spawn_enter_listener();
+    let stdin_rx = spawn_enter_listener();
 
     let outcome = tokio::select! {
         result = &mut stop_future => {
-            cancel_flag.store(true, Ordering::Relaxed);
+            // stdin_rx is dropped, unblocking the oneshot.
+            // The std::thread reading stdin will exit once the process does;
+            // it is NOT in tokio's blocking pool so it won't block runtime shutdown.
             StopOutcome::Graceful(result)
         }
-        join_result = stdin_handle => {
+        join_result = stdin_rx => {
             if user_pressed_enter(join_result) {
                 spinner.update(&crate::format_host_message(
                     host_name,
@@ -169,51 +169,31 @@ fn stop_success_message(
     (message, should_warn)
 }
 
-/// Spawns a cancellable blocking task that waits for the user to press Enter.
+/// Spawns a detached thread that waits for the user to press Enter and signals
+/// back through a oneshot channel.
 ///
-/// Uses `libc::poll` with a short timeout to periodically check a cancellation
-/// flag, avoiding the permanent block that `tokio::io::stdin()` causes when its
-/// internal blocking thread persists after task abort.
-fn spawn_enter_listener() -> (tokio::task::JoinHandle<bool>, Arc<AtomicBool>) {
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let flag = cancelled.clone();
+/// Uses a plain `std::thread` instead of `tokio::task::spawn_blocking` so the
+/// thread is **not** part of tokio's blocking pool. This way the runtime can
+/// shut down cleanly even if the thread is still blocked on `read_line` — the
+/// OS will terminate the thread when the process exits.
+fn spawn_enter_listener() -> tokio::sync::oneshot::Receiver<bool> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
 
-    let handle = tokio::task::spawn_blocking(move || {
+    std::thread::spawn(move || {
         use std::io::BufRead;
-        use std::os::unix::io::AsRawFd;
-
         let stdin = std::io::stdin();
-        let fd = stdin.as_raw_fd();
-
-        loop {
-            if flag.load(Ordering::Relaxed) {
-                return false;
-            }
-
-            let mut pfd = libc::pollfd {
-                fd,
-                events: libc::POLLIN,
-                revents: 0,
-            };
-
-            // Poll with 100ms timeout so we can check the cancellation flag
-            let ret = unsafe { libc::poll(&mut pfd as *mut _, 1, 100) };
-            if ret > 0 && (pfd.revents & libc::POLLIN) != 0 {
-                let mut line = String::new();
-                return match stdin.lock().read_line(&mut line) {
-                    Ok(n) => n > 0,
-                    Err(_) => false,
-                };
-            }
-            // ret == 0: timeout, loop to check flag
-            // ret < 0: error, loop to retry
-        }
+        let mut line = String::new();
+        let pressed = match stdin.lock().read_line(&mut line) {
+            Ok(n) => n > 0,
+            Err(_) => false,
+        };
+        let _ = tx.send(pressed);
     });
 
-    (handle, cancelled)
+    rx
 }
 
-/// Returns true if the stdin task result indicates the user pressed Enter.
-fn user_pressed_enter(join_result: Result<bool, tokio::task::JoinError>) -> bool {
-    matches!(join_result, Ok(true))
+/// Returns true if the stdin listener indicates the user pressed Enter.
+fn user_pressed_enter(result: Result<bool, tokio::sync::oneshot::error::RecvError>) -> bool {
+    matches!(result, Ok(true))
 }

@@ -42,7 +42,6 @@ rand.workspace = true
 sysinfo.workspace = true
 reqwest.workspace = true
 dirs = "6"
-libc.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
