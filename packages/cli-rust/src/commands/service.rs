@@ -7,8 +7,9 @@ use anyhow::Result;
 use console::style;
 use opencode_cloud_core::docker::{DockerClient, stop_service};
 use std::io::IsTerminal;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
-use tokio::io::AsyncBufReadExt;
 
 pub struct StopSpinnerMessages<'a> {
     pub action_message: &'a str,
@@ -63,11 +64,11 @@ pub async fn stop_service_with_spinner(
     let stop_future = stop_service(client, remove, Some(timeout_secs));
     tokio::pin!(stop_future);
 
-    let (stdin_handle, stdin_abort) = spawn_enter_listener();
+    let (stdin_handle, cancel_flag) = spawn_enter_listener();
 
     let outcome = tokio::select! {
         result = &mut stop_future => {
-            stdin_abort.abort();
+            cancel_flag.store(true, Ordering::Relaxed);
             StopOutcome::Graceful(result)
         }
         join_result = stdin_handle => {
@@ -168,26 +169,51 @@ fn stop_success_message(
     (message, should_warn)
 }
 
-/// Spawns an abortable task that waits for the user to press Enter.
+/// Spawns a cancellable blocking task that waits for the user to press Enter.
 ///
-/// Returns (JoinHandle, AbortHandle) so the caller can race against other futures
-/// and abort the stdin reader when no longer needed. This prevents the program from
-/// hanging, as tokio's async stdin spawns an internal blocking thread that persists
-/// even after the future is dropped.
-fn spawn_enter_listener() -> (
-    tokio::task::JoinHandle<std::io::Result<bool>>,
-    tokio::task::AbortHandle,
-) {
-    let handle = tokio::spawn(async move {
-        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
-        let mut input = String::new();
-        stdin.read_line(&mut input).await.map(|n| n > 0)
+/// Uses `libc::poll` with a short timeout to periodically check a cancellation
+/// flag, avoiding the permanent block that `tokio::io::stdin()` causes when its
+/// internal blocking thread persists after task abort.
+fn spawn_enter_listener() -> (tokio::task::JoinHandle<bool>, Arc<AtomicBool>) {
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let flag = cancelled.clone();
+
+    let handle = tokio::task::spawn_blocking(move || {
+        use std::io::BufRead;
+        use std::os::unix::io::AsRawFd;
+
+        let stdin = std::io::stdin();
+        let fd = stdin.as_raw_fd();
+
+        loop {
+            if flag.load(Ordering::Relaxed) {
+                return false;
+            }
+
+            let mut pfd = libc::pollfd {
+                fd,
+                events: libc::POLLIN,
+                revents: 0,
+            };
+
+            // Poll with 100ms timeout so we can check the cancellation flag
+            let ret = unsafe { libc::poll(&mut pfd as *mut _, 1, 100) };
+            if ret > 0 && (pfd.revents & libc::POLLIN) != 0 {
+                let mut line = String::new();
+                return match stdin.lock().read_line(&mut line) {
+                    Ok(n) => n > 0,
+                    Err(_) => false,
+                };
+            }
+            // ret == 0: timeout, loop to check flag
+            // ret < 0: error, loop to retry
+        }
     });
-    let abort = handle.abort_handle();
-    (handle, abort)
+
+    (handle, cancelled)
 }
 
 /// Returns true if the stdin task result indicates the user pressed Enter.
-fn user_pressed_enter(join_result: Result<std::io::Result<bool>, tokio::task::JoinError>) -> bool {
-    matches!(join_result, Ok(Ok(true)))
+fn user_pressed_enter(join_result: Result<bool, tokio::task::JoinError>) -> bool {
+    matches!(join_result, Ok(true))
 }
