@@ -269,7 +269,7 @@ ENV PATH="${PNPM_HOME}:${PATH}"
 RUN mkdir -p "${PNPM_HOME}"
 
 # bun - self-managing installer, pinned to version (2026-02-03)
-RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5" \
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.8" \
     && rm -rf /home/opencoder/.bun/install/cache /home/opencoder/.bun/cache /home/opencoder/.cache/bun
 
 ENV PATH="/home/opencoder/.bun/bin:${PATH}"
