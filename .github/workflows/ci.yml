@@ -69,9 +69,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
-        with:
-          # Required for just targets that validate/build/test packages/opencode.
-          submodules: recursive
+
+      - name: Verify opencode submodule pin is published
+        run: ./scripts/check-opencode-submodule-published.sh
 
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-latest'

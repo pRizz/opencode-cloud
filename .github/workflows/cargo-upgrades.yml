@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          # Required for shared just check targets that validate packages/opencode.
-          submodules: recursive
+
+      - name: Verify opencode submodule pin is published
+        run: ./scripts/check-opencode-submodule-published.sh
 
       - name: Install Linux system dependencies
         run: |

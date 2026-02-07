@@ -149,6 +149,10 @@ check-opencode-submodule-drift:
     git submodule status --recursive
     git submodule foreach --recursive 'git status --short --branch'
 
+# Ensure pinned opencode submodule commit is remotely fetchable
+check-opencode-submodule-published:
+    ./scripts/check-opencode-submodule-published.sh
+
 # Update opencode submodule + Dockerfile OPENCODE_COMMIT pin
 update-opencode-commit:
     ./scripts/update-opencode-commit.sh
@@ -288,10 +292,10 @@ do-marketplace-build:
         infra/digitalocean/packer/opencode-marketplace.pkr.hcl
 
 # Pre-commit checks (without Docker build - faster, works without Docker)
-pre-commit: fmt lint build test-all-fast
+pre-commit: check-opencode-submodule-published fmt lint build test-all-fast
 
 # Pre-commit checks including Docker build (requires Docker)
-pre-commit-full: fmt lint build test-all-fast build-docker
+pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast build-docker
     @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything

@@ -7,6 +7,11 @@ set -euo pipefail
 
 ROOT_README="README.md"
 
+# Guard against unpublished opencode submodule pins.
+if git diff --cached --name-only --diff-filter=ACMR | rg -q '^packages/opencode$'; then
+    ./scripts/check-opencode-submodule-published.sh --from-index
+fi
+
 if [[ -f "$ROOT_README" ]]; then
     cp "$ROOT_README" packages/core/README.md
     git add packages/core/README.md
