@@ -38,19 +38,19 @@ pub const VOLUME_NAMES: [&str; 6] = [
 ];
 
 /// Mount point for opencode data inside container
-pub const MOUNT_SESSION: &str = "/home/opencode/.local/share/opencode";
+pub const MOUNT_SESSION: &str = "/home/opencoder/.local/share/opencode";
 
 /// Mount point for opencode state inside container
-pub const MOUNT_STATE: &str = "/home/opencode/.local/state/opencode";
+pub const MOUNT_STATE: &str = "/home/opencoder/.local/state/opencode";
 
 /// Mount point for opencode cache inside container
-pub const MOUNT_CACHE: &str = "/home/opencode/.cache/opencode";
+pub const MOUNT_CACHE: &str = "/home/opencoder/.cache/opencode";
 
 /// Mount point for project files inside container
-pub const MOUNT_PROJECTS: &str = "/home/opencode/workspace";
+pub const MOUNT_PROJECTS: &str = "/home/opencoder/workspace";
 
 /// Mount point for configuration inside container
-pub const MOUNT_CONFIG: &str = "/home/opencode/.config/opencode";
+pub const MOUNT_CONFIG: &str = "/home/opencoder/.config/opencode";
 
 /// Mount point for persisted user records inside container
 pub const MOUNT_USERS: &str = "/var/lib/opencode-users";
@@ -173,11 +173,11 @@ mod tests {
 
     #[test]
     fn mount_points_are_correct() {
-        assert_eq!(MOUNT_SESSION, "/home/opencode/.local/share/opencode");
-        assert_eq!(MOUNT_STATE, "/home/opencode/.local/state/opencode");
-        assert_eq!(MOUNT_CACHE, "/home/opencode/.cache/opencode");
-        assert_eq!(MOUNT_PROJECTS, "/home/opencode/workspace");
-        assert_eq!(MOUNT_CONFIG, "/home/opencode/.config/opencode");
+        assert_eq!(MOUNT_SESSION, "/home/opencoder/.local/share/opencode");
+        assert_eq!(MOUNT_STATE, "/home/opencoder/.local/state/opencode");
+        assert_eq!(MOUNT_CACHE, "/home/opencoder/.cache/opencode");
+        assert_eq!(MOUNT_PROJECTS, "/home/opencoder/workspace");
+        assert_eq!(MOUNT_CONFIG, "/home/opencoder/.config/opencode");
         assert_eq!(MOUNT_USERS, "/var/lib/opencode-users");
     }
 }

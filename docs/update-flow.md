@@ -37,14 +37,14 @@ processed. Ensure the service is installed and running.
 The command file lives under the state bind mount. With default mounts, the paths are:
 
 - Host: `~/.local/state/opencode/opencode-cloud/commands/update-command.json`
-- Container: `/home/opencode/.local/state/opencode/opencode-cloud/commands/update-command.json`
+- Container: `/home/opencoder/.local/state/opencode/opencode-cloud/commands/update-command.json`
 - Result file (host): `~/.local/state/opencode/opencode-cloud/commands/update-command.result.json`
-- Result file (container): `/home/opencode/.local/state/opencode/opencode-cloud/commands/update-command.result.json`
+- Result file (container): `/home/opencoder/.local/state/opencode/opencode-cloud/commands/update-command.result.json`
 
 If you customize mounts, the container path is still under:
 
 ```
-/home/opencode/.local/state/opencode/opencode-cloud/commands/
+/home/opencoder/.local/state/opencode/opencode-cloud/commands/
 ```
 
 ## Command File Contract

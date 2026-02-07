@@ -18,7 +18,7 @@ use std::path::Path;
 use std::process::Command;
 
 const USERS_STORE_DIR: &str = MOUNT_USERS;
-const PROTECTED_USER: &str = "opencode";
+const PROTECTED_USER: &str = "opencoder";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct PersistedUserRecord {
@@ -60,7 +60,7 @@ async fn cmd_user_add_container(args: &UserAddArgs, quiet: bool, _verbose: u8) -
     } else {
         Input::new()
             .with_prompt("Username")
-            .default("opencode".to_string())
+            .default("admin".to_string())
             .validate_with(|input: &String| validate_username(input))
             .interact_text()?
     };

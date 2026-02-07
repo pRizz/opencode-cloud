@@ -334,7 +334,7 @@ main() {
         "--branch VERSION" "--branch VERSION" \
         "${apply_updates}"
 
-    # act - pattern: bash -s -- -b /home/opencode/.local/bin vX.Y.Z
+    # act - pattern: bash -s -- -b /home/opencoder/.local/bin vX.Y.Z
     check_github_tool "act" "nektos" "act" \
         ".local/bin " "" \
         ".local\/bin VERSION" ".local\/bin VERSION" \

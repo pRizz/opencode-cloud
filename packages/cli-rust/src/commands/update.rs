@@ -1540,15 +1540,15 @@ git fetch --depth 1 origin "$OPENCODE_REF"
 
 mkdir -p /opt/opencode
 git rev-parse HEAD > /opt/opencode/COMMIT
-chown opencode:opencode /opt/opencode/COMMIT
+chown opencoder:opencoder /opt/opencode/COMMIT
 
-runuser -u opencode -- bash -lc 'export PATH="/home/opencode/.bun/bin:$PATH"; cd /tmp/opencode-repo; bun install --frozen-lockfile; cd packages/opencode; bun run build-single-ui'
-runuser -u opencode -- bash -lc '. /home/opencode/.cargo/env; cd /tmp/opencode-repo/packages/opencode-broker; cargo build --release'
+runuser -u opencoder -- bash -lc 'export PATH="/home/opencoder/.bun/bin:$PATH"; cd /tmp/opencode-repo; bun install --frozen-lockfile; cd packages/opencode; bun run build-single-ui'
+runuser -u opencoder -- bash -lc '. /home/opencoder/.cargo/env; cd /tmp/opencode-repo/packages/opencode-broker; cargo build --release'
 
 mkdir -p /opt/opencode/bin /opt/opencode/ui
 cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode
 cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/
-chown -R opencode:opencode /opt/opencode
+chown -R opencoder:opencoder /opt/opencode
 chmod +x /opt/opencode/bin/opencode
 cp /tmp/opencode-repo/packages/opencode-broker/target/release/opencode-broker /usr/local/bin/opencode-broker
 chmod 4755 /usr/local/bin/opencode-broker

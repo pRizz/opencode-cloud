@@ -5,7 +5,8 @@ STATE_DIR="/var/lib/opencode-users"
 STATE_FILE="${STATE_DIR}/.initial-otp.json"
 SECRET_FILE="${STATE_DIR}/.initial-otp.secret"
 LOCK_FILE="${STATE_DIR}/.initial-otp.lock"
-PROTECTED_USER="opencode"
+COMPLETE_MARKER_FILE="${STATE_DIR}/.bootstrap-complete.json"
+PROTECTED_USER="opencoder"
 
 json_ok() {
     jq -cn "$@"
@@ -49,6 +50,23 @@ state_is_active() {
 
 remove_state_files() {
     rm -f "${STATE_FILE}" "${SECRET_FILE}"
+}
+
+bootstrap_is_completed() {
+    [ -f "${COMPLETE_MARKER_FILE}" ]
+}
+
+mark_bootstrap_completed() {
+    local completed_at
+    completed_at="$(utc_now)"
+    umask 077
+    jq -cn --arg completed_at "${completed_at}" --arg username "${PROTECTED_USER}" \
+        '{completed:true,completed_at:$completed_at,username:$username}' > "${COMPLETE_MARKER_FILE}"
+    chmod 600 "${COMPLETE_MARKER_FILE}"
+}
+
+get_completed_at() {
+    jq -r '.completed_at // empty' "${COMPLETE_MARKER_FILE}" 2>/dev/null || true
 }
 
 has_non_protected_user_record() {
@@ -141,6 +159,19 @@ emit_status() {
         return 0
     fi
 
+    if bootstrap_is_completed; then
+        local completed_at
+        completed_at="$(get_completed_at)"
+        remove_state_files
+        if [ -n "${completed_at}" ]; then
+            jq -cn --arg completed_at "${completed_at}" \
+                '{ok:true,active:false,reason:"completed",completed_at:$completed_at}'
+        else
+            json_ok '{ok:true,active:false,reason:"completed"}'
+        fi
+        return 0
+    fi
+
     if ! state_is_active; then
         json_ok '{ok:true,active:false,reason:"not_initialized"}'
         return 0
@@ -175,6 +206,11 @@ cmd_init() {
 
     if has_non_protected_configured_user; then
         emit_inactive_and_cleanup
+        return 0
+    fi
+
+    if bootstrap_is_completed; then
+        emit_status "0"
         return 0
     fi
 
@@ -262,6 +298,37 @@ cmd_verify() {
     verify_otp_internal "${otp}"
 }
 
+cmd_complete() {
+    local payload otp verify_json verify_code
+    payload="$(read_input_json)"
+    otp="$(read_input_field "${payload}" "otp")"
+
+    if [ -z "${otp}" ]; then
+        json_error "invalid_request" "Missing one-time password." 400
+        return 0
+    fi
+
+    ensure_state_dir
+    acquire_lock
+
+    if has_non_protected_configured_user; then
+        emit_inactive_and_cleanup
+        return 0
+    fi
+
+    verify_json="$(verify_otp_internal "${otp}")"
+    verify_code="$(jq -r '.code // empty' <<< "${verify_json}" 2>/dev/null || true)"
+    if [ -n "${verify_code}" ]; then
+        printf "%s\n" "${verify_json}"
+        return 0
+    fi
+
+    remove_state_files
+    mark_bootstrap_completed
+
+    jq -cn --arg username "${PROTECTED_USER}" '{ok:true,completed:true,active:false,username:$username}'
+}
+
 cmd_create_user() {
     local payload otp username password
     payload="$(read_input_json)"
@@ -341,6 +408,7 @@ cmd_create_user() {
     chmod 600 "${record_path}"
 
     remove_state_files
+    mark_bootstrap_completed
 
     jq -cn --arg username "${username}" '{ok:true,created:true,username:$username}'
 }
@@ -354,6 +422,7 @@ Commands:
   status [--include-secret]
                        Show bootstrap status
   verify               Verify OTP (expects JSON stdin: {"otp":"..."})
+  complete             Complete bootstrap after verified OTP (expects JSON stdin: {"otp":"..."})
   create-user          Create first user (expects JSON stdin: {"otp":"...","username":"...","password":"..."})
 EOF
 }
@@ -371,6 +440,9 @@ main() {
             ;;
         verify)
             cmd_verify "$@"
+            ;;
+        complete)
+            cmd_complete "$@"
             ;;
         create-user)
             cmd_create_user "$@"

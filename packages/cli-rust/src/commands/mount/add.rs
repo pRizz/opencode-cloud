@@ -184,13 +184,13 @@ mod tests {
     #[test]
     fn upsert_mount_by_target_exact_same_is_noop() {
         let existing = vec![
-            "/host/a:/home/opencode/workspace".to_string(),
-            "/host/b:/home/opencode/.cache/opencode".to_string(),
+            "/host/a:/home/opencoder/workspace".to_string(),
+            "/host/b:/home/opencoder/.cache/opencode".to_string(),
         ];
-        let parsed = ParsedMount::parse("/host/a:/home/opencode/workspace").unwrap();
+        let parsed = ParsedMount::parse("/host/a:/home/opencoder/workspace").unwrap();
 
         let (updated, outcome) =
-            upsert_mount_by_target(&existing, "/host/a:/home/opencode/workspace", &parsed);
+            upsert_mount_by_target(&existing, "/host/a:/home/opencoder/workspace", &parsed);
 
         assert_eq!(updated, existing);
         assert_eq!(outcome, MountUpsertOutcome::AlreadyConfigured);
@@ -199,26 +199,26 @@ mod tests {
     #[test]
     fn upsert_mount_by_target_replaces_same_target_with_new_host() {
         let existing = vec![
-            "/host/old:/home/opencode/workspace".to_string(),
-            "/host/cache:/home/opencode/.cache/opencode".to_string(),
+            "/host/old:/home/opencoder/workspace".to_string(),
+            "/host/cache:/home/opencoder/.cache/opencode".to_string(),
         ];
-        let parsed = ParsedMount::parse("/host/new:/home/opencode/workspace").unwrap();
+        let parsed = ParsedMount::parse("/host/new:/home/opencoder/workspace").unwrap();
 
         let (updated, outcome) =
-            upsert_mount_by_target(&existing, "/host/new:/home/opencode/workspace", &parsed);
+            upsert_mount_by_target(&existing, "/host/new:/home/opencoder/workspace", &parsed);
 
         assert_eq!(
             updated,
             vec![
-                "/host/cache:/home/opencode/.cache/opencode".to_string(),
-                "/host/new:/home/opencode/workspace".to_string(),
+                "/host/cache:/home/opencoder/.cache/opencode".to_string(),
+                "/host/new:/home/opencoder/workspace".to_string(),
             ]
         );
         assert_eq!(
             outcome,
             MountUpsertOutcome::Replaced {
                 replaced_mounts: vec![
-                    ParsedMount::parse("/host/old:/home/opencode/workspace").unwrap(),
+                    ParsedMount::parse("/host/old:/home/opencoder/workspace").unwrap(),
                 ],
             }
         );
@@ -227,28 +227,28 @@ mod tests {
     #[test]
     fn upsert_mount_by_target_replaces_multiple_stale_targets() {
         let existing = vec![
-            "/host/old1:/home/opencode/workspace".to_string(),
-            "/host/cache:/home/opencode/.cache/opencode".to_string(),
-            "/host/old2:/home/opencode/workspace:ro".to_string(),
+            "/host/old1:/home/opencoder/workspace".to_string(),
+            "/host/cache:/home/opencoder/.cache/opencode".to_string(),
+            "/host/old2:/home/opencoder/workspace:ro".to_string(),
         ];
-        let parsed = ParsedMount::parse("/host/new:/home/opencode/workspace").unwrap();
+        let parsed = ParsedMount::parse("/host/new:/home/opencoder/workspace").unwrap();
 
         let (updated, outcome) =
-            upsert_mount_by_target(&existing, "/host/new:/home/opencode/workspace", &parsed);
+            upsert_mount_by_target(&existing, "/host/new:/home/opencoder/workspace", &parsed);
 
         assert_eq!(
             updated,
             vec![
-                "/host/cache:/home/opencode/.cache/opencode".to_string(),
-                "/host/new:/home/opencode/workspace".to_string(),
+                "/host/cache:/home/opencoder/.cache/opencode".to_string(),
+                "/host/new:/home/opencoder/workspace".to_string(),
             ]
         );
         assert_eq!(
             outcome,
             MountUpsertOutcome::Replaced {
                 replaced_mounts: vec![
-                    ParsedMount::parse("/host/old1:/home/opencode/workspace").unwrap(),
-                    ParsedMount::parse("/host/old2:/home/opencode/workspace:ro").unwrap(),
+                    ParsedMount::parse("/host/old1:/home/opencoder/workspace").unwrap(),
+                    ParsedMount::parse("/host/old2:/home/opencoder/workspace:ro").unwrap(),
                 ],
             }
         );

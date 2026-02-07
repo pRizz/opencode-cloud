@@ -287,24 +287,24 @@ mod tests {
 
     #[test]
     fn resolve_mount_mismatch_action_mismatch_quiet_returns_error() {
-        let current = vec![current_mount("/old", "/home/opencode/workspace")];
-        let configured = vec![parsed_mount("/new", "/home/opencode/workspace")];
+        let current = vec![current_mount("/old", "/home/opencoder/workspace")];
+        let configured = vec![parsed_mount("/new", "/home/opencoder/workspace")];
         let action = resolve_mount_mismatch_action(&current, &configured, true);
         assert!(matches!(action, MountMismatchAction::QuietError(_)));
     }
 
     #[test]
     fn resolve_mount_mismatch_action_mismatch_non_quiet_prompts_recreate() {
-        let current = vec![current_mount("/old", "/home/opencode/workspace")];
-        let configured = vec![parsed_mount("/new", "/home/opencode/workspace")];
+        let current = vec![current_mount("/old", "/home/opencoder/workspace")];
+        let configured = vec![parsed_mount("/new", "/home/opencoder/workspace")];
         let action = resolve_mount_mismatch_action(&current, &configured, false);
         assert_eq!(action, MountMismatchAction::PromptRecreate);
     }
 
     #[test]
     fn resolve_mount_mismatch_action_no_mismatch() {
-        let current = vec![current_mount("/same", "/home/opencode/workspace")];
-        let configured = vec![parsed_mount("/same", "/home/opencode/workspace")];
+        let current = vec![current_mount("/same", "/home/opencoder/workspace")];
+        let configured = vec![parsed_mount("/same", "/home/opencoder/workspace")];
         let action = resolve_mount_mismatch_action(&current, &configured, false);
         assert_eq!(action, MountMismatchAction::NoMismatch);
     }

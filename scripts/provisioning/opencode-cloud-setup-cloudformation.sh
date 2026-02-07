@@ -208,7 +208,7 @@ fi
 
 if docker ps -q --filter "name=${HOST_CONTAINER_NAME}" | grep -q .; then
   opencode_setup_log "opencode-cloud setup: update opencode.jsonc inside container"
-  docker exec "${HOST_CONTAINER_NAME}" sh -lc "cat > /home/opencode/.config/opencode/opencode.jsonc <<'EOF'
+  docker exec "${HOST_CONTAINER_NAME}" sh -lc "cat > /home/opencoder/.config/opencode/opencode.jsonc <<'EOF'
 {
   \"auth\": {
     \"enabled\": true,
@@ -216,7 +216,7 @@ if docker ps -q --filter "name=${HOST_CONTAINER_NAME}" | grep -q .; then
   }
 }
 EOF
-chown opencode:opencode /home/opencode/.config/opencode/opencode.jsonc"
+chown opencoder:opencoder /home/opencoder/.config/opencode/opencode.jsonc"
 fi
 
 # Use system-level boot mode for CloudFormation deployments.

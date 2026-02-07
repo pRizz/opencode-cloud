@@ -22,4 +22,4 @@ alias lg="lazygit"
 alias d="docker"
 alias dc="docker compose"
 
-export PATH="/home/opencode/.local/bin:$PATH"
+export PATH="/home/opencoder/.local/bin:$PATH"

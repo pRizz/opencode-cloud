@@ -64,9 +64,9 @@ impl ParsedMount {
     /// use opencode_cloud_core::docker::ParsedMount;
     ///
     /// // Read-write mount (default)
-    /// let mount = ParsedMount::parse("/home/user/data:/home/opencode/workspace/data").unwrap();
+    /// let mount = ParsedMount::parse("/home/user/data:/home/opencoder/workspace/data").unwrap();
     /// assert_eq!(mount.host_path.to_str().unwrap(), "/home/user/data");
-    /// assert_eq!(mount.container_path, "/home/opencode/workspace/data");
+    /// assert_eq!(mount.container_path, "/home/opencoder/workspace/data");
     /// assert!(!mount.read_only);
     ///
     /// // Read-only mount
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn non_system_path_no_warning() {
-        let warning = check_container_path_warning("/home/opencode/workspace/data");
+        let warning = check_container_path_warning("/home/opencoder/workspace/data");
         assert!(warning.is_none());
     }
 

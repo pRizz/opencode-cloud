@@ -214,16 +214,16 @@ pub async fn create_container(
     // Build environment variables
     let mut env = env_vars.unwrap_or_default();
     if !has_env_key(&env, "XDG_DATA_HOME") {
-        env.push("XDG_DATA_HOME=/home/opencode/.local/share".to_string());
+        env.push("XDG_DATA_HOME=/home/opencoder/.local/share".to_string());
     }
     if !has_env_key(&env, "XDG_STATE_HOME") {
-        env.push("XDG_STATE_HOME=/home/opencode/.local/state".to_string());
+        env.push("XDG_STATE_HOME=/home/opencoder/.local/state".to_string());
     }
     if !has_env_key(&env, "XDG_CONFIG_HOME") {
-        env.push("XDG_CONFIG_HOME=/home/opencode/.config".to_string());
+        env.push("XDG_CONFIG_HOME=/home/opencoder/.config".to_string());
     }
     if !has_env_key(&env, "XDG_CACHE_HOME") {
-        env.push("XDG_CACHE_HOME=/home/opencode/.cache".to_string());
+        env.push("XDG_CACHE_HOME=/home/opencoder/.cache".to_string());
     }
     // Add USE_SYSTEMD=1 when systemd is enabled to tell entrypoint to use systemd
     if systemd_enabled_val && !has_env_key(&env, "USE_SYSTEMD") {
@@ -235,7 +235,7 @@ pub async fn create_container(
     let config = ContainerCreateBody {
         image: Some(image_name.to_string()),
         hostname: Some(CONTAINER_NAME.to_string()),
-        working_dir: Some("/home/opencode/workspace".to_string()),
+        working_dir: Some("/home/opencoder/workspace".to_string()),
         exposed_ports: Some(exposed_ports),
         env: final_env,
         host_config: Some(host_config),

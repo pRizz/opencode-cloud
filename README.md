@@ -155,7 +155,8 @@ occ start
 ```
 
 If this is the first startup with no configured users, the container logs will print an **Initial One-Time Password (IOTP)**.
-Open the login page, use the first-time setup panel, and create your first account. The IOTP is invalidated after successful signup.
+Open the login page, use the first-time setup panel, and enroll a passkey for the default `opencoder` account.
+The IOTP is invalidated after successful passkey enrollment.
 
 Quick IOTP extraction from logs:
 
@@ -266,7 +267,7 @@ occ mount clean --force
 occ mount clean --purge --force
 
 # Mount a local project into the workspace
-occ mount add /Users/<username>/Desktop/opencode:/home/opencode/workspace
+occ mount add /Users/<username>/Desktop/opencode:/home/opencoder/workspace
 
 # Apply mount changes (you may be prompted to recreate the container)
 occ restart
@@ -276,21 +277,21 @@ occ reset host --force
 
 ### Workspace Mounts
 
-Use `/home/opencode/workspace` when you want your host project folder to appear in the
+Use `/home/opencoder/workspace` when you want your host project folder to appear in the
 web UI's project picker and inside the container workspace.
 
 Important behavior:
-- `/home/opencode/workspace` is a single mount target.
+- `/home/opencoder/workspace` is a single mount target.
 - Adding a new mount to this same target replaces the previous mount entry.
 
 Recommended workflow:
 ```bash
-occ mount add /Users/<username>/Desktop/opencode:/home/opencode/workspace
+occ mount add /Users/<username>/Desktop/opencode:/home/opencoder/workspace
 occ restart
 ```
 
 Verify the mount:
-1. Run `occ status` and check `Mounts` -> `Bind mounts` includes your host path mapped to `/home/opencode/workspace`.
+1. Run `occ status` and check `Mounts` -> `Bind mounts` includes your host path mapped to `/home/opencoder/workspace`.
 2. In the web UI, open the project picker and confirm your project files appear under `~/workspace`.
 
 ### Container Mode
@@ -321,7 +322,7 @@ to request an update.
 
 Default paths (with default bind mounts enabled):
 - Host: `~/.local/state/opencode/opencode-cloud/commands/update-command.json`
-- Container: `/home/opencode/.local/state/opencode/opencode-cloud/commands/update-command.json`
+- Container: `/home/opencoder/.local/state/opencode/opencode-cloud/commands/update-command.json`
 
 Example payload:
 ```json
@@ -353,11 +354,16 @@ First boot path:
 - If no users are configured, startup logs print an Initial One-Time Password (IOTP).
 - Extract only the IOTP quickly: `occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'`
 - Enter that IOTP in the web login page first-time setup panel.
-- Complete signup (username + password) to create the first Linux user account in the container.
-- The IOTP is deleted after the first successful signup.
+- Enroll a passkey for the default `opencoder` account.
+- The IOTP is deleted after successful passkey enrollment.
 
 Admin path:
 - You can always create/manage users directly via `occ user add`, `occ user passwd`, and related user commands.
+
+Login UX:
+- Passkey sign-in is the primary option on the login page.
+- Username/password sign-in remains available as fallback.
+- 2FA setup/management is available from the upper-right session menu after login.
 
 ### Creating Users
 

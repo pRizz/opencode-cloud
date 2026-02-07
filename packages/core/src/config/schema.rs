@@ -722,7 +722,7 @@ mod tests {
     fn test_serialize_deserialize_with_mounts() {
         let config = Config {
             mounts: vec![
-                "/home/user/data:/home/opencode/workspace/data".to_string(),
+                "/home/user/data:/home/opencoder/workspace/data".to_string(),
                 "/home/user/config:/etc/app:ro".to_string(),
             ],
             ..Config::default()
@@ -732,7 +732,7 @@ mod tests {
         assert_eq!(parsed.mounts.len(), 2);
         assert_eq!(
             parsed.mounts[0],
-            "/home/user/data:/home/opencode/workspace/data"
+            "/home/user/data:/home/opencoder/workspace/data"
         );
         assert_eq!(parsed.mounts[1], "/home/user/config:/etc/app:ro");
     }

@@ -18,7 +18,7 @@ use opencode_cloud_core::{load_config_or_default, save_config};
     after_help = "Tip: Press Enter at the password prompt to auto-generate and display a secure password, or use --generate (-g) for non-interactive use."
 )]
 pub struct UserAddArgs {
-    /// Username to create (default: opencode if not provided)
+    /// Username to create (default: admin if not provided)
     pub username: Option<String>,
 
     /// Generate a random secure password instead of prompting
@@ -68,7 +68,7 @@ pub async fn cmd_user_add(
     } else {
         Input::new()
             .with_prompt("Username")
-            .default("opencode".to_string())
+            .default("admin".to_string())
             .validate_with(|input: &String| validate_username(input))
             .interact_text()?
     };

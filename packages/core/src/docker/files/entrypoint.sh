@@ -70,16 +70,17 @@ print_welcome_banner() {
     log "     Bind URL:  ${bind_url}"
     log "  2) First-time setup:"
     log "     If no users are configured, this container prints an Initial One-Time Password (IOTP)"
-    log "     in the logs below. Enter it on the login page to create your first account."
-    log "     The IOTP is deleted immediately after first successful signup."
+    log "     in the logs below. Enter it on the login page, then enroll a passkey"
+    log "     for the default 'opencoder' account."
+    log "     The IOTP is deleted immediately after successful passkey enrollment."
     log "  3) Optional admin CLI path:"
     log "     occ user add <username>"
     log "     occ user add <username> --generate"
     log "     occ user passwd <username>"
     log "  4) Cloud note: external URL may differ based on DNS, reverse proxy/load balancer,"
     log "     ingress, TLS termination, and port mappings."
-    log "  5) Log in with your created credentials. If prompted for optional 2FA setup,"
-    log "     you can skip it."
+    log "  5) Sign in with a passkey (recommended) or username/password fallback."
+    log "     2FA setup and management are available from the upper-right session menu."
     log "Docs: https://github.com/pRizz/opencode-cloud#readme"
     log "----------------------------------------------------------------------"
 }
@@ -90,7 +91,7 @@ export OPENCODE_PORT OPENCODE_HOST
 
 BOOTSTRAP_HELPER="/usr/local/bin/opencode-cloud-bootstrap"
 BOOTSTRAP_STATE_DIR="/var/lib/opencode-users"
-PROTECTED_USER="opencode"
+PROTECTED_USER="opencoder"
 # NOTE: Do not change this prefix; admins may depend on it for log grep extraction.
 greppable_iotp_prefix="INITIAL ONE-TIME PASSWORD (IOTP): "
 
@@ -109,10 +110,10 @@ detect_droplet() {
 
 collect_non_persistent_paths() {
     local -a paths=(
-        "/home/opencode/workspace"
-        "/home/opencode/.local/share/opencode"
-        "/home/opencode/.local/state/opencode"
-        "/home/opencode/.config/opencode"
+        "/home/opencoder/workspace"
+        "/home/opencoder/.local/share/opencode"
+        "/home/opencoder/.local/state/opencode"
+        "/home/opencoder/.config/opencode"
         "/var/lib/opencode-users"
     )
     local -a non_persistent=()
@@ -291,13 +292,18 @@ else
             fi
             log "Use this IOTP on the web login page to complete first-time setup."
             log "Find it in Docker logs and keep it private."
-            log "This IOTP is deleted after the first successful signup."
+            log "This IOTP is deleted after successful passkey enrollment."
             log "----------------------------------------------------------------------"
             return
         fi
 
         if [ "${reason}" = "user_exists" ]; then
             log "Bootstrap mode disabled: one or more configured users already exist."
+            return
+        fi
+
+        if [ "${reason}" = "completed" ]; then
+            log "Bootstrap mode disabled: initial passkey setup for '${PROTECTED_USER}' is already complete."
             return
         fi
 
@@ -352,6 +358,6 @@ else
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"
     /usr/local/bin/opencode-broker &
-    # Use runuser to switch to opencode user without password prompt
-    exec runuser -u opencode -- sh -lc "cd /home/opencode/workspace && /opt/opencode/bin/opencode web --port ${OPENCODE_PORT} --hostname ${OPENCODE_HOST}"
+    # Use runuser to switch to the container runtime user without password prompt
+    exec runuser -u opencoder -- sh -lc "cd /home/opencoder/workspace && /opt/opencode/bin/opencode web --port ${OPENCODE_PORT} --hostname ${OPENCODE_HOST}"
 fi

@@ -23,7 +23,7 @@ pub struct UserRemoveArgs {
 }
 
 /// System user that cannot be removed (container depends on it)
-const PROTECTED_USER: &str = "opencode";
+const PROTECTED_USER: &str = "opencoder";
 
 /// Remove a user from the container
 pub async fn cmd_user_remove(

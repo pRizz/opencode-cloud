@@ -70,7 +70,7 @@ Pull and start the sandbox image:
 occ start --pull-sandbox-image
 ```
 
-### 6) Complete first-time signup with Initial One-Time Password (IOTP)
+### 6) Complete first-time setup with Initial One-Time Password (IOTP)
 
 After `occ start`, check logs for the IOTP:
 
@@ -86,10 +86,10 @@ occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*IN
 
 Open the web login page through your SSH tunnel and use the first-time setup panel:
 - Enter the IOTP from logs
-- Choose username + password
-- Submit signup (this creates the first Linux user inside the container)
+- Continue to passkey setup
+- Enroll a passkey for the default `opencoder` account
 
-The IOTP is invalidated after successful signup.
+The IOTP is invalidated after successful passkey enrollment.
 
 Admin fallback:
 
@@ -247,11 +247,11 @@ docker volume create opencode-users
 docker run -d --name opencode-cloud-sandbox \
   --restart unless-stopped \
   -p 127.0.0.1:3000:3000 \
-  -v opencode-data:/home/opencode/.local/share/opencode \
-  -v opencode-state:/home/opencode/.local/state/opencode \
-  -v opencode-cache:/home/opencode/.cache/opencode \
-  -v opencode-workspace:/home/opencode/workspace \
-  -v opencode-config:/home/opencode/.config/opencode \
+  -v opencode-data:/home/opencoder/.local/share/opencode \
+  -v opencode-state:/home/opencoder/.local/state/opencode \
+  -v opencode-cache:/home/opencoder/.cache/opencode \
+  -v opencode-workspace:/home/opencoder/workspace \
+  -v opencode-config:/home/opencoder/.config/opencode \
   -v opencode-users:/var/lib/opencode-users \
   prizz/opencode-cloud-sandbox:15.2.0
 ```
@@ -283,7 +283,7 @@ Extract only the IOTP value:
 docker logs opencode-cloud-sandbox 2>&1 | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
 ```
 
-Use the login page first-time setup panel with that IOTP, then create your username/password.
+Use the login page first-time setup panel with that IOTP, then enroll a passkey for `opencoder`.
 
 ### 5) Expose publicly (optional)
 
