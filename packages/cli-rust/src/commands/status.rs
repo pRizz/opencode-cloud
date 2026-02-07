@@ -7,6 +7,7 @@ use crate::cli_platform::cli_platform_label;
 use crate::commands::disk_usage::{
     format_disk_usage_report, format_host_disk_report, get_disk_usage_report, get_host_disk_report,
 };
+use crate::commands::iotp::{IOTP_FALLBACK_COMMAND, IotpSnapshot, IotpState, fetch_iotp_snapshot};
 use crate::commands::runtime_shared::backend::HostBackend;
 use crate::commands::runtime_shared::collect_status_view;
 use crate::commands::runtime_shared::status_model::{
@@ -284,7 +285,7 @@ pub async fn cmd_status(
 
     // Show Security section (container exists, whether running or stopped)
     if let Some(ref cfg) = config {
-        display_security_section(cfg);
+        display_security_section(&client, cfg, running).await;
     }
 
     // If stopped, show when it stopped
@@ -807,7 +808,11 @@ fn host_paths_match(container_path: &str, configured_path: &str) -> bool {
 }
 
 /// Display the Security section of status output
-fn display_security_section(config: &Config) {
+async fn display_security_section(
+    client: &opencode_cloud_core::docker::DockerClient,
+    config: &Config,
+    running: bool,
+) {
     println!();
     println!("{}", style("Security").bold());
     println!("{}", style("--------").dim());
@@ -842,6 +847,32 @@ fn display_security_section(config: &Config) {
         config.rate_limit_attempts, config.rate_limit_window_seconds
     );
 
+    let iotp_snapshot = if running {
+        fetch_iotp_snapshot(client).await
+    } else {
+        IotpSnapshot::unavailable("container not running")
+    };
+    let (iotp_state, iotp_value, iotp_detail) = render_iotp_status(
+        &iotp_snapshot,
+        running,
+        config.allow_unauthenticated_network,
+    );
+    println!("IOTP state:  {iotp_state}");
+    println!("IOTP value:  {iotp_value}");
+    if let Some(detail) = iotp_detail {
+        println!("{}", format_continuation(style(detail).dim()));
+    }
+    if !matches!(iotp_snapshot.state, IotpState::ActiveUnused) {
+        println!(
+            "{}",
+            format_continuation(format!(
+                "{} {}",
+                style("Extract manually:").dim(),
+                style(IOTP_FALLBACK_COMMAND).cyan()
+            ))
+        );
+    }
+
     // Warning if network exposed without users
     if config.is_network_exposed()
         && config.users.is_empty()
@@ -856,6 +887,38 @@ fn display_security_section(config: &Config) {
         );
         println!("Add users: {}", style("occ user add").cyan());
     }
+}
+
+fn render_iotp_status(
+    snapshot: &IotpSnapshot,
+    running: bool,
+    allow_unauthenticated_network: bool,
+) -> (String, String, Option<String>) {
+    let state_text = if running {
+        snapshot.state_label.clone()
+    } else {
+        "unavailable (container not running)".to_string()
+    };
+
+    let value_text = if running && matches!(snapshot.state, IotpState::ActiveUnused) {
+        snapshot
+            .otp
+            .clone()
+            .unwrap_or_else(|| "not available".to_string())
+    } else {
+        style("not available").dim().to_string()
+    };
+
+    let mut detail = snapshot.detail.clone();
+    if allow_unauthenticated_network {
+        let note = "allow_unauthenticated_network=true may skip IOTP generation by design.";
+        detail = Some(match detail {
+            Some(existing) => format!("{existing} {note}"),
+            None => note.to_string(),
+        });
+    }
+
+    (state_text, value_text, detail)
 }
 
 #[cfg(test)]
@@ -916,5 +979,55 @@ mod tests {
         let display = result.unwrap();
         assert!(display.contains("2024-01-15"));
         assert!(display.contains("10:30:00"));
+    }
+
+    #[test]
+    fn render_iotp_status_active_shows_value() {
+        let snapshot = IotpSnapshot {
+            state: IotpState::ActiveUnused,
+            state_label: "unused (active)".to_string(),
+            otp: Some("abc123".to_string()),
+            detail: None,
+        };
+        let (state, value, detail) = render_iotp_status(&snapshot, true, false);
+        assert_eq!(state, "unused (active)");
+        assert_eq!(value, "abc123");
+        assert!(detail.is_none());
+    }
+
+    #[test]
+    fn render_iotp_status_inactive_hides_value() {
+        let snapshot = IotpSnapshot {
+            state: IotpState::InactiveUsersConfigured,
+            state_label: "inactive (users configured)".to_string(),
+            otp: None,
+            detail: None,
+        };
+        let (state, value, _detail) = render_iotp_status(&snapshot, true, false);
+        assert_eq!(state, "inactive (users configured)");
+        assert!(value.contains("not available"));
+    }
+
+    #[test]
+    fn render_iotp_status_not_running_marks_unavailable() {
+        let snapshot = IotpSnapshot::unavailable("container not running");
+        let (state, value, detail) = render_iotp_status(&snapshot, false, false);
+        assert_eq!(state, "unavailable (container not running)");
+        assert!(value.contains("not available"));
+        assert_eq!(detail, Some("container not running".to_string()));
+    }
+
+    #[test]
+    fn render_iotp_status_adds_allow_unauth_note() {
+        let snapshot = IotpSnapshot {
+            state: IotpState::InactiveNotInitialized,
+            state_label: "inactive (not initialized)".to_string(),
+            otp: None,
+            detail: Some("bootstrap helper reported reason: not_initialized".to_string()),
+        };
+        let (_state, _value, detail) = render_iotp_status(&snapshot, true, true);
+        let detail = detail.expect("detail should exist");
+        assert!(detail.contains("not_initialized"));
+        assert!(detail.contains("allow_unauthenticated_network=true"));
     }
 }

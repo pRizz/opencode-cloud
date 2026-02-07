@@ -9,6 +9,7 @@ pub(crate) mod container;
 mod disk_usage;
 mod host;
 mod install;
+mod iotp;
 mod logs;
 mod mount;
 mod reset;
