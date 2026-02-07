@@ -11,6 +11,8 @@ target
 # OS noise
 .DS_Store
 
-# Submodule checkout is not needed in Docker build context
-packages/opencode
+# Keep the submodule directory path available for Dockerfile COPY in remote mode,
+# but exclude all nested content from the default repo-root build context.
+# Local opencode dev builds use the custom context packer in
+# packages/core/src/docker/image.rs instead of .dockerignore.
 packages/opencode/**

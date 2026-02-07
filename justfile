@@ -291,8 +291,15 @@ do-marketplace-build:
     packer build -var-file=infra/digitalocean/packer/variables.pkr.hcl \
         infra/digitalocean/packer/opencode-marketplace.pkr.hcl
 
-# Pre-commit checks (without Docker build - faster, works without Docker)
+# Pre-commit checks with conditional Docker stage build for Docker-risk changes.
+# This keeps routine commits fast while still catching Docker context regressions.
 pre-commit: check-opencode-submodule-published fmt lint build test-all-fast
+    @if ./scripts/should-run-docker-check.sh; then \
+        echo "Running Docker stage check because Docker-risk files changed..."; \
+        just check-docker; \
+    else \
+        echo "Skipping Docker stage check (no Docker-risk file changes)."; \
+    fi
 
 # Pre-commit checks including Docker build (requires Docker)
 pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast build-docker

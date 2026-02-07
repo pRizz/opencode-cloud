@@ -57,6 +57,23 @@ jobs:
       - name: Packer validate
         run: packer validate -var-file=infra/digitalocean/packer/variables.pkr.hcl infra/digitalocean/packer/opencode-marketplace.pkr.hcl
 
+  docker-context-guard:
+    name: Docker Context Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Ensure opencode placeholder path exists for Docker context
+        run: mkdir -p packages/opencode
+
+      - name: Build Docker target stage
+        run: |
+          DOCKER_BUILDKIT=1 docker build \
+            --file packages/core/src/docker/Dockerfile \
+            --target opencode-build \
+            --tag opencode-cloud-sandbox:ci-check \
+            .
+
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
   # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)

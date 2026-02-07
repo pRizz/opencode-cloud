@@ -511,8 +511,10 @@ ARG OPENCODE_SOURCE=remote
 ARG OPENCODE_COMMIT
 ARG OPENCODE_LOCAL_REF
 
-# The custom build-context generator always adds packages/opencode. In remote mode
-# this is just a tiny placeholder; in local dev mode it contains the full submodule.
+# CLI builds use a custom build-context generator that always adds
+# packages/opencode. Repo-root Docker builds rely on checkout + .dockerignore to
+# keep this path as a tiny placeholder in remote mode.
+# In local dev mode it contains the full submodule.
 COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 
 # Clone the fork and build opencode from source (as non-root user)
