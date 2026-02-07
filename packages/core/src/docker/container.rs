@@ -3,11 +3,11 @@
 //! This module provides functions to create, start, stop, and remove
 //! Docker containers for the opencode-cloud service.
 
-use super::dockerfile::{IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
+use super::dockerfile::IMAGE_NAME_GHCR;
 use super::mount::ParsedMount;
+use super::profile::{INSTANCE_LABEL_KEY, active_resource_names, remap_container_name};
 use super::volume::{
     MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, MOUNT_USERS,
-    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE, VOLUME_USERS,
 };
 use super::{DockerClient, DockerError};
 use bollard::models::ContainerCreateBody;
@@ -29,6 +29,10 @@ pub const OPENCODE_WEB_PORT: u16 = 3000;
 fn has_env_key(env: &[String], key: &str) -> bool {
     let prefix = format!("{key}=");
     env.iter().any(|entry| entry.starts_with(&prefix))
+}
+
+fn resolved_container_name(name: &str) -> String {
+    remap_container_name(name)
 }
 
 /// Create the opencode container with volume mounts
@@ -60,8 +64,11 @@ pub async fn create_container(
     systemd_enabled: Option<bool>,
     bind_mounts: Option<Vec<ParsedMount>>,
 ) -> Result<String, DockerError> {
-    let container_name = name.unwrap_or(CONTAINER_NAME);
-    let default_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let names = active_resource_names();
+    let container_name = name
+        .map(resolved_container_name)
+        .unwrap_or(names.container_name);
+    let default_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
     let image_name = image.unwrap_or(&default_image);
     let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
     let cockpit_port_val = cockpit_port.unwrap_or(9090);
@@ -79,7 +86,7 @@ pub async fn create_container(
     );
 
     // Check if container already exists
-    if container_exists(client, container_name).await? {
+    if container_exists(client, &container_name).await? {
         return Err(DockerError::Container(format!(
             "Container '{container_name}' already exists. Remove it first with 'occ stop --remove' or use a different name."
         )));
@@ -124,12 +131,12 @@ pub async fn create_container(
             ..Default::default()
         });
     };
-    add_volume_mount(MOUNT_SESSION, VOLUME_SESSION);
-    add_volume_mount(MOUNT_STATE, VOLUME_STATE);
-    add_volume_mount(MOUNT_CACHE, VOLUME_CACHE);
-    add_volume_mount(MOUNT_PROJECTS, VOLUME_PROJECTS);
-    add_volume_mount(MOUNT_CONFIG, VOLUME_CONFIG);
-    add_volume_mount(MOUNT_USERS, VOLUME_USERS);
+    add_volume_mount(MOUNT_SESSION, &names.volume_session);
+    add_volume_mount(MOUNT_STATE, &names.volume_state);
+    add_volume_mount(MOUNT_CACHE, &names.volume_cache);
+    add_volume_mount(MOUNT_PROJECTS, &names.volume_projects);
+    add_volume_mount(MOUNT_CONFIG, &names.volume_config);
+    add_volume_mount(MOUNT_USERS, &names.volume_users);
 
     // Add user-defined bind mounts from config/CLI
     if let Some(ref user_mounts) = bind_mounts {
@@ -232,19 +239,26 @@ pub async fn create_container(
     let final_env = if env.is_empty() { None } else { Some(env) };
 
     // Create container config (bollard v0.20+ uses ContainerCreateBody)
+    let mut labels = HashMap::from([("managed-by".to_string(), "opencode-cloud".to_string())]);
+    if let Some(instance_id) = names.instance_id.as_deref() {
+        // This label helps profile-aware cleanup target only the active isolated resources.
+        labels.insert(INSTANCE_LABEL_KEY.to_string(), instance_id.to_string());
+    }
+
     let config = ContainerCreateBody {
         image: Some(image_name.to_string()),
-        hostname: Some(CONTAINER_NAME.to_string()),
+        hostname: Some(names.hostname),
         working_dir: Some("/home/opencoder/workspace".to_string()),
         exposed_ports: Some(exposed_ports),
         env: final_env,
+        labels: Some(labels),
         host_config: Some(host_config),
         ..Default::default()
     };
 
     // Create container
     let options = CreateContainerOptions {
-        name: Some(container_name.to_string()),
+        name: Some(container_name.clone()),
         platform: String::new(),
     };
 
@@ -269,15 +283,18 @@ pub async fn create_container(
 
 /// Start an existing container
 pub async fn start_container(client: &DockerClient, name: &str) -> Result<(), DockerError> {
-    debug!("Starting container: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Starting container: {}", resolved_name);
 
     client
         .inner()
-        .start_container(name, None::<StartContainerOptions>)
+        .start_container(&resolved_name, None::<StartContainerOptions>)
         .await
-        .map_err(|e| DockerError::Container(format!("Failed to start container {name}: {e}")))?;
+        .map_err(|e| {
+            DockerError::Container(format!("Failed to start container {resolved_name}: {e}"))
+        })?;
 
-    debug!("Container {} started", name);
+    debug!("Container {} started", resolved_name);
     Ok(())
 }
 
@@ -292,8 +309,12 @@ pub async fn stop_container(
     name: &str,
     timeout_secs: Option<i64>,
 ) -> Result<(), DockerError> {
+    let resolved_name = resolved_container_name(name);
     let timeout = timeout_secs.unwrap_or(10) as i32;
-    debug!("Stopping container {} with {}s timeout", name, timeout);
+    debug!(
+        "Stopping container {} with {}s timeout",
+        resolved_name, timeout
+    );
 
     let options = StopContainerOptions {
         signal: None,
@@ -302,19 +323,21 @@ pub async fn stop_container(
 
     client
         .inner()
-        .stop_container(name, Some(options))
+        .stop_container(&resolved_name, Some(options))
         .await
         .map_err(|e| {
             let msg = e.to_string();
             // "container already stopped" is not an error
             if msg.contains("is not running") || msg.contains("304") {
-                debug!("Container {} was already stopped", name);
-                return DockerError::Container(format!("Container '{name}' is not running"));
+                debug!("Container {} was already stopped", resolved_name);
+                return DockerError::Container(format!(
+                    "Container '{resolved_name}' is not running"
+                ));
             }
-            DockerError::Container(format!("Failed to stop container {name}: {e}"))
+            DockerError::Container(format!("Failed to stop container {resolved_name}: {e}"))
         })?;
 
-    debug!("Container {} stopped", name);
+    debug!("Container {} stopped", resolved_name);
     Ok(())
 }
 
@@ -329,7 +352,8 @@ pub async fn remove_container(
     name: &str,
     force: bool,
 ) -> Result<(), DockerError> {
-    debug!("Removing container {} (force={})", name, force);
+    let resolved_name = resolved_container_name(name);
+    debug!("Removing container {} (force={})", resolved_name, force);
 
     let options = RemoveContainerOptions {
         force,
@@ -339,34 +363,38 @@ pub async fn remove_container(
 
     client
         .inner()
-        .remove_container(name, Some(options))
+        .remove_container(&resolved_name, Some(options))
         .await
-        .map_err(|e| DockerError::Container(format!("Failed to remove container {name}: {e}")))?;
+        .map_err(|e| {
+            DockerError::Container(format!("Failed to remove container {resolved_name}: {e}"))
+        })?;
 
-    debug!("Container {} removed", name);
+    debug!("Container {} removed", resolved_name);
     Ok(())
 }
 
 /// Check if container exists
 pub async fn container_exists(client: &DockerClient, name: &str) -> Result<bool, DockerError> {
-    debug!("Checking if container exists: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Checking if container exists: {}", resolved_name);
 
-    match client.inner().inspect_container(name, None).await {
+    match client.inner().inspect_container(&resolved_name, None).await {
         Ok(_) => Ok(true),
         Err(bollard::errors::Error::DockerResponseServerError {
             status_code: 404, ..
         }) => Ok(false),
         Err(e) => Err(DockerError::Container(format!(
-            "Failed to inspect container {name}: {e}"
+            "Failed to inspect container {resolved_name}: {e}"
         ))),
     }
 }
 
 /// Check if container is running
 pub async fn container_is_running(client: &DockerClient, name: &str) -> Result<bool, DockerError> {
-    debug!("Checking if container is running: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Checking if container is running: {}", resolved_name);
 
-    match client.inner().inspect_container(name, None).await {
+    match client.inner().inspect_container(&resolved_name, None).await {
         Ok(info) => {
             let running = info.state.and_then(|s| s.running).unwrap_or(false);
             Ok(running)
@@ -375,16 +403,17 @@ pub async fn container_is_running(client: &DockerClient, name: &str) -> Result<b
             status_code: 404, ..
         }) => Ok(false),
         Err(e) => Err(DockerError::Container(format!(
-            "Failed to inspect container {name}: {e}"
+            "Failed to inspect container {resolved_name}: {e}"
         ))),
     }
 }
 
 /// Get container state (running, stopped, etc.)
 pub async fn container_state(client: &DockerClient, name: &str) -> Result<String, DockerError> {
-    debug!("Getting container state: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Getting container state: {}", resolved_name);
 
-    match client.inner().inspect_container(name, None).await {
+    match client.inner().inspect_container(&resolved_name, None).await {
         Ok(info) => {
             let state = info
                 .state
@@ -396,10 +425,10 @@ pub async fn container_state(client: &DockerClient, name: &str) -> Result<String
         Err(bollard::errors::Error::DockerResponseServerError {
             status_code: 404, ..
         }) => Err(DockerError::Container(format!(
-            "Container '{name}' not found"
+            "Container '{resolved_name}' not found"
         ))),
         Err(e) => Err(DockerError::Container(format!(
-            "Failed to inspect container {name}: {e}"
+            "Failed to inspect container {resolved_name}: {e}"
         ))),
     }
 }
@@ -432,13 +461,16 @@ pub async fn get_container_ports(
     client: &DockerClient,
     name: &str,
 ) -> Result<ContainerPorts, DockerError> {
-    debug!("Getting container ports: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Getting container ports: {}", resolved_name);
 
     let info = client
         .inner()
-        .inspect_container(name, None)
+        .inspect_container(&resolved_name, None)
         .await
-        .map_err(|e| DockerError::Container(format!("Failed to inspect container {name}: {e}")))?;
+        .map_err(|e| {
+            DockerError::Container(format!("Failed to inspect container {resolved_name}: {e}"))
+        })?;
 
     let port_bindings = info
         .host_config
@@ -474,13 +506,16 @@ pub async fn get_container_bind_mounts(
     client: &DockerClient,
     name: &str,
 ) -> Result<Vec<ContainerBindMount>, DockerError> {
-    debug!("Getting container bind mounts: {}", name);
+    let resolved_name = resolved_container_name(name);
+    debug!("Getting container bind mounts: {}", resolved_name);
 
     let info = client
         .inner()
-        .inspect_container(name, None)
+        .inspect_container(&resolved_name, None)
         .await
-        .map_err(|e| DockerError::Container(format!("Failed to inspect container {name}: {e}")))?;
+        .map_err(|e| {
+            DockerError::Container(format!("Failed to inspect container {resolved_name}: {e}"))
+        })?;
 
     let mounts = info.mounts.unwrap_or_default();
 
@@ -506,6 +541,7 @@ pub async fn get_container_bind_mounts(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::docker::IMAGE_TAG_DEFAULT;
 
     #[test]
     fn container_constants_are_correct() {

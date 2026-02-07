@@ -4,6 +4,7 @@
 //! for persistent storage across container restarts.
 
 use super::{DockerClient, DockerError};
+use crate::docker::{INSTANCE_LABEL_KEY, active_resource_names};
 use bollard::models::VolumeCreateRequest;
 use bollard::query_parameters::RemoveVolumeOptions;
 use std::collections::HashMap;
@@ -61,9 +62,9 @@ pub const MOUNT_USERS: &str = "/var/lib/opencode-users";
 /// calling it multiple times has no additional effect.
 pub async fn ensure_volumes_exist(client: &DockerClient) -> Result<(), DockerError> {
     debug!("Ensuring all required volumes exist");
-
-    for volume_name in VOLUME_NAMES {
-        ensure_volume_exists(client, volume_name).await?;
+    let names = active_resource_names();
+    for volume_name in names.volume_names() {
+        ensure_volume_exists(client, volume_name, names.instance_id.as_deref()).await?;
     }
 
     debug!("All volumes verified/created");
@@ -71,18 +72,26 @@ pub async fn ensure_volumes_exist(client: &DockerClient) -> Result<(), DockerErr
 }
 
 /// Ensure a specific volume exists
-async fn ensure_volume_exists(client: &DockerClient, name: &str) -> Result<(), DockerError> {
+async fn ensure_volume_exists(
+    client: &DockerClient,
+    name: &str,
+    instance_id: Option<&str>,
+) -> Result<(), DockerError> {
     debug!("Checking volume: {}", name);
+
+    // Keep the existing managed-by label for backward compatibility and include a per-instance
+    // label only in isolated mode to make selective cleanup and debugging easier.
+    let mut labels = HashMap::from([("managed-by".to_string(), "opencode-cloud".to_string())]);
+    if let Some(instance_id) = instance_id {
+        labels.insert(INSTANCE_LABEL_KEY.to_string(), instance_id.to_string());
+    }
 
     // Create volume request with default local driver (bollard v0.20+ uses VolumeCreateRequest)
     let options = VolumeCreateRequest {
         name: Some(name.to_string()),
         driver: Some("local".to_string()),
         driver_opts: Some(HashMap::new()),
-        labels: Some(HashMap::from([(
-            "managed-by".to_string(),
-            "opencode-cloud".to_string(),
-        )])),
+        labels: Some(labels),
         cluster_volume_spec: None,
     };
 
@@ -134,8 +143,9 @@ pub async fn remove_volume(client: &DockerClient, name: &str) -> Result<(), Dock
 /// Used during uninstall. Fails if any volume is in use.
 pub async fn remove_all_volumes(client: &DockerClient) -> Result<(), DockerError> {
     debug!("Removing all opencode-cloud volumes");
+    let names = active_resource_names();
 
-    for volume_name in VOLUME_NAMES {
+    for volume_name in names.volume_names() {
         // Check if volume exists before trying to remove
         if volume_exists(client, volume_name).await? {
             remove_volume(client, volume_name).await?;

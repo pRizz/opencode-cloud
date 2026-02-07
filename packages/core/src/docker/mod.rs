@@ -20,6 +20,7 @@ pub mod exec;
 mod health;
 pub mod image;
 pub mod mount;
+pub mod profile;
 pub mod progress;
 mod registry;
 pub mod state;
@@ -43,6 +44,10 @@ pub use dockerfile::{DOCKERFILE, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TA
 
 // Image operations
 pub use image::{build_image, image_exists, pull_image, remove_images_by_name};
+pub use profile::{
+    DockerResourceNames, INSTANCE_LABEL_KEY, SANDBOX_INSTANCE_ENV, active_resource_names,
+    env_instance_id, remap_container_name, remap_image_tag, resource_names_for_instance,
+};
 
 // Update operations
 pub use update::{UpdateResult, has_previous_image, rollback_image, update_image};
@@ -142,21 +147,22 @@ pub async fn setup_and_start(
     systemd_enabled: Option<bool>,
     bind_mounts: Option<Vec<mount::ParsedMount>>,
 ) -> Result<String, DockerError> {
+    let names = active_resource_names();
+
     // Ensure volumes exist first
     volume::ensure_volumes_exist(client).await?;
 
     // Check if container already exists
-    let container_id = if container::container_exists(client, container::CONTAINER_NAME).await? {
+    let container_id = if container::container_exists(client, &names.container_name).await? {
         // Get existing container ID
         let info = client
             .inner()
-            .inspect_container(container::CONTAINER_NAME, None)
+            .inspect_container(&names.container_name, None)
             .await
             .map_err(|e| {
                 DockerError::Container(format!("Failed to inspect existing container: {e}"))
             })?;
-        info.id
-            .unwrap_or_else(|| container::CONTAINER_NAME.to_string())
+        info.id.unwrap_or_else(|| names.container_name.to_string())
     } else {
         // Create new container
         container::create_container(
@@ -175,12 +181,12 @@ pub async fn setup_and_start(
     };
 
     // Start if not running
-    if !container::container_is_running(client, container::CONTAINER_NAME).await? {
-        container::start_container(client, container::CONTAINER_NAME).await?;
+    if !container::container_is_running(client, &names.container_name).await? {
+        container::start_container(client, &names.container_name).await?;
     }
 
     // Restore persisted users after the container is running
-    users::restore_persisted_users(client, container::CONTAINER_NAME).await?;
+    users::restore_persisted_users(client, &names.container_name).await?;
 
     Ok(container_id)
 }
@@ -199,7 +205,8 @@ pub async fn stop_service(
     remove: bool,
     timeout_secs: Option<i64>,
 ) -> Result<(), DockerError> {
-    let name = container::CONTAINER_NAME;
+    let names = active_resource_names();
+    let name = names.container_name.as_str();
     let timeout = timeout_secs.unwrap_or(DEFAULT_STOP_TIMEOUT_SECS);
 
     // Check if container exists

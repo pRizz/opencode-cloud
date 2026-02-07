@@ -5,13 +5,14 @@
 
 use super::progress::ProgressReporter;
 use super::{
-    DOCKERFILE, DockerClient, DockerError, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT,
+    CONTAINER_NAME, DOCKERFILE, DockerClient, DockerError, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR,
+    IMAGE_TAG_DEFAULT, active_resource_names, remap_image_tag,
 };
 use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
 use bollard::query_parameters::{
     BuildImageOptions, BuilderVersion, CreateImageOptions, ListImagesOptionsBuilder,
-    RemoveImageOptionsBuilder,
+    RemoveImageOptionsBuilder, TagImageOptions,
 };
 use bytes::Bytes;
 use flate2::Compression;
@@ -20,7 +21,10 @@ use futures_util::StreamExt;
 use http_body_util::{Either, Full};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
-use std::io::Write;
+use std::ffi::OsStr;
+use std::fs;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Builder as TarBuilder;
 use tracing::{debug, warn};
@@ -30,6 +34,58 @@ const DEFAULT_BUILD_LOG_BUFFER_SIZE: usize = 20;
 
 /// Default number of error lines to capture separately
 const DEFAULT_ERROR_LOG_BUFFER_SIZE: usize = 10;
+
+const LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH: &str = "packages/opencode";
+// Keep local source excludes aligned with Dockerfile Build Hygiene Rules and
+// the Dockerfile Optimization Checklist in README docs.
+const LOCAL_OPENCODE_EXCLUDED_DIRS: &[&str] = &[
+    ".git",
+    ".planning",
+    "node_modules",
+    "target",
+    "dist",
+    ".turbo",
+    ".cache",
+];
+const LOCAL_OPENCODE_EXCLUDED_FILES: &[&str] = &[".DS_Store"];
+
+#[derive(Debug, Clone, Copy, Default)]
+struct BuildContextOptions {
+    include_local_opencode_submodule: bool,
+}
+
+fn effective_image_tag(tag: &str) -> String {
+    remap_image_tag(tag)
+}
+
+fn profile_scoped_image_ids(images: &[bollard::models::ImageSummary]) -> Option<HashSet<String>> {
+    let names = active_resource_names();
+    let instance_id = names.instance_id.as_deref()?;
+    let expected_tags = [
+        format!("{IMAGE_NAME_GHCR}:{}", names.image_tag),
+        format!("{IMAGE_NAME_DOCKERHUB}:{}", names.image_tag),
+        format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag),
+        format!("{IMAGE_NAME_DOCKERHUB}:{}", names.previous_image_tag),
+    ];
+
+    // In isolated mode, avoid broad "contains name fragment" matching and only remove
+    // image tags associated with the active instance.
+    let mut ids = HashSet::new();
+    for image in images {
+        let tag_match = image
+            .repo_tags
+            .iter()
+            .any(|tag| expected_tags.contains(tag));
+        let label_match = image
+            .labels
+            .get(super::INSTANCE_LABEL_KEY)
+            .is_some_and(|value| value == instance_id);
+        if tag_match || label_match {
+            ids.insert(image.id.clone());
+        }
+    }
+    Some(ids)
+}
 
 /// Read a log buffer size from env with bounds
 fn read_log_buffer_size(var_name: &str, default: usize) -> usize {
@@ -59,6 +115,7 @@ pub async fn image_exists(
     image: &str,
     tag: &str,
 ) -> Result<bool, DockerError> {
+    let tag = effective_image_tag(tag);
     let full_name = format!("{image}:{tag}");
     debug!("Checking if image exists: {}", full_name);
 
@@ -83,7 +140,12 @@ pub async fn remove_images_by_name(
 
     let images = list_docker_images(client).await?;
 
-    let image_ids = collect_image_ids(&images, name_fragment);
+    let image_ids = if name_fragment == CONTAINER_NAME {
+        profile_scoped_image_ids(&images)
+            .unwrap_or_else(|| collect_image_ids(&images, name_fragment))
+    } else {
+        collect_image_ids(&images, name_fragment)
+    };
     remove_image_ids(client, image_ids, force).await
 }
 
@@ -202,13 +264,20 @@ pub async fn build_image(
     no_cache: bool,
     build_args: Option<HashMap<String, String>>,
 ) -> Result<String, DockerError> {
-    let tag = tag.unwrap_or(IMAGE_TAG_DEFAULT);
+    let tag = effective_image_tag(tag.unwrap_or(IMAGE_TAG_DEFAULT));
     let full_name = format!("{IMAGE_NAME_GHCR}:{tag}");
     debug!("Building image: {} (no_cache: {})", full_name, no_cache);
 
+    let build_args = build_args.unwrap_or_default();
+    let include_local_opencode_submodule = build_args
+        .get("OPENCODE_SOURCE")
+        .is_some_and(|value| value.eq_ignore_ascii_case("local"));
+
     // Create tar archive containing Dockerfile
-    let context = create_build_context()
-        .map_err(|e| DockerError::Build(format!("Failed to create build context: {e}")))?;
+    let context = create_build_context(BuildContextOptions {
+        include_local_opencode_submodule,
+    })
+    .map_err(|e| DockerError::Build(format!("Failed to create build context: {e}")))?;
 
     // Set up build options
     // Explicitly use BuildKit builder to support cache mounts (--mount=type=cache)
@@ -220,7 +289,6 @@ pub async fn build_image(
             .unwrap_or_default()
             .as_nanos()
     );
-    let build_args = build_args.unwrap_or_default();
     let options = BuildImageOptions {
         t: Some(full_name.clone()),
         dockerfile: "Dockerfile".to_string(),
@@ -658,17 +726,37 @@ pub async fn pull_image(
     tag: Option<&str>,
     progress: &mut ProgressReporter,
 ) -> Result<String, DockerError> {
-    let tag = tag.unwrap_or(IMAGE_TAG_DEFAULT);
+    let requested_tag = tag.unwrap_or(IMAGE_TAG_DEFAULT);
+    let resolved_tag = effective_image_tag(requested_tag);
+    let isolated_default_tag =
+        requested_tag == IMAGE_TAG_DEFAULT && resolved_tag != IMAGE_TAG_DEFAULT;
+    let registry_pull_tag = if isolated_default_tag {
+        IMAGE_TAG_DEFAULT
+    } else {
+        requested_tag
+    };
 
     // Try GHCR first
-    debug!("Attempting to pull from GHCR: {}:{}", IMAGE_NAME_GHCR, tag);
-    let ghcr_err = match pull_from_registry(client, IMAGE_NAME_GHCR, tag, progress).await {
-        Ok(()) => {
-            let full_name = format!("{IMAGE_NAME_GHCR}:{tag}");
-            return Ok(full_name);
-        }
-        Err(e) => e,
-    };
+    debug!(
+        "Attempting to pull from GHCR: {}:{}",
+        IMAGE_NAME_GHCR, registry_pull_tag
+    );
+    let ghcr_err =
+        match pull_from_registry(client, IMAGE_NAME_GHCR, registry_pull_tag, progress).await {
+            Ok(()) => {
+                if isolated_default_tag {
+                    retag_local_image(
+                        client,
+                        &format!("{IMAGE_NAME_GHCR}:{registry_pull_tag}"),
+                        &resolved_tag,
+                    )
+                    .await?;
+                }
+                let full_name = format!("{IMAGE_NAME_GHCR}:{resolved_tag}");
+                return Ok(full_name);
+            }
+            Err(e) => e,
+        };
 
     warn!(
         "GHCR pull failed: {}. Trying Docker Hub fallback...",
@@ -678,17 +766,47 @@ pub async fn pull_image(
     // Try Docker Hub as fallback
     debug!(
         "Attempting to pull from Docker Hub: {}:{}",
-        IMAGE_NAME_DOCKERHUB, tag
+        IMAGE_NAME_DOCKERHUB, registry_pull_tag
     );
-    match pull_from_registry(client, IMAGE_NAME_DOCKERHUB, tag, progress).await {
+    match pull_from_registry(client, IMAGE_NAME_DOCKERHUB, registry_pull_tag, progress).await {
         Ok(()) => {
-            let full_name = format!("{IMAGE_NAME_DOCKERHUB}:{tag}");
+            if isolated_default_tag {
+                retag_local_image(
+                    client,
+                    &format!("{IMAGE_NAME_DOCKERHUB}:{registry_pull_tag}"),
+                    &resolved_tag,
+                )
+                .await?;
+                return Ok(format!("{IMAGE_NAME_GHCR}:{resolved_tag}"));
+            }
+            let full_name = format!("{IMAGE_NAME_DOCKERHUB}:{resolved_tag}");
             Ok(full_name)
         }
         Err(dockerhub_err) => Err(DockerError::Pull(format!(
             "Failed to pull from both registries. GHCR: {ghcr_err}. Docker Hub: {dockerhub_err}"
         ))),
     }
+}
+
+async fn retag_local_image(
+    client: &DockerClient,
+    source_image: &str,
+    target_tag: &str,
+) -> Result<(), DockerError> {
+    let options = TagImageOptions {
+        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        tag: Some(target_tag.to_string()),
+    };
+    client
+        .inner()
+        .tag_image(source_image, Some(options))
+        .await
+        .map_err(|e| {
+            DockerError::Pull(format!(
+                "Failed to retag pulled image {source_image} as {IMAGE_NAME_GHCR}:{target_tag}: {e}"
+            ))
+        })?;
+    Ok(())
 }
 
 /// Maximum number of retry attempts for pull operations
@@ -878,8 +996,26 @@ fn format_build_error_with_context(
     message
 }
 
-/// Create a gzipped tar archive containing the Dockerfile
-fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
+/// Create a gzipped tar archive containing the Dockerfile.
+fn create_build_context(options: BuildContextOptions) -> Result<Vec<u8>, io::Error> {
+    let repo_root = if options.include_local_opencode_submodule {
+        Some(workspace_root_for_build_context()?)
+    } else {
+        None
+    };
+    create_build_context_with_repo_root(options, repo_root.as_deref())
+}
+
+fn workspace_root_for_build_context() -> Result<PathBuf, io::Error> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+}
+
+fn create_build_context_with_repo_root(
+    options: BuildContextOptions,
+    repo_root: Option<&Path>,
+) -> Result<Vec<u8>, io::Error> {
     let mut archive_buffer = Vec::new();
 
     {
@@ -943,6 +1079,24 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
             include_bytes!("files/bashrc.extra"),
             0o644,
         )?;
+
+        // Dockerfile always references this path with COPY. Keep an empty directory present
+        // even in remote mode so default builds stay lightweight.
+        append_directory(
+            &mut tar,
+            Path::new(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH),
+            0o755,
+        )?;
+        if options.include_local_opencode_submodule {
+            let repo_root = repo_root.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Local opencode build requested but workspace root is unavailable",
+                )
+            })?;
+            append_local_opencode_submodule(&mut tar, repo_root)?;
+        }
+
         tar.finish()?;
 
         // Finish gzip encoding
@@ -953,12 +1107,208 @@ fn create_build_context() -> Result<Vec<u8>, std::io::Error> {
     Ok(archive_buffer)
 }
 
+fn append_local_opencode_submodule<W: Write>(
+    tar: &mut TarBuilder<W>,
+    repo_root: &Path,
+) -> Result<(), io::Error> {
+    let source_root = repo_root.join(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH);
+    if !source_root.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "Local opencode submodule path not found: {}",
+                source_root.display()
+            ),
+        ));
+    }
+    let canonical_source_root = source_root.canonicalize()?;
+
+    append_local_tree_recursive(
+        tar,
+        &source_root,
+        &canonical_source_root,
+        Path::new(""),
+        Path::new(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH),
+    )
+}
+
+fn append_local_tree_recursive<W: Write>(
+    tar: &mut TarBuilder<W>,
+    source_root: &Path,
+    canonical_source_root: &Path,
+    relative_path: &Path,
+    archive_root: &Path,
+) -> Result<(), io::Error> {
+    let current_path = source_root.join(relative_path);
+    let mut entries: Vec<_> =
+        fs::read_dir(&current_path)?.collect::<Result<Vec<_>, io::Error>>()?;
+    entries.sort_by_key(|a| a.file_name());
+
+    for entry in entries {
+        let file_name = entry.file_name();
+        let entry_relative = if relative_path.as_os_str().is_empty() {
+            PathBuf::from(&file_name)
+        } else {
+            relative_path.join(&file_name)
+        };
+
+        if should_exclude_local_opencode_path(&entry_relative) {
+            continue;
+        }
+
+        let entry_path = entry.path();
+        let metadata = fs::symlink_metadata(&entry_path)?;
+        let archive_path = archive_root.join(&entry_relative);
+
+        if metadata.is_dir() {
+            append_directory(tar, &archive_path, mode_from_metadata(&metadata, 0o755))?;
+            append_local_tree_recursive(
+                tar,
+                source_root,
+                canonical_source_root,
+                &entry_relative,
+                archive_root,
+            )?;
+            continue;
+        }
+
+        if metadata.is_file() {
+            append_file_from_disk(
+                tar,
+                &archive_path,
+                &entry_path,
+                mode_from_metadata(&metadata, 0o644),
+            )?;
+            continue;
+        }
+
+        if metadata.file_type().is_symlink() {
+            // Some opencode assets (for example UI fonts) are symlinks. Materialize symlinked files
+            // into the archive when they stay inside the checkout; skip links outside the tree.
+            match resolve_local_symlink_target(&entry_path, canonical_source_root)? {
+                Some(target_path) => {
+                    let target_metadata = fs::metadata(&target_path)?;
+                    if target_metadata.is_file() {
+                        append_file_from_disk(
+                            tar,
+                            &archive_path,
+                            &target_path,
+                            mode_from_metadata(&target_metadata, 0o644),
+                        )?;
+                    } else {
+                        debug!(
+                            "Skipping symlink with non-file target in local opencode context: {} -> {}",
+                            entry_path.display(),
+                            target_path.display()
+                        );
+                    }
+                }
+                None => {
+                    debug!(
+                        "Skipping symlink outside checkout or unresolved in local opencode context: {}",
+                        entry_path.display()
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn resolve_local_symlink_target(
+    link_path: &Path,
+    canonical_source_root: &Path,
+) -> Result<Option<PathBuf>, io::Error> {
+    let link_target = fs::read_link(link_path)?;
+    let resolved = if link_target.is_absolute() {
+        link_target
+    } else {
+        link_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(link_target)
+    };
+
+    // Broken links are ignored in local dev mode instead of failing the entire build context.
+    let canonical_target = match resolved.canonicalize() {
+        Ok(path) => path,
+        Err(_) => return Ok(None),
+    };
+    if canonical_target.starts_with(canonical_source_root) {
+        Ok(Some(canonical_target))
+    } else {
+        Ok(None)
+    }
+}
+
+fn should_exclude_local_opencode_path(relative_path: &Path) -> bool {
+    if relative_path.file_name().is_some_and(|name| {
+        LOCAL_OPENCODE_EXCLUDED_FILES
+            .iter()
+            .any(|candidate| name == OsStr::new(candidate))
+    }) {
+        return true;
+    }
+
+    relative_path.components().any(|component| {
+        let part = component.as_os_str();
+        LOCAL_OPENCODE_EXCLUDED_DIRS
+            .iter()
+            .any(|candidate| part == OsStr::new(candidate))
+    })
+}
+
+#[cfg(unix)]
+fn mode_from_metadata(metadata: &fs::Metadata, fallback: u32) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = metadata.permissions().mode() & 0o7777;
+    if mode == 0 { fallback } else { mode }
+}
+
+#[cfg(not(unix))]
+fn mode_from_metadata(_metadata: &fs::Metadata, fallback: u32) -> u32 {
+    fallback
+}
+
+fn append_directory<W: Write>(
+    tar: &mut TarBuilder<W>,
+    path: &Path,
+    mode: u32,
+) -> Result<(), io::Error> {
+    let mut header = tar::Header::new_gnu();
+    header.set_size(0);
+    header.set_mode(mode);
+    header.set_entry_type(tar::EntryType::Directory);
+    // Use append_data path handling so GNU long-name extensions are emitted when needed.
+    // Direct set_path() is brittle for deep/long local dev paths.
+    tar.append_data(&mut header, path, io::empty())?;
+    Ok(())
+}
+
+fn append_file_from_disk<W: Write>(
+    tar: &mut TarBuilder<W>,
+    archive_path: &Path,
+    source_path: &Path,
+    mode: u32,
+) -> Result<(), io::Error> {
+    let mut file = fs::File::open(source_path)?;
+    let metadata = file.metadata()?;
+    let mut header = tar::Header::new_gnu();
+    header.set_size(metadata.len());
+    header.set_mode(mode);
+    // Use append_data path handling so GNU long-name extensions are emitted when needed.
+    // Direct set_path() is brittle for deep/long local dev paths.
+    tar.append_data(&mut header, archive_path, &mut file)?;
+    Ok(())
+}
+
 fn append_bytes<W: Write>(
     tar: &mut TarBuilder<W>,
     path: &str,
     contents: &[u8],
     mode: u32,
-) -> Result<(), std::io::Error> {
+) -> Result<(), io::Error> {
     let mut header = tar::Header::new_gnu();
     header.set_path(path)?;
     header.set_size(contents.len() as u64);
@@ -974,9 +1324,11 @@ mod tests {
     use super::*;
     use bollard::models::ImageSummary;
     use flate2::read::GzDecoder;
-    use std::collections::HashMap;
-    use std::io::Cursor;
+    use std::collections::{HashMap, HashSet};
+    use std::fs;
+    use std::io::{Cursor, Read};
     use tar::Archive;
+    use tempfile::tempdir;
 
     fn make_image_summary(
         id: &str,
@@ -1002,9 +1354,41 @@ mod tests {
         }
     }
 
+    fn archive_entries(context: Vec<u8>) -> HashSet<String> {
+        let cursor = Cursor::new(context);
+        let decoder = GzDecoder::new(cursor);
+        let mut archive = Archive::new(decoder);
+        let mut paths = HashSet::new();
+        for entry in archive.entries().expect("should read archive entries") {
+            let entry = entry.expect("should read entry");
+            let path = entry.path().expect("should read entry path");
+            paths.insert(path.to_string_lossy().to_string());
+        }
+        paths
+    }
+
+    fn archive_entry_bytes(context: Vec<u8>, wanted_path: &str) -> Option<Vec<u8>> {
+        let cursor = Cursor::new(context);
+        let decoder = GzDecoder::new(cursor);
+        let mut archive = Archive::new(decoder);
+        for entry in archive.entries().expect("should read archive entries") {
+            let mut entry = entry.expect("should read entry");
+            let path = entry.path().expect("should read entry path");
+            if path == Path::new(wanted_path) {
+                let mut bytes = Vec::new();
+                entry
+                    .read_to_end(&mut bytes)
+                    .expect("should read entry bytes");
+                return Some(bytes);
+            }
+        }
+        None
+    }
+
     #[test]
     fn create_build_context_succeeds() {
-        let context = create_build_context().expect("should create context");
+        let context =
+            create_build_context(BuildContextOptions::default()).expect("should create context");
         assert!(!context.is_empty(), "context should not be empty");
 
         // Verify it's gzip-compressed (gzip magic bytes)
@@ -1014,7 +1398,8 @@ mod tests {
 
     #[test]
     fn build_context_includes_docker_assets() {
-        let context = create_build_context().expect("should create context");
+        let context =
+            create_build_context(BuildContextOptions::default()).expect("should create context");
         let cursor = Cursor::new(context);
         let decoder = GzDecoder::new(cursor);
         let mut archive = Archive::new(decoder);
@@ -1055,6 +1440,182 @@ mod tests {
             found_bootstrap_helper,
             "bootstrap helper asset should be in the build context"
         );
+    }
+
+    #[test]
+    fn build_context_includes_opencode_placeholder_in_default_mode() {
+        let context =
+            create_build_context(BuildContextOptions::default()).expect("should create context");
+        let entries = archive_entries(context);
+        assert!(
+            entries
+                .iter()
+                .any(|path| path.trim_end_matches('/') == "packages/opencode"),
+            "default mode should include an empty packages/opencode placeholder"
+        );
+    }
+
+    #[test]
+    fn build_context_local_mode_includes_submodule_and_excludes_heavy_paths() {
+        let temp = tempdir().expect("should create tempdir");
+        let repo_root = temp.path();
+
+        let submodule_root = repo_root.join(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH);
+        fs::create_dir_all(submodule_root.join("src")).expect("should create src");
+        fs::create_dir_all(submodule_root.join(".git")).expect("should create .git");
+        fs::create_dir_all(submodule_root.join("node_modules/pkg"))
+            .expect("should create node_modules");
+        fs::create_dir_all(submodule_root.join("target/release")).expect("should create target");
+        fs::create_dir_all(submodule_root.join("dist")).expect("should create dist");
+        fs::create_dir_all(submodule_root.join(".turbo")).expect("should create .turbo");
+        fs::create_dir_all(submodule_root.join(".cache")).expect("should create .cache");
+        fs::create_dir_all(submodule_root.join(".planning/phases/very-long-planning-phase-name"))
+            .expect("should create planning");
+
+        fs::write(submodule_root.join("package.json"), "{}").expect("should write package.json");
+        fs::write(submodule_root.join("src/main.ts"), "console.log('ok');")
+            .expect("should write source");
+        fs::write(submodule_root.join(".git/config"), "dirty").expect("should write .git file");
+        fs::write(submodule_root.join("node_modules/pkg/index.js"), "ignored")
+            .expect("should write node_modules file");
+        fs::write(submodule_root.join("target/release/app"), "ignored")
+            .expect("should write target file");
+        fs::write(submodule_root.join("dist/ui.js"), "ignored").expect("should write dist file");
+        fs::write(submodule_root.join(".turbo/state.json"), "ignored")
+            .expect("should write turbo file");
+        fs::write(submodule_root.join(".cache/cache.bin"), "ignored")
+            .expect("should write cache file");
+        fs::write(
+            submodule_root.join(".planning/phases/very-long-planning-phase-name/phase.md"),
+            "ignored",
+        )
+        .expect("should write planning file");
+        fs::write(submodule_root.join(".DS_Store"), "ignored").expect("should write ds_store");
+
+        let context = create_build_context_with_repo_root(
+            BuildContextOptions {
+                include_local_opencode_submodule: true,
+            },
+            Some(repo_root),
+        )
+        .expect("should create local context");
+        let entries = archive_entries(context);
+
+        assert!(
+            entries.contains("packages/opencode/package.json"),
+            "local mode should include submodule files"
+        );
+        assert!(
+            entries.contains("packages/opencode/src/main.ts"),
+            "local mode should include source files"
+        );
+        assert!(
+            !entries.contains("packages/opencode/.git/config"),
+            "local mode should exclude .git"
+        );
+        assert!(
+            !entries.contains("packages/opencode/node_modules/pkg/index.js"),
+            "local mode should exclude node_modules"
+        );
+        assert!(
+            !entries.contains("packages/opencode/target/release/app"),
+            "local mode should exclude target"
+        );
+        assert!(
+            !entries.contains("packages/opencode/dist/ui.js"),
+            "local mode should exclude dist"
+        );
+        assert!(
+            !entries.contains("packages/opencode/.turbo/state.json"),
+            "local mode should exclude .turbo"
+        );
+        assert!(
+            !entries.contains("packages/opencode/.cache/cache.bin"),
+            "local mode should exclude .cache"
+        );
+        assert!(
+            !entries.contains(
+                "packages/opencode/.planning/phases/very-long-planning-phase-name/phase.md"
+            ),
+            "local mode should exclude .planning"
+        );
+        assert!(
+            !entries.contains("packages/opencode/.DS_Store"),
+            "local mode should exclude .DS_Store files"
+        );
+    }
+
+    #[test]
+    fn build_context_local_mode_supports_long_non_excluded_paths() {
+        let temp = tempdir().expect("should create tempdir");
+        let repo_root = temp.path();
+        let submodule_root = repo_root.join(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH);
+
+        fs::create_dir_all(&submodule_root).expect("should create submodule root");
+        fs::write(submodule_root.join("package.json"), "{}").expect("should write package.json");
+
+        let long_segment = "a".repeat(140);
+        let long_dir = submodule_root.join("src").join(&long_segment);
+        fs::create_dir_all(&long_dir).expect("should create long path directory");
+        fs::write(long_dir.join("main.ts"), "console.log('long path');")
+            .expect("should write long path file");
+
+        let context = create_build_context_with_repo_root(
+            BuildContextOptions {
+                include_local_opencode_submodule: true,
+            },
+            Some(repo_root),
+        )
+        .expect("should create local context with long paths");
+        let entries = archive_entries(context);
+        let long_entry = format!("packages/opencode/src/{long_segment}/main.ts");
+        assert!(
+            entries.contains(&long_entry),
+            "long non-excluded path should be archived via GNU long-name handling"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn build_context_local_mode_materializes_symlinked_files() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().expect("should create tempdir");
+        let repo_root = temp.path();
+        let submodule_root = repo_root.join(LOCAL_OPENCODE_SUBMODULE_RELATIVE_PATH);
+        let fonts_dir = submodule_root.join("packages/ui/src/assets/fonts");
+        fs::create_dir_all(&fonts_dir).expect("should create fonts dir");
+        fs::write(submodule_root.join("package.json"), "{}").expect("should write package.json");
+        fs::write(
+            fonts_dir.join("BlexMonoNerdFontMono-Regular.woff2"),
+            b"font-bytes",
+        )
+        .expect("should write target font");
+        symlink(
+            "BlexMonoNerdFontMono-Regular.woff2",
+            fonts_dir.join("ibm-plex-mono.woff2"),
+        )
+        .expect("should create symlinked font");
+
+        let context = create_build_context_with_repo_root(
+            BuildContextOptions {
+                include_local_opencode_submodule: true,
+            },
+            Some(repo_root),
+        )
+        .expect("should create local context with symlink");
+        let entries = archive_entries(context.clone());
+
+        assert!(
+            entries.contains("packages/opencode/packages/ui/src/assets/fonts/ibm-plex-mono.woff2"),
+            "local mode should include symlinked asset paths"
+        );
+        let alias_bytes = archive_entry_bytes(
+            context,
+            "packages/opencode/packages/ui/src/assets/fonts/ibm-plex-mono.woff2",
+        )
+        .expect("symlinked asset should contain bytes");
+        assert_eq!(alias_bytes, b"font-bytes");
     }
 
     #[test]

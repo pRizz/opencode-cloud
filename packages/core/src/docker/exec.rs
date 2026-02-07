@@ -8,6 +8,7 @@ use bollard::exec::{CreateExecOptions, StartExecOptions, StartExecResults};
 use futures_util::StreamExt;
 use tokio::io::AsyncWriteExt;
 
+use super::profile::remap_container_name;
 use super::{DockerClient, DockerError};
 
 /// Execute a command in a running container and capture output
@@ -29,6 +30,7 @@ pub async fn exec_command(
     container: &str,
     cmd: Vec<&str>,
 ) -> Result<String, DockerError> {
+    let container = remap_container_name(container);
     let exec_config = CreateExecOptions {
         attach_stdout: Some(true),
         attach_stderr: Some(true),
@@ -39,7 +41,7 @@ pub async fn exec_command(
 
     let exec = client
         .inner()
-        .create_exec(container, exec_config)
+        .create_exec(&container, exec_config)
         .await
         .map_err(|e| DockerError::Container(format!("Failed to create exec: {e}")))?;
 
@@ -90,6 +92,7 @@ pub async fn exec_command_with_status(
     container: &str,
     cmd: Vec<&str>,
 ) -> Result<(String, i64), DockerError> {
+    let container = remap_container_name(container);
     let exec_config = CreateExecOptions {
         attach_stdout: Some(true),
         attach_stderr: Some(true),
@@ -100,7 +103,7 @@ pub async fn exec_command_with_status(
 
     let exec = client
         .inner()
-        .create_exec(container, exec_config)
+        .create_exec(&container, exec_config)
         .await
         .map_err(|e| DockerError::Container(format!("Failed to create exec: {e}")))?;
 
@@ -185,6 +188,7 @@ pub async fn exec_command_with_stdin(
     cmd: Vec<&str>,
     stdin_data: &str,
 ) -> Result<String, DockerError> {
+    let container = remap_container_name(container);
     let exec_config = CreateExecOptions {
         attach_stdin: Some(true),
         attach_stdout: Some(true),
@@ -196,7 +200,7 @@ pub async fn exec_command_with_stdin(
 
     let exec = client
         .inner()
-        .create_exec(container, exec_config)
+        .create_exec(&container, exec_config)
         .await
         .map_err(|e| DockerError::Container(format!("Failed to create exec: {e}")))?;
 
@@ -274,6 +278,7 @@ pub async fn exec_command_exit_code(
     container: &str,
     cmd: Vec<&str>,
 ) -> Result<i64, DockerError> {
+    let container = remap_container_name(container);
     let exec_config = CreateExecOptions {
         attach_stdout: Some(true),
         attach_stderr: Some(true),
@@ -284,7 +289,7 @@ pub async fn exec_command_exit_code(
 
     let exec = client
         .inner()
-        .create_exec(container, exec_config)
+        .create_exec(&container, exec_config)
         .await
         .map_err(|e| DockerError::Container(format!("Failed to create exec: {e}")))?;
 

@@ -7,6 +7,7 @@ mod commands;
 mod constants;
 mod output;
 mod passwords;
+mod sandbox_profile;
 pub mod wizard;
 
 use anyhow::{Result, anyhow};
@@ -52,6 +53,10 @@ struct Cli {
     /// Runtime mode (auto-detect container vs host)
     #[arg(long, global = true, value_enum)]
     runtime: Option<RuntimeChoice>,
+
+    /// Optional sandbox instance profile for worktree-isolated resources
+    #[arg(long, global = true, value_name = "NAME|auto")]
+    sandbox_instance: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -271,6 +276,19 @@ pub fn run() -> Result<()> {
     // Configure color output
     if cli.no_color {
         console::set_colors_enabled(false);
+    }
+
+    let sandbox_profile =
+        sandbox_profile::resolve_sandbox_profile(cli.sandbox_instance.as_deref())?;
+    sandbox_profile::apply_active_profile_env(&sandbox_profile);
+    if cli.verbose > 0
+        && let Some(instance) = sandbox_profile.instance_id.as_deref()
+    {
+        eprintln!(
+            "{} Using sandbox instance profile: {}",
+            style("[info]").cyan(),
+            style(instance).cyan()
+        );
     }
 
     eprintln!(
@@ -527,6 +545,7 @@ async fn handle_no_command(target_host: Option<&str>, quiet: bool, verbose: u8) 
             pull_sandbox_image: false,
             cached_rebuild_sandbox_image: false,
             full_rebuild_sandbox_image: false,
+            local_opencode_submodule: false,
             ignore_version: false,
             no_update_check: false,
             mounts: Vec::new(),

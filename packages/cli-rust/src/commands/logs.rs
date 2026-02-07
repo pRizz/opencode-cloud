@@ -11,7 +11,7 @@ use opencode_cloud_core::bollard::container::LogOutput;
 use opencode_cloud_core::bollard::exec::{CreateExecOptions, StartExecOptions, StartExecResults};
 use opencode_cloud_core::bollard::query_parameters::LogsOptions;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, container_is_running, exec_command_exit_code,
+    DockerClient, active_resource_names, container_is_running, exec_command_exit_code,
 };
 
 /// Arguments for the logs command
@@ -38,6 +38,10 @@ pub struct LogsArgs {
     pub broker: bool,
 }
 
+fn active_container_name() -> String {
+    active_resource_names().container_name
+}
+
 /// Stream logs from the opencode container
 ///
 /// By default, shows the last 50 lines and follows new output.
@@ -46,6 +50,7 @@ pub struct LogsArgs {
 ///
 /// In quiet mode, outputs raw lines without status messages or colors.
 pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) -> Result<()> {
+    let container_name = active_container_name();
     // Resolve Docker client (local or remote)
     let (client, host_name) = crate::resolve_docker_client(maybe_host).await?;
 
@@ -62,7 +67,10 @@ pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) ->
         .map_err(|e| format_docker_error_anyhow(&e))?;
 
     // Check if container exists
-    let inspect_result = client.inner().inspect_container(CONTAINER_NAME, None).await;
+    let inspect_result = client
+        .inner()
+        .inspect_container(&container_name, None)
+        .await;
 
     match inspect_result {
         Err(opencode_cloud_core::bollard::errors::Error::DockerResponseServerError {
@@ -112,7 +120,7 @@ pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) ->
     };
 
     // Get log stream
-    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+    let mut stream = client.inner().logs(&container_name, Some(options));
 
     // Process log stream
     while let Some(result) = stream.next().await {
@@ -125,7 +133,7 @@ pub async fn cmd_logs(args: &LogsArgs, maybe_host: Option<&str>, quiet: bool) ->
             Err(_) => {
                 // Stream error - check if container stopped
                 if follow
-                    && !container_is_running(&client, CONTAINER_NAME)
+                    && !container_is_running(&client, &container_name)
                         .await
                         .unwrap_or(false)
                     && !quiet
@@ -166,9 +174,10 @@ async fn stream_broker_logs(
 }
 
 async fn ensure_systemd_available(client: &DockerClient) -> Result<bool> {
+    let container_name = active_container_name();
     let systemd_available = exec_command_exit_code(
         client,
-        CONTAINER_NAME,
+        &container_name,
         vec!["test", "-d", "/run/systemd/system"],
     )
     .await
@@ -215,6 +224,7 @@ fn build_broker_journalctl_command(args: &LogsArgs) -> Result<Vec<String>> {
 }
 
 async fn create_broker_exec(client: &DockerClient, cmd: Vec<String>) -> Result<String> {
+    let container_name = active_container_name();
     let exec_config = CreateExecOptions {
         attach_stdout: Some(true),
         attach_stderr: Some(true),
@@ -225,7 +235,7 @@ async fn create_broker_exec(client: &DockerClient, cmd: Vec<String>) -> Result<S
 
     let exec = client
         .inner()
-        .create_exec(CONTAINER_NAME, exec_config)
+        .create_exec(&container_name, exec_config)
         .await
         .map_err(|e| anyhow!("Failed to create exec for broker logs: {e}"))?;
 
@@ -239,6 +249,7 @@ async fn stream_broker_exec_output(
     line_prefix: Option<&str>,
     quiet: bool,
 ) -> Result<()> {
+    let container_name = active_container_name();
     let start_config = StartExecOptions {
         detach: false,
         ..Default::default()
@@ -262,7 +273,7 @@ async fn stream_broker_exec_output(
                     }
                     Err(_) => {
                         if !args.no_follow
-                            && !container_is_running(client, CONTAINER_NAME)
+                            && !container_is_running(client, &container_name)
                                 .await
                                 .unwrap_or(false)
                             && !quiet
@@ -291,6 +302,7 @@ async fn stream_broker_logs_from_container(
     line_prefix: Option<&str>,
     quiet: bool,
 ) -> Result<()> {
+    let container_name = active_container_name();
     let follow = !args.no_follow;
     let options = LogsOptions {
         stdout: true,
@@ -301,7 +313,7 @@ async fn stream_broker_logs_from_container(
         ..Default::default()
     };
 
-    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+    let mut stream = client.inner().logs(&container_name, Some(options));
 
     while let Some(result) = stream.next().await {
         match result {
@@ -315,7 +327,7 @@ async fn stream_broker_logs_from_container(
             }
             Err(_) => {
                 if follow
-                    && !container_is_running(client, CONTAINER_NAME)
+                    && !container_is_running(client, &container_name)
                         .await
                         .unwrap_or(false)
                     && !quiet

@@ -4,6 +4,7 @@
 //! version and rollback to a previous version if needed.
 
 use super::image::{image_exists, pull_image};
+use super::profile::active_resource_names;
 use super::progress::ProgressReporter;
 use super::{DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 use bollard::query_parameters::TagImageOptions;
@@ -29,8 +30,9 @@ pub enum UpdateResult {
 /// # Arguments
 /// * `client` - Docker client
 pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), DockerError> {
-    let current_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
-    let previous_image = format!("{IMAGE_NAME_GHCR}:{PREVIOUS_TAG}");
+    let names = active_resource_names();
+    let current_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
+    let previous_image = format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag);
 
     debug!(
         "Tagging current image {} as {}",
@@ -38,7 +40,7 @@ pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), Docker
     );
 
     // Check if current image exists
-    if !image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await? {
+    if !image_exists(client, IMAGE_NAME_GHCR, &names.image_tag).await? {
         debug!("Current image not found, skipping backup tag");
         return Ok(());
     }
@@ -46,7 +48,7 @@ pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), Docker
     // Tag current as previous
     let options = TagImageOptions {
         repo: Some(IMAGE_NAME_GHCR.to_string()),
-        tag: Some(PREVIOUS_TAG.to_string()),
+        tag: Some(names.previous_image_tag),
     };
 
     client
@@ -68,7 +70,8 @@ pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), Docker
 /// # Arguments
 /// * `client` - Docker client
 pub async fn has_previous_image(client: &DockerClient) -> Result<bool, DockerError> {
-    image_exists(client, IMAGE_NAME_GHCR, PREVIOUS_TAG).await
+    let names = active_resource_names();
+    image_exists(client, IMAGE_NAME_GHCR, &names.previous_image_tag).await
 }
 
 /// Update the opencode image to the latest version
@@ -117,15 +120,16 @@ pub async fn rollback_image(client: &DockerClient) -> Result<(), DockerError> {
         ));
     }
 
-    let previous_image = format!("{IMAGE_NAME_GHCR}:{PREVIOUS_TAG}");
-    let current_image = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let names = active_resource_names();
+    let previous_image = format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag);
+    let current_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
 
     debug!("Rolling back from {} to {}", current_image, previous_image);
 
     // Re-tag previous as latest
     let options = TagImageOptions {
         repo: Some(IMAGE_NAME_GHCR.to_string()),
-        tag: Some(IMAGE_TAG_DEFAULT.to_string()),
+        tag: Some(names.image_tag),
     };
 
     client

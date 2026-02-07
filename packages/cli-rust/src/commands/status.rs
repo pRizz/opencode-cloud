@@ -25,8 +25,8 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE,
-    OPENCODE_WEB_PORT, ParsedMount, get_cli_version, get_image_version, load_state,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, OPENCODE_WEB_PORT,
+    ParsedMount, active_resource_names, get_cli_version, get_image_version, load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::collections::HashMap;
@@ -60,6 +60,8 @@ pub async fn cmd_status(
     quiet: bool,
     _verbose: u8,
 ) -> Result<()> {
+    let resources = active_resource_names();
+
     // Resolve Docker client (local or remote)
     let (client, host_name) = crate::resolve_docker_client(maybe_host).await?;
 
@@ -79,7 +81,10 @@ pub async fn cmd_status(
     }
 
     // Check if container exists
-    let inspect_result = client.inner().inspect_container(CONTAINER_NAME, None).await;
+    let inspect_result = client
+        .inner()
+        .inspect_container(&resources.container_name, None)
+        .await;
 
     let info = match inspect_result {
         Ok(info) => info,
@@ -215,9 +220,12 @@ pub async fn cmd_status(
         "{}",
         format_kv(
             "Container:",
-            format!("{} {}", CONTAINER_NAME, style(container_id).dim())
+            format!("{} {}", resources.container_name, style(container_id).dim())
         )
     );
+    if let Some(instance_id) = resources.instance_id.as_deref() {
+        println!("{}", format_kv("Instance:", instance_id));
+    }
     println!("{}", format_kv("Image:", &image));
 
     // Show CLI and image versions

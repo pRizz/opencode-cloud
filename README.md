@@ -431,6 +431,43 @@ occ start --full-rebuild-sandbox-image
 - When the container fails to start due to image issues → try `--cached-rebuild-sandbox-image` first, then `--full-rebuild-sandbox-image`
 - When you want a completely fresh environment → use `--full-rebuild-sandbox-image`
 
+**Local submodule dev rebuild (no push required):**
+```bash
+# Fast rebuild using local packages/opencode checkout (including uncommitted edits)
+just run start --cached-rebuild-sandbox-image --local-opencode-submodule
+
+# Full no-cache rebuild from local packages/opencode checkout
+just run start --full-rebuild-sandbox-image --local-opencode-submodule
+```
+- This mode is for local development/debugging only and bypasses the default remote clone path.
+- `just run status` will show commit metadata derived from your local checkout (dirty trees are marked with `-dirty`).
+- Local context packaging intentionally skips heavyweight/dev metadata folders (for example `.planning`, `.git`, `node_modules`, `target`, and `dist`).
+- Keep CI/release workflows on the default pinned remote mode.
+
+### Dockerfile Optimization Checklist
+
+For new Docker build steps, follow this checklist:
+- Prefer BuildKit cache mounts (`RUN --mount=type=cache`) for package caches (`apt`, `bun`, `cargo`, `pip`, and `pnpm/npm`).
+- Create and remove temporary workdirs in the same `RUN` layer (for example `/tmp/opencode-repo`).
+- Do not defer cleanup to later layers; deleted files still exist in lower layers.
+- Keep builder-stage artifacts out of runtime layers by copying only final outputs.
+- When adding Docker build assets, update build-context inclusion logic in `packages/core/src/docker/image.rs`.
+- Keep local submodule exclude lists aligned with Dockerfile hygiene rules (`.planning`, `.git`, `node_modules`, `target`, `dist`, and similar dev metadata).
+
+This policy is intentional for both image-size hygiene and fast local rebuilds.
+
+**Worktree-isolated sandbox profiles (opt-in):**
+```bash
+# Derive a stable instance name from the current git worktree root
+just run --sandbox-instance auto start --cached-rebuild-sandbox-image
+
+# Use an explicit instance name
+just run --sandbox-instance mytree start --cached-rebuild-sandbox-image
+```
+- Default behavior (no `--sandbox-instance`) remains the shared legacy sandbox.
+- Isolated instances use separate container names, image tags, Docker volumes, and image-state files.
+- You can also set `OPENCODE_SANDBOX_INSTANCE=<name|auto>` instead of passing the CLI flag every time.
+
 ## Configuration
 
 Configuration is stored at:

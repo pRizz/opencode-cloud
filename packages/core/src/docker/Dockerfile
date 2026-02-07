@@ -7,6 +7,19 @@
 # When adding files, also update `packages/core/src/docker/image.rs`
 # (`create_build_context`) so CLI-driven Docker builds include them.
 #
+# Build Hygiene Rules:
+# - Prefer `RUN --mount=type=cache` for package caches (`apt`, `bun`, `cargo`,
+#   `pip`, and `pnpm/npm`) when BuildKit is available.
+# - Remove temp workdirs in the same layer where they are created (for example
+#   `/tmp/opencode-repo`) so transient artifacts do not persist in image layers.
+# - Do not rely on cleanup in later layers; deleted files still exist in lower
+#   layers and continue to bloat the final image history.
+# - Keep builder-stage artifacts out of runtime by copying only final outputs.
+# - When adding Docker build assets, update build-context inclusion logic in
+#   `packages/core/src/docker/image.rs`.
+# - When expanding local submodule packaging, keep dev-metadata excludes aligned
+#   (`.planning`, `.git`, `node_modules`, `target`, etc.).
+#
 # A comprehensive development environment for AI-assisted coding with opencode.
 #
 # Features:
@@ -491,24 +504,63 @@ USER opencoder
 # -----------------------------------------------------------------------------
 # opencode Installation (Fork from pRizz/opencode)
 # -----------------------------------------------------------------------------
+# Source selection:
+# - remote (default): reproducible pinned build from GitHub
+# - local: dev-only override that uses packages/opencode from the build context
+ARG OPENCODE_SOURCE=remote
+ARG OPENCODE_COMMIT
+ARG OPENCODE_LOCAL_REF
+
+# The custom build-context generator always adds packages/opencode. In remote mode
+# this is just a tiny placeholder; in local dev mode it contains the full submodule.
+COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
+
 # Clone the fork and build opencode from source (as non-root user)
 # Pin to specific commit for reproducibility
 # NOTE: OPENCODE_COMMIT is not tied to releases/tags; it tracks the latest stable
 # commit on the dev branch of https://github.com/pRizz/opencode.
 # Update it by running: ./scripts/update-opencode-commit.sh
-# Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="6c54a68a4da62c40251eb80c3ab0da2d2556a53e" \
+# Build hygiene for this block:
+# - `/tmp/opencode-repo` and `/tmp/opencode-local` are transient and must be
+#   removed in this same RUN layer.
+# - Prefer BuildKit cache mounts for bun/cargo cache paths if this block is
+#   expanded; avoid persisting package caches in committed layers.
+# - Keep explicit cleanup as a defensive fallback even when cache mounts are used.
+RUN OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
+    && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
+    && OPENCODE_COMMIT="6c54a68a4da62c40251eb80c3ab0da2d2556a53e" \
+    && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
     && rm -rf /tmp/opencode-repo \
-    && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
+    && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
+        if [ ! -f /tmp/opencode-local/package.json ]; then \
+            echo "Local opencode source requested but packages/opencode was not included in build context."; \
+            exit 1; \
+        fi; \
+        mkdir -p /tmp/opencode-repo; \
+        cp -R /tmp/opencode-local/. /tmp/opencode-repo; \
+      else \
+        git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo; \
+        cd /tmp/opencode-repo; \
+        git fetch --depth 1 origin "${OPENCODE_COMMIT}"; \
+        git checkout "${OPENCODE_COMMIT}"; \
+      fi \
     && cd /tmp/opencode-repo \
-    && git fetch --depth 1 origin "${OPENCODE_COMMIT}" \
-    && git checkout "${OPENCODE_COMMIT}" \
     && bun install --frozen-lockfile \
     && cd packages/opencode \
-    && bun run build-single-ui \
+    && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
+        # Local mode omits .git from context for performance and safety, so set
+        # channel metadata explicitly instead of relying on git branch detection.
+        OPENCODE_CHANNEL=local bun run build-single-ui; \
+      else \
+        bun run build-single-ui; \
+      fi \
     && cd /tmp/opencode-repo \
     && sudo mkdir -p /opt/opencode/bin /opt/opencode/ui \
-    && echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null \
+    && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
+        echo "${OPENCODE_LOCAL_REF}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
+      else \
+        echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
+      fi \
     && sudo chown opencoder:opencoder /opt/opencode/COMMIT \
     && sudo cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode \
     && sudo cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/ \
@@ -519,7 +571,7 @@ RUN OPENCODE_COMMIT="6c54a68a4da62c40251eb80c3ab0da2d2556a53e" \
     && sudo mkdir -p /usr/local/bin \
     && sudo cp target/release/opencode-broker /usr/local/bin/opencode-broker \
     && sudo chmod 4755 /usr/local/bin/opencode-broker \
-    && rm -rf /tmp/opencode-repo \
+    && rm -rf /tmp/opencode-repo /tmp/opencode-local \
     && rm -rf /home/opencoder/.bun/install/cache /home/opencoder/.bun/cache /home/opencoder/.cache/bun
 
 # -----------------------------------------------------------------------------

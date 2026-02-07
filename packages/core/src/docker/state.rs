@@ -7,6 +7,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use super::profile::{DockerResourceNames, active_resource_names};
+
 /// Image provenance state
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageState {
@@ -45,7 +47,12 @@ impl ImageState {
 
 /// Get the path to the image state file
 pub fn get_state_path() -> Option<PathBuf> {
-    crate::config::paths::get_data_dir().map(|p| p.join("image-state.json"))
+    let names = active_resource_names();
+    get_state_path_for_names(&names)
+}
+
+pub fn get_state_path_for_names(names: &DockerResourceNames) -> Option<PathBuf> {
+    crate::config::paths::get_data_dir().map(|p| p.join(&names.image_state_file))
 }
 
 /// Save image state to disk

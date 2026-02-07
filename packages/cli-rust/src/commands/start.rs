@@ -23,13 +23,16 @@ use opencode_cloud_core::bollard::container::LogOutput;
 use opencode_cloud_core::bollard::query_parameters::LogsOptions;
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DockerClient, DockerError, IMAGE_NAME_GHCR,
-    IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter, build_image, container_exists,
-    container_is_running, docker_supports_systemd, get_cli_version, get_container_bind_mounts,
-    get_container_ports, get_image_version, image_exists, pull_image, save_state, setup_and_start,
-    versions_compatible,
+    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DOCKERFILE, DockerClient, DockerError,
+    IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter,
+    active_resource_names, build_image, container_exists, container_is_running,
+    docker_supports_systemd, get_cli_version, get_container_bind_mounts, get_container_ports,
+    get_image_version, image_exists, pull_image, save_state, setup_and_start, versions_compatible,
 };
+use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use super::update_signal::run_update_command_listener;
@@ -61,6 +64,10 @@ pub struct StartArgs {
     /// Rebuild Docker image from scratch without cache (slow, 30-60 min)
     #[arg(long)]
     pub full_rebuild_sandbox_image: bool,
+
+    /// Build sandbox image from local packages/opencode checkout (dev mode)
+    #[arg(long)]
+    pub local_opencode_submodule: bool,
 
     /// Skip version compatibility check between CLI and Docker image
     #[arg(long)]
@@ -96,10 +103,11 @@ async fn check_mount_mismatch(
     }
 
     if quiet {
+        let container_name = active_container_name();
         return Err(anyhow!(
             "Mount configuration changed. Container must be recreated to apply mount changes.\n\
              Run without --quiet to be prompted, or manually remove with:\n  \
-             occ stop && docker rm {CONTAINER_NAME}"
+             occ stop && docker rm {container_name}"
         ));
     }
 
@@ -111,9 +119,10 @@ async fn check_mount_mismatch(
         .interact()?;
 
     if !confirm {
+        let container_name = active_container_name();
         return Err(anyhow!(
             "Container not recreated. To apply mount changes, run:\n  \
-             occ stop && docker rm {CONTAINER_NAME} && occ start"
+             occ stop && docker rm {container_name} && occ start"
         ));
     }
 
@@ -251,7 +260,7 @@ async fn check_version_compatibility(
     }
 
     let cli_version = get_cli_version();
-    let image_tag = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let image_tag = format!("{IMAGE_NAME_GHCR}:{}", active_resource_names().image_tag);
 
     let Ok(Some(image_version)) = get_image_version(client, &image_tag).await else {
         return Ok(VersionMismatchAction::Continue);
@@ -330,11 +339,12 @@ async fn check_port_mismatch(
     }
 
     if quiet {
+        let container_name = active_container_name();
         return Err(anyhow!(
             "Port mismatch: container uses port {current_opencode_port} but requested port {port}.\n\
              Container must be recreated to change ports.\n\
              Run without --quiet to be prompted, or manually remove with:\n  \
-             occ stop && docker rm {CONTAINER_NAME}"
+             occ stop && docker rm {container_name}"
         ));
     }
 
@@ -364,9 +374,10 @@ async fn check_port_mismatch(
         .interact()?;
 
     if !confirm {
+        let container_name = active_container_name();
         return Err(anyhow!(
             "Container not recreated. To use port {port}, run:\n  \
-             occ stop && docker rm {CONTAINER_NAME} && occ start --port {port}"
+             occ stop && docker rm {container_name} && occ start --port {port}"
         ));
     }
 
@@ -421,9 +432,10 @@ async fn check_init_mismatch(
     systemd_enabled: bool,
     quiet: bool,
 ) -> Result<Option<bool>> {
+    let container_name = active_container_name();
     let info = client
         .inner()
-        .inspect_container(CONTAINER_NAME, None)
+        .inspect_container(&container_name, None)
         .await
         .map_err(|e| anyhow!("Failed to inspect container: {e}"))?;
 
@@ -501,9 +513,17 @@ async fn acquire_image(
     full_rebuild: bool,
     quiet: bool,
     verbose: u8,
+    local_opencode_submodule: bool,
 ) -> Result<()> {
     if !use_prebuilt {
-        build_docker_image(client, full_rebuild, verbose).await?;
+        build_docker_image(
+            client,
+            full_rebuild,
+            quiet,
+            verbose,
+            local_opencode_submodule,
+        )
+        .await?;
         save_state(&ImageState::built(get_cli_version())).ok();
         return Ok(());
     }
@@ -514,7 +534,7 @@ async fn acquire_image(
             save_state(&ImageState::prebuilt(get_cli_version(), &registry)).ok();
             Ok(())
         }
-        Err(e) => handle_pull_failure(client, e, quiet, verbose).await,
+        Err(e) => handle_pull_failure(client, e, quiet, verbose, local_opencode_submodule).await,
     }
 }
 
@@ -524,6 +544,7 @@ async fn handle_pull_failure(
     error: anyhow::Error,
     quiet: bool,
     verbose: u8,
+    local_opencode_submodule: bool,
 ) -> Result<()> {
     if quiet {
         return Err(error);
@@ -547,9 +568,26 @@ async fn handle_pull_failure(
         ));
     }
 
-    build_docker_image(client, false, verbose).await?;
+    build_docker_image(client, false, quiet, verbose, local_opencode_submodule).await?;
     save_state(&ImageState::built(get_cli_version())).ok();
     Ok(())
+}
+
+fn validate_local_opencode_submodule_args(args: &StartArgs) -> Result<()> {
+    // This mode is meant only for explicit source rebuild flows so normal start/pull semantics stay
+    // reproducible and unchanged by default.
+    if args.local_opencode_submodule
+        && !(args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image)
+    {
+        return Err(anyhow!(
+            "--local-opencode-submodule requires --cached-rebuild-sandbox-image or --full-rebuild-sandbox-image"
+        ));
+    }
+    Ok(())
+}
+
+fn active_container_name() -> String {
+    opencode_cloud_core::docker::active_resource_names().container_name
 }
 
 /// Display network exposure warning
@@ -648,6 +686,7 @@ pub async fn cmd_start(
             "Only one of --pull-sandbox-image, --cached-rebuild-sandbox-image, or --full-rebuild-sandbox-image can be specified"
         ));
     }
+    validate_local_opencode_submodule_args(args)?;
 
     let has_image_flag = args.pull_sandbox_image
         || args.cached_rebuild_sandbox_image
@@ -768,6 +807,7 @@ pub async fn cmd_start(
             args.full_rebuild_sandbox_image,
             quiet,
             verbose,
+            args.local_opencode_submodule,
         )
         .await?;
     }
@@ -909,7 +949,12 @@ async fn show_already_running(
     let msg = crate::format_host_message(host_name, "Service is already running");
     println!("{}", style(msg).dim());
 
-    let container_id = match client.inner().inspect_container(CONTAINER_NAME, None).await {
+    let container_name = active_container_name();
+    let container_id = match client
+        .inner()
+        .inspect_container(&container_name, None)
+        .await
+    {
         Ok(info) => info.id.unwrap_or_else(|| "unknown".to_string()),
         Err(error) => {
             eprintln!(
@@ -937,7 +982,13 @@ fn port_in_use_error(bind_addr: &str, port: u16) -> anyhow::Error {
 ///
 /// If `no_cache` is true, builds from scratch ignoring Docker layer cache.
 /// Otherwise uses cached layers for faster builds.
-async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) -> Result<()> {
+async fn build_docker_image(
+    client: &DockerClient,
+    no_cache: bool,
+    quiet: bool,
+    verbose: u8,
+    local_opencode_submodule: bool,
+) -> Result<()> {
     if verbose > 0 {
         let action = if no_cache {
             "Full rebuilding Docker image"
@@ -957,6 +1008,21 @@ async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) 
         );
     }
 
+    let build_args = build_opencode_build_args(local_opencode_submodule)?;
+    if local_opencode_submodule && !quiet {
+        eprintln!(
+            "{}",
+            style("Dev mode: building sandbox from local packages/opencode checkout.").yellow()
+        );
+        if let Some(local_ref) = build_args.get("OPENCODE_LOCAL_REF") {
+            eprintln!(
+                "{} Local ref: {}",
+                style("Info:").dim(),
+                style(local_ref).cyan()
+            );
+        }
+    }
+
     let context = if no_cache {
         "Full rebuilding Docker image (no cache)"
     } else {
@@ -973,10 +1039,112 @@ async fn build_docker_image(client: &DockerClient, no_cache: bool, verbose: u8) 
         Some(IMAGE_TAG_DEFAULT),
         &mut progress,
         no_cache,
-        None,
+        Some(build_args),
     )
     .await?;
     Ok(())
+}
+
+fn build_opencode_build_args(local_opencode_submodule: bool) -> Result<HashMap<String, String>> {
+    let mut build_args = HashMap::new();
+    build_args.insert(
+        "OPENCODE_SOURCE".to_string(),
+        if local_opencode_submodule {
+            "local".to_string()
+        } else {
+            "remote".to_string()
+        },
+    );
+    // Keep the pinned commit in build args so Dockerfile source-selection remains explicit and
+    // deterministic even if the shell logic changes later.
+    build_args.insert(
+        "OPENCODE_COMMIT".to_string(),
+        extract_pinned_opencode_commit_from_dockerfile()?,
+    );
+
+    if local_opencode_submodule {
+        build_args.insert(
+            "OPENCODE_LOCAL_REF".to_string(),
+            resolve_local_opencode_ref()?,
+        );
+    }
+
+    Ok(build_args)
+}
+
+fn extract_pinned_opencode_commit_from_dockerfile() -> Result<String> {
+    const MARKER: &str = "OPENCODE_COMMIT=\"";
+    DOCKERFILE
+        .lines()
+        .find_map(|line| {
+            let start = line.find(MARKER)?;
+            let rest = &line[start + MARKER.len()..];
+            let end = rest.find('"')?;
+            Some(rest[..end].to_string())
+        })
+        .filter(|commit| !commit.is_empty())
+        .ok_or_else(|| {
+            anyhow!("Could not determine pinned OPENCODE_COMMIT from embedded Dockerfile")
+        })
+}
+
+fn workspace_root_path() -> Result<PathBuf> {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .map_err(|err| anyhow!("Failed to resolve workspace root: {err}"))
+}
+
+fn opencode_submodule_path() -> Result<PathBuf> {
+    Ok(workspace_root_path()?.join("packages/opencode"))
+}
+
+fn run_git_command(repo_path: &Path, args: &[&str], context: &str) -> Result<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo_path)
+        .args(args)
+        .output()
+        .map_err(|err| anyhow!("Failed to run git for {context}: {err}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let detail = if stderr.is_empty() {
+            "git command failed".to_string()
+        } else {
+            stderr
+        };
+        return Err(anyhow!("Failed to resolve {context}: {detail}"));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn resolve_local_opencode_ref() -> Result<String> {
+    let submodule_path = opencode_submodule_path()?;
+    if !submodule_path.exists() {
+        return Err(anyhow!(
+            "Local opencode submodule not found at {}. Run from a source checkout with packages/opencode initialized.",
+            submodule_path.display()
+        ));
+    }
+
+    let sha = run_git_command(
+        &submodule_path,
+        &["rev-parse", "HEAD"],
+        "local opencode commit",
+    )?;
+    let porcelain = run_git_command(
+        &submodule_path,
+        &["status", "--porcelain"],
+        "local opencode dirty status",
+    )?;
+
+    if porcelain.is_empty() {
+        Ok(sha)
+    } else {
+        Ok(format!("{sha}-dirty"))
+    }
 }
 
 /// Pull the Docker image with progress reporting
@@ -1278,7 +1446,8 @@ async fn check_for_fatal_errors(client: &DockerClient) -> Option<String> {
         ..Default::default()
     };
 
-    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+    let container_name = active_container_name();
+    let mut stream = client.inner().logs(&container_name, Some(options));
     let mut logs = Vec::new();
 
     while let Some(Ok(output)) = stream.next().await {
@@ -1412,7 +1581,8 @@ async fn show_recent_logs(client: &DockerClient, lines: usize) {
         ..Default::default()
     };
 
-    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+    let container_name = active_container_name();
+    let mut stream = client.inner().logs(&container_name, Some(options));
     let mut count = 0;
 
     while let Some(Ok(output)) = stream.next().await {
@@ -1506,5 +1676,44 @@ mod tests {
         };
         let reason = super::iotp_unavailable_reason(&snapshot);
         assert_eq!(reason, "IOTP state is inactive (users configured)");
+    }
+
+    #[test]
+    fn local_opencode_submodule_requires_rebuild_flag() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            ..Default::default()
+        };
+        let error =
+            validate_local_opencode_submodule_args(&args).expect_err("should reject invalid args");
+        assert!(error.to_string().contains("--cached-rebuild-sandbox-image"));
+    }
+
+    #[test]
+    fn local_opencode_submodule_allowed_with_cached_rebuild() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            cached_rebuild_sandbox_image: true,
+            ..Default::default()
+        };
+        validate_local_opencode_submodule_args(&args).expect("cached rebuild should be accepted");
+    }
+
+    #[test]
+    fn local_opencode_submodule_allowed_with_full_rebuild() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            full_rebuild_sandbox_image: true,
+            ..Default::default()
+        };
+        validate_local_opencode_submodule_args(&args).expect("full rebuild should be accepted");
+    }
+
+    #[test]
+    fn extracts_pinned_opencode_commit_from_embedded_dockerfile() {
+        let commit = extract_pinned_opencode_commit_from_dockerfile()
+            .expect("pinned commit should be present");
+        assert_eq!(commit.len(), 40);
+        assert!(commit.chars().all(|ch| ch.is_ascii_hexdigit()));
     }
 }

@@ -76,3 +76,10 @@ The Docker image builds opencode directly from the fork and runs the web server 
 - Repository: https://github.com/pRizz/opencode-cloud
 - Mirror: https://gitea.com/pRizz/opencode-cloud
 - Dockerfile: packages/core/src/docker/Dockerfile
+
+## Contributing Dockerfile Changes
+
+When modifying `packages/core/src/docker/Dockerfile`, follow the top-of-file
+Build Hygiene Rules and the Dockerfile Optimization Checklist in:
+- `README.md`
+- `packages/core/README.md`

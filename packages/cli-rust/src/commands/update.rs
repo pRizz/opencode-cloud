@@ -17,14 +17,13 @@ use clap::{Args, Subcommand};
 use console::style;
 use dialoguer::{Confirm, MultiSelect};
 use opencode_cloud_core::config::load_config_or_default;
-use opencode_cloud_core::docker::update::PREVIOUS_TAG;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
-    ProgressReporter, build_image, container_exists, container_is_running, docker_supports_systemd,
-    exec_command, exec_command_with_status, get_cli_version, get_image_version,
-    get_registry_latest_version, has_previous_image, image_exists, pull_image, rollback_image,
-    save_state, setup_and_start, stop_service,
+    ProgressReporter, active_resource_names, build_image, container_exists, container_is_running,
+    docker_supports_systemd, exec_command, exec_command_with_status, get_cli_version,
+    get_image_version, get_registry_latest_version, has_previous_image, image_exists, pull_image,
+    rollback_image, save_state, setup_and_start, stop_service,
 };
 use serde::Deserialize;
 use std::process::Command;
@@ -411,7 +410,8 @@ async fn build_container_candidate(
         };
     };
 
-    let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let resources = active_resource_names();
+    let image_name = format!("{IMAGE_NAME_GHCR}:{}", resources.image_tag);
     let image_present = image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT)
         .await
         .unwrap_or(false);
@@ -1638,7 +1638,8 @@ async fn handle_update(
     let port = config.opencode_web_port;
     let bind_addr = &config.bind_address;
     let use_build = config.image_source == "build";
-    let image_name = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
+    let resources = active_resource_names();
+    let image_name = format!("{IMAGE_NAME_GHCR}:{}", resources.image_tag);
     let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
     if maybe_current_image_version.as_deref() == Some("dev") {
         if !quiet {
@@ -1798,7 +1799,7 @@ async fn handle_update(
         prebuilt_pulled = true;
         maybe_target_version = get_image_version(client, &full_image).await.ok().flatten();
 
-        let previous_image = format!("{IMAGE_NAME_GHCR}:{PREVIOUS_TAG}");
+        let previous_image = format!("{IMAGE_NAME_GHCR}:{}", resources.previous_image_tag);
         let maybe_previous_version = get_image_version(client, &previous_image)
             .await
             .ok()
