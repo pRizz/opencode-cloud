@@ -162,7 +162,12 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 # Create 'opencode' user with passwordless sudo
 RUN useradd -m -s /bin/bash -G sudo opencoder \
     && echo "opencoder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/opencoder \
-    && chmod 0440 /etc/sudoers.d/opencoder
+    && chmod 0440 /etc/sudoers.d/opencoder \
+    # Snapshot built-in home users from the image so runtime auth logic can
+    # ignore defaults (e.g. ubuntu) when deciding if onboarding should run.
+    && install -d -m 0755 /etc/opencode-cloud \
+    && awk -F: '$6 ~ /^\/home\// {print $1}' /etc/passwd | sort -u > /etc/opencode-cloud/builtin-home-users.txt \
+    && chmod 0644 /etc/opencode-cloud/builtin-home-users.txt
 
 # Switch to opencode user for remaining setup
 USER opencoder

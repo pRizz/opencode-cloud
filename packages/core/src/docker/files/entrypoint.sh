@@ -92,6 +92,9 @@ export OPENCODE_PORT OPENCODE_HOST
 BOOTSTRAP_HELPER="/usr/local/bin/opencode-cloud-bootstrap"
 BOOTSTRAP_STATE_DIR="/var/lib/opencode-users"
 PROTECTED_USER="opencoder"
+BUILTIN_USERS_FILE="/etc/opencode-cloud/builtin-home-users.txt"
+FALLBACK_BUILTIN_HOME_USERS=("opencoder" "ubuntu")
+BUILTIN_HOME_USERS=()
 # NOTE: Do not change this prefix; admins may depend on it for log grep extraction.
 greppable_iotp_prefix="INITIAL ONE-TIME PASSWORD (IOTP): "
 
@@ -160,6 +163,43 @@ else
     # Ensure user records directory exists (ephemeral unless mounted)
     install -d -m 0700 /var/lib/opencode-users
 
+    load_builtin_home_users() {
+        BUILTIN_HOME_USERS=("${FALLBACK_BUILTIN_HOME_USERS[@]}")
+
+        if [ ! -r "${BUILTIN_USERS_FILE}" ]; then
+            return 0
+        fi
+
+        local username
+        while IFS= read -r username; do
+            username="$(printf "%s" "${username}" | tr -d '\r\n')"
+            if [ -n "${username}" ]; then
+                BUILTIN_HOME_USERS+=("${username}")
+            fi
+        done < "${BUILTIN_USERS_FILE}"
+    }
+
+    is_builtin_home_user() {
+        local username="$1"
+        local builtin
+        for builtin in "${BUILTIN_HOME_USERS[@]}"; do
+            if [ "${username}" = "${builtin}" ]; then
+                return 0
+            fi
+        done
+        return 1
+    }
+
+    user_record_path() {
+        local username="$1"
+        printf "/var/lib/opencode-users/%s.json" "${username}"
+    }
+
+    user_record_exists() {
+        local username="$1"
+        [ -f "$(user_record_path "${username}")" ]
+    }
+
     ensure_auth_config() {
         local config_dir="/home/opencoder/.config/opencode"
         local config_json="${config_dir}/opencode.json"
@@ -203,8 +243,8 @@ EOF
                 log "Skipping invalid user record: ${record}"
                 continue
             fi
-            if [ "${username}" = "${PROTECTED_USER}" ]; then
-                log "Skipping protected user record: ${record}"
+            if is_builtin_home_user "${username}"; then
+                log "Skipping built-in user record: ${record}"
                 continue
             fi
             if ! id -u "${username}" >/dev/null 2>&1; then
@@ -226,8 +266,8 @@ EOF
 
     persist_user_record() {
         local username="$1"
-        if [ "${username}" = "${PROTECTED_USER}" ]; then
-            log "Skipping persistence for protected user: ${username}"
+        if is_builtin_home_user "${username}"; then
+            log "Skipping persistence for built-in user: ${username}"
             return 0
         fi
         local shadow_hash
@@ -242,7 +282,8 @@ EOF
         if [ "${status}" = "L" ]; then
             locked="true"
         fi
-        local record_path="/var/lib/opencode-users/${username}.json"
+        local record_path
+        record_path="$(user_record_path "${username}")"
         umask 077
         jq -n --arg username "${username}" --arg hash "${shadow_hash}" --argjson locked "${locked}" '{username:$username,password_hash:$hash,locked:$locked}' > "${record_path}"
         chmod 600 "${record_path}"
@@ -275,26 +316,49 @@ EOF
     }
 
     has_non_protected_persisted_users() {
+        # Persisted records are the source of truth for managed login users.
+        # Built-in image users (e.g., ubuntu/opencoder) must not disable IOTP.
         shopt -s nullglob
         local records=(/var/lib/opencode-users/*.json)
         local record username
         for record in "${records[@]}"; do
             username="$(jq -r ".username // empty" "${record}" 2>/dev/null || true)"
-            if [ -n "${username}" ] && [ "${username}" != "${PROTECTED_USER}" ]; then
+            if [ -z "${username}" ]; then
+                continue
+            fi
+            if is_builtin_home_user "${username}"; then
+                continue
+            fi
+            if [ "${username}" != "${PROTECTED_USER}" ]; then
                 return 0
             fi
         done
 
-        local line home
+        return 1
+    }
+
+    migrate_unmanaged_home_users_to_records() {
+        # Migrate any non-built-in Linux users before bootstrap checks so real
+        # manually-created accounts disable IOTP in a consistent, managed way.
+        local line username home
         while IFS= read -r line; do
             username="$(cut -d: -f1 <<< "${line}")"
             home="$(cut -d: -f6 <<< "${line}")"
-            if [[ "${home}" == /home/* ]] && [ "${username}" != "${PROTECTED_USER}" ]; then
-                return 0
+            if [[ "${home}" != /home/* ]]; then
+                continue
+            fi
+            if is_builtin_home_user "${username}"; then
+                continue
+            fi
+            if user_record_exists "${username}"; then
+                continue
+            fi
+            if persist_user_record "${username}"; then
+                log "Migrated unmanaged user to managed records: ${username}"
+            else
+                log "WARNING: Failed to migrate unmanaged user to records: ${username}"
             fi
         done < <(getent passwd)
-
-        return 1
     }
 
     clear_bootstrap_state() {
@@ -381,8 +445,10 @@ EOF
         maybe_initialize_bootstrap_mode
     }
 
+    load_builtin_home_users
     ensure_auth_config
     restore_or_bootstrap_users
+    migrate_unmanaged_home_users_to_records
     sync_bootstrap_state
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"

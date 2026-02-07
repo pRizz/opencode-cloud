@@ -575,34 +575,6 @@ fn display_network_exposure_warning(bind_addr: &str) {
     eprintln!();
 }
 
-fn display_bootstrap_mode_warning(bind_addr: &str) {
-    eprintln!();
-    eprintln!(
-        "{} {}",
-        style("Bootstrap mode enabled:").yellow().bold(),
-        style("no preconfigured users were found.").yellow()
-    );
-    eprintln!();
-    eprintln!(
-        "The service will start on {} and print an Initial One-Time Password (IOTP) in container logs.",
-        style(bind_addr).cyan()
-    );
-    eprintln!(
-        "{}",
-        style("Note: persisted users in /var/lib/opencode-users disable IOTP bootstrap.")
-            .yellow()
-            .dim()
-    );
-    eprintln!("Open the login page and use the first-time setup panel with that IOTP.");
-    eprintln!("The IOTP is invalidated immediately after the first successful passkey enrollment.");
-    eprintln!();
-    eprintln!(
-        "Admin alternative: {}",
-        style("occ user add <username>").dim()
-    );
-    eprintln!();
-}
-
 /// Start the opencode service
 ///
 /// This command:
@@ -714,12 +686,6 @@ pub async fn cmd_start(
 
     // Determine whether this is first container start
     let is_first_start = !container_exists(&client, CONTAINER_NAME).await?;
-
-    let bootstrap_mode =
-        is_first_start && config.users.is_empty() && !config.allow_unauthenticated_network;
-    if bootstrap_mode && !quiet {
-        display_bootstrap_mode_warning(bind_addr);
-    }
 
     // Check for port mismatch on existing container
     if !is_first_start
@@ -874,7 +840,7 @@ pub async fn cmd_start(
         quiet,
         host_name.as_deref(),
     );
-    maybe_print_iotp_info(&client, host_name.as_deref(), &config, bootstrap_mode).await;
+    maybe_print_iotp_info(&client, host_name.as_deref(), &config).await;
     open_browser_if_requested(args.open, port, bind_addr);
 
     if args.no_daemon {
@@ -1204,12 +1170,13 @@ async fn maybe_print_iotp_info(
     client: &DockerClient,
     host: Option<&str>,
     config: &opencode_cloud_core::Config,
-    bootstrap_mode_hint: bool,
 ) {
     if config.allow_unauthenticated_network || !config.users.is_empty() {
         return;
     }
 
+    // The bootstrap helper is the source of truth after container startup.
+    // Do not infer onboarding state from pre-start config heuristics.
     let snapshot = fetch_iotp_snapshot(client).await;
 
     println!();
@@ -1234,21 +1201,14 @@ async fn maybe_print_iotp_info(
         "{}",
         style("Could not retrieve an IOTP from bootstrap state.").yellow()
     );
-    println!(
-        "Reason: {}",
-        iotp_unavailable_reason(&snapshot, bootstrap_mode_hint)
-    );
+    println!("Reason: {}", iotp_unavailable_reason(&snapshot));
     println!("Fetch logs with: {}", style("occ logs").cyan());
     println!("Try extracting IOTP with:\n  {IOTP_FALLBACK_COMMAND}");
 }
 
-fn iotp_unavailable_reason(snapshot: &IotpSnapshot, bootstrap_mode_hint: bool) -> String {
+fn iotp_unavailable_reason(snapshot: &IotpSnapshot) -> String {
     if let Some(reason) = snapshot.detail.as_deref() {
         return reason.to_string();
-    }
-
-    if bootstrap_mode_hint {
-        return "bootstrap mode was requested but no active IOTP is available".to_string();
     }
 
     format!("IOTP state is {}", snapshot.state_label)
@@ -1519,20 +1479,21 @@ mod tests {
             otp: None,
             detail: Some("bootstrap helper unavailable".to_string()),
         };
-        let reason = super::iotp_unavailable_reason(&snapshot, true);
+        let reason = super::iotp_unavailable_reason(&snapshot);
         assert_eq!(reason, "bootstrap helper unavailable");
     }
 
     #[test]
-    fn iotp_unavailable_reason_uses_bootstrap_hint() {
+    fn iotp_unavailable_reason_does_not_invent_bootstrap_hint() {
         let snapshot = IotpSnapshot {
             state: IotpState::Unavailable,
             state_label: "unavailable".to_string(),
             otp: None,
             detail: None,
         };
-        let reason = super::iotp_unavailable_reason(&snapshot, true);
-        assert!(reason.contains("bootstrap mode was requested"));
+        let reason = super::iotp_unavailable_reason(&snapshot);
+        assert_eq!(reason, "IOTP state is unavailable");
+        assert!(!reason.contains("bootstrap mode was requested"));
     }
 
     #[test]
@@ -1543,7 +1504,7 @@ mod tests {
             otp: None,
             detail: None,
         };
-        let reason = super::iotp_unavailable_reason(&snapshot, false);
+        let reason = super::iotp_unavailable_reason(&snapshot);
         assert_eq!(reason, "IOTP state is inactive (users configured)");
     }
 }

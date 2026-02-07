@@ -17,7 +17,8 @@ use serde::{Deserialize, Serialize};
 /// Format: one JSON file per user with strict permissions (root-owned, 0700 dir, 0600 files).
 /// Stored on a managed Docker volume mounted at this path.
 const USERS_STORE_DIR: &str = MOUNT_USERS;
-const PROTECTED_SYSTEM_USER: &str = "opencode";
+const PROTECTED_SYSTEM_USER: &str = "opencoder";
+const HIDDEN_BUILTIN_USERS: [&str; 2] = [PROTECTED_SYSTEM_USER, "ubuntu"];
 
 /// Information about a container user
 #[derive(Debug, Clone, PartialEq)]
@@ -239,10 +240,10 @@ pub async fn delete_user(
     Ok(())
 }
 
-/// List users in the container with home directories
+/// List managed users in the container.
 ///
-/// Returns users that have home directories under /home/.
-/// Excludes system users.
+/// This is intentionally a records-backed view, not a raw `/etc/passwd` dump.
+/// We only show users that were explicitly managed/persisted by opencode-cloud.
 ///
 /// # Arguments
 /// * `client` - Docker client
@@ -251,30 +252,16 @@ pub async fn list_users(
     client: &DockerClient,
     container: &str,
 ) -> Result<Vec<UserInfo>, DockerError> {
-    // Get all users with home directories in /home
-    let cmd = vec!["sh", "-c", "getent passwd | grep '/home/'"];
-    let output = exec_command(client, container, cmd).await?;
-
+    let records = read_user_records(client, container).await?;
     let mut users = Vec::new();
 
-    for line in output.lines() {
-        if let Some(info) = parse_passwd_line(line) {
-            if is_protected_system_user(&info.username) {
-                continue;
-            }
-            // Check if user is locked
-            let locked = is_user_locked(client, container, &info.username).await?;
-
-            users.push(UserInfo {
-                username: info.username,
-                uid: info.uid,
-                home: info.home,
-                shell: info.shell,
-                locked,
-            });
+    for username in managed_usernames_from_records(&records) {
+        if let Some(user) = read_user_info(client, container, &username).await? {
+            users.push(user);
         }
     }
 
+    users.sort_by(|a, b| a.username.cmp(&b.username));
     Ok(users)
 }
 
@@ -286,9 +273,9 @@ pub async fn persist_user(
     container: &str,
     username: &str,
 ) -> Result<(), DockerError> {
-    if is_protected_system_user(username) {
+    if is_builtin_system_user(username) {
         return Err(DockerError::Container(format!(
-            "User '{username}' is protected and cannot be persisted"
+            "User '{username}' is built-in and cannot be persisted"
         )));
     }
 
@@ -329,11 +316,11 @@ pub async fn restore_persisted_users(
 ) -> Result<Vec<String>, DockerError> {
     let records = read_user_records(client, container).await?;
     if records.is_empty() {
-        let users = list_users(client, container).await?;
+        let users = list_non_builtin_home_usernames(client, container).await?;
         let mut persisted = Vec::new();
-        for user in users {
-            persist_user(client, container, &user.username).await?;
-            persisted.push(user.username);
+        for username in users {
+            persist_user(client, container, &username).await?;
+            persisted.push(username);
         }
         return Ok(persisted);
     }
@@ -411,6 +398,57 @@ async fn get_user_shadow_hash(
     Ok(fields[1].to_string())
 }
 
+async fn read_user_info(
+    client: &DockerClient,
+    container: &str,
+    username: &str,
+) -> Result<Option<UserInfo>, DockerError> {
+    // Skip stale records cleanly when the system user no longer exists.
+    if !user_exists(client, container, username).await? {
+        return Ok(None);
+    }
+
+    let output = exec_command(client, container, vec!["getent", "passwd", username]).await?;
+    let line = output.lines().next().unwrap_or("").trim();
+    if line.is_empty() {
+        return Ok(None);
+    }
+
+    let info = parse_passwd_line(line).ok_or_else(|| {
+        DockerError::Container(format!("Failed to parse passwd entry for '{username}'"))
+    })?;
+    let locked = is_user_locked(client, container, &info.username).await?;
+
+    Ok(Some(UserInfo {
+        username: info.username,
+        uid: info.uid,
+        home: info.home,
+        shell: info.shell,
+        locked,
+    }))
+}
+
+async fn list_non_builtin_home_usernames(
+    client: &DockerClient,
+    container: &str,
+) -> Result<Vec<String>, DockerError> {
+    let cmd = vec!["sh", "-c", "getent passwd | grep '/home/'"];
+    let output = exec_command(client, container, cmd).await?;
+    let mut users = Vec::new();
+
+    for line in output.lines() {
+        let Some(info) = parse_passwd_line(line) else {
+            continue;
+        };
+        if is_builtin_system_user(&info.username) {
+            continue;
+        }
+        users.push(info.username);
+    }
+
+    Ok(users)
+}
+
 async fn read_user_records(
     client: &DockerClient,
     container: &str,
@@ -430,7 +468,7 @@ async fn read_user_records(
         let record: PersistedUserRecord = serde_json::from_str(&contents).map_err(|e| {
             DockerError::Container(format!("Failed to parse user record {path}: {e}"))
         })?;
-        if is_protected_system_user(&record.username) {
+        if is_builtin_system_user(&record.username) {
             continue;
         }
         records.push(record);
@@ -443,8 +481,16 @@ fn user_record_path(username: &str) -> String {
     format!("{USERS_STORE_DIR}/{username}.json")
 }
 
-fn is_protected_system_user(username: &str) -> bool {
-    username == PROTECTED_SYSTEM_USER
+fn is_builtin_system_user(username: &str) -> bool {
+    HIDDEN_BUILTIN_USERS.contains(&username)
+}
+
+fn managed_usernames_from_records(records: &[PersistedUserRecord]) -> Vec<String> {
+    records
+        .iter()
+        .map(|record| record.username.clone())
+        .filter(|username| !is_builtin_system_user(username))
+        .collect()
 }
 
 async fn write_user_record(
@@ -521,9 +567,38 @@ mod tests {
     }
 
     #[test]
-    fn test_is_protected_system_user() {
-        assert!(is_protected_system_user("opencode"));
-        assert!(!is_protected_system_user("admin"));
+    fn test_protected_system_user_constant() {
+        assert_eq!(PROTECTED_SYSTEM_USER, "opencoder");
+    }
+
+    #[test]
+    fn test_is_builtin_system_user() {
+        assert!(is_builtin_system_user("opencoder"));
+        assert!(is_builtin_system_user("ubuntu"));
+        assert!(!is_builtin_system_user("admin"));
+    }
+
+    #[test]
+    fn test_managed_usernames_from_records_filters_builtin_users() {
+        let records = vec![
+            PersistedUserRecord {
+                username: "ubuntu".to_string(),
+                password_hash: "x".to_string(),
+                locked: true,
+            },
+            PersistedUserRecord {
+                username: "admin".to_string(),
+                password_hash: "y".to_string(),
+                locked: false,
+            },
+            PersistedUserRecord {
+                username: "opencoder".to_string(),
+                password_hash: "z".to_string(),
+                locked: true,
+            },
+        ];
+        let usernames = managed_usernames_from_records(&records);
+        assert_eq!(usernames, vec!["admin".to_string()]);
     }
 
     #[test]

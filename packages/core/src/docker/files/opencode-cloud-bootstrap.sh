@@ -7,6 +7,9 @@ SECRET_FILE="${STATE_DIR}/.initial-otp.secret"
 LOCK_FILE="${STATE_DIR}/.initial-otp.lock"
 COMPLETE_MARKER_FILE="${STATE_DIR}/.bootstrap-complete.json"
 PROTECTED_USER="opencoder"
+BUILTIN_USERS_FILE="/etc/opencode-cloud/builtin-home-users.txt"
+FALLBACK_BUILTIN_HOME_USERS=("opencoder" "ubuntu")
+BUILTIN_HOME_USERS=()
 
 json_ok() {
     jq -cn "$@"
@@ -22,6 +25,7 @@ json_error() {
 
 ensure_state_dir() {
     install -d -m 0700 "${STATE_DIR}"
+    load_builtin_home_users
 }
 
 acquire_lock() {
@@ -69,12 +73,47 @@ get_completed_at() {
     jq -r '.completed_at // empty' "${COMPLETE_MARKER_FILE}" 2>/dev/null || true
 }
 
+load_builtin_home_users() {
+    BUILTIN_HOME_USERS=("${FALLBACK_BUILTIN_HOME_USERS[@]}")
+
+    if [ ! -r "${BUILTIN_USERS_FILE}" ]; then
+        return 0
+    fi
+
+    local username
+    while IFS= read -r username; do
+        username="$(printf "%s" "${username}" | tr -d '\r\n')"
+        if [ -n "${username}" ]; then
+            BUILTIN_HOME_USERS+=("${username}")
+        fi
+    done < "${BUILTIN_USERS_FILE}"
+}
+
+is_builtin_home_user() {
+    local username="$1"
+    local builtin
+    for builtin in "${BUILTIN_HOME_USERS[@]}"; do
+        if [ "${username}" = "${builtin}" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 has_non_protected_user_record() {
+    # Managed user records are the canonical source of configured users.
+    # Ignore image-default users so base-image accounts do not disable IOTP.
     shopt -s nullglob
     local record username
     for record in "${STATE_DIR}"/*.json; do
         username="$(jq -r '.username // empty' "${record}" 2>/dev/null || true)"
-        if [ -n "${username}" ] && [ "${username}" != "${PROTECTED_USER}" ]; then
+        if [ -z "${username}" ]; then
+            continue
+        fi
+        if is_builtin_home_user "${username}"; then
+            continue
+        fi
+        if [ "${username}" != "${PROTECTED_USER}" ]; then
             return 0
         fi
     done
@@ -82,6 +121,7 @@ has_non_protected_user_record() {
 }
 
 has_non_protected_system_user() {
+    # Secondary safety net for unmanaged runtime-created users with /home entries.
     local line username home
     while IFS= read -r line; do
         username="$(cut -d: -f1 <<< "${line}")"
@@ -89,7 +129,7 @@ has_non_protected_system_user() {
         if [[ "${home}" != /home/* ]]; then
             continue
         fi
-        if [ "${username}" = "${PROTECTED_USER}" ]; then
+        if is_builtin_home_user "${username}"; then
             continue
         fi
         return 0

@@ -154,9 +154,10 @@ occ install
 occ start
 ```
 
-If this is the first startup with no configured users, the container logs will print an **Initial One-Time Password (IOTP)**.
+If this is the first startup with no configured managed users, the container logs will print an **Initial One-Time Password (IOTP)**.
 Open the login page, use the first-time setup panel, and enroll a passkey for the default `opencoder` account.
 The IOTP is invalidated after successful passkey enrollment.
+Built-in image users (for example `ubuntu`/`opencoder`) do not count as configured users for IOTP bootstrap.
 
 Quick IOTP extraction from logs:
 
@@ -359,12 +360,13 @@ occ config show
 opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication.
 
 First boot path:
-- If no users are configured, startup logs print an Initial One-Time Password (IOTP).
+- If no managed users are configured, startup logs print an Initial One-Time Password (IOTP).
 - Extract only the IOTP quickly: `occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'`
 - `occ setup` attempts to auto-detect and print the IOTP after starting/restarting the service.
 - Enter that IOTP in the web login page first-time setup panel.
 - Enroll a passkey for the default `opencoder` account.
 - The IOTP is deleted after successful passkey enrollment.
+- Built-in image users (for example `ubuntu`/`opencoder`) do not disable IOTP bootstrap.
 
 Admin path:
 - You can always create/manage users directly via `occ user add`, `occ user passwd`, and related user commands.
@@ -388,7 +390,7 @@ occ user add <username> --generate
 
 ### Managing Users
 
-- List users: `occ user list`
+- List users: `occ user list` (managed users only)
 - Change password: `occ user passwd <username>`
 - Remove user: `occ user remove <username>`
 - Enable/disable account: `occ user enable <username>` / `occ user disable <username>`
@@ -397,6 +399,7 @@ occ user add <username> --generate
 
 User accounts (including password hashes and lock status) persist across container updates and rebuilds.
 The CLI stores user records in a managed Docker volume mounted at `/var/lib/opencode-users` inside the container.
+This record store is the source of truth for configured users and bootstrap decisions.
 No plaintext passwords are stored on the host.
 
 ### Rebuilding the Docker Image
