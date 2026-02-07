@@ -1367,6 +1367,11 @@ async fn maybe_print_iotp_info(
         style("Could not retrieve an IOTP from bootstrap state.").yellow()
     );
     println!("Reason: {}", iotp_unavailable_reason(&snapshot));
+    if matches!(snapshot.state, IotpState::InactiveCompleted) {
+        for line in iotp_reset_hint_lines(!config.is_localhost()) {
+            println!("{}", format_iotp_reset_hint_line(&line));
+        }
+    }
     println!("Fetch logs with: {}", style("occ logs").cyan());
     println!("Try extracting IOTP with:\n  {IOTP_FALLBACK_COMMAND}");
 }
@@ -1377,6 +1382,21 @@ fn iotp_unavailable_reason(snapshot: &IotpSnapshot) -> String {
     }
 
     format!("IOTP state is {}", snapshot.state_label)
+}
+
+fn iotp_reset_hint_lines(non_localhost_bind: bool) -> Vec<String> {
+    let mut lines = vec!["Reset IOTP: occ reset iotp".to_string()];
+    if non_localhost_bind {
+        lines.push("Use --force for exposed bind configurations.".to_string());
+    }
+    lines
+}
+
+fn format_iotp_reset_hint_line(line: &str) -> String {
+    if let Some(command) = line.strip_prefix("Reset IOTP: ") {
+        return format!("{} {}", style("Reset IOTP:").dim(), style(command).cyan());
+    }
+    style(line).dim().to_string()
 }
 
 /// Open browser if requested
@@ -1673,6 +1693,19 @@ mod tests {
         };
         let reason = super::iotp_unavailable_reason(&snapshot);
         assert_eq!(reason, "IOTP state is inactive (users configured)");
+    }
+
+    #[test]
+    fn iotp_reset_hint_lines_includes_force_hint_when_exposed() {
+        let lines = iotp_reset_hint_lines(true);
+        assert_eq!(lines[0], "Reset IOTP: occ reset iotp");
+        assert!(lines.iter().any(|line| line.contains("--force")));
+    }
+
+    #[test]
+    fn iotp_reset_hint_lines_without_exposed_only_shows_command() {
+        let lines = iotp_reset_hint_lines(false);
+        assert_eq!(lines, vec!["Reset IOTP: occ reset iotp".to_string()]);
     }
 
     #[test]
