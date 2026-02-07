@@ -160,6 +160,34 @@ else
     # Ensure user records directory exists (ephemeral unless mounted)
     install -d -m 0700 /var/lib/opencode-users
 
+    ensure_auth_config() {
+        local config_dir="/home/opencoder/.config/opencode"
+        local config_json="${config_dir}/opencode.json"
+        local config_jsonc="${config_dir}/opencode.jsonc"
+
+        install -d -m 0755 "${config_dir}"
+
+        if [ -f "${config_json}" ] || [ -f "${config_jsonc}" ]; then
+            return
+        fi
+
+        if ! cat > "${config_jsonc}" <<'EOF'
+{
+  "auth": {
+    "enabled": true
+  }
+}
+EOF
+        then
+            log "WARNING: Failed to create ${config_jsonc}; auth may be disabled."
+            return
+        fi
+
+        chown opencoder:opencoder "${config_jsonc}" 2>/dev/null || true
+        chmod 644 "${config_jsonc}" 2>/dev/null || true
+        log "Created default auth config at ${config_jsonc}."
+    }
+
     restore_users() {
         shopt -s nullglob
         local records=(/var/lib/opencode-users/*.json)
@@ -353,6 +381,7 @@ else
         maybe_initialize_bootstrap_mode
     }
 
+    ensure_auth_config
     restore_or_bootstrap_users
     sync_bootstrap_state
 
