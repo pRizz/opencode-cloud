@@ -492,7 +492,7 @@ USER opencoder
 # commit on the dev branch of https://github.com/pRizz/opencode.
 # Update it by running: ./scripts/update-opencode-commit.sh
 # Build opencode from source (BuildKit cache mounts disabled for now)
-RUN OPENCODE_COMMIT="8efff015c1f5e2f6fcd67b408ec0d36b253fabc4" \
+RUN OPENCODE_COMMIT="b832fd20528aecd22ecc238a4c7fb728ae5d73df" \
     && rm -rf /tmp/opencode-repo \
     && git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo \
     && cd /tmp/opencode-repo \
