@@ -57,7 +57,12 @@ The `scripts/set-all-versions.sh` script handles version updates automatically. 
 ## Git Workflow
 
 - Always use rebase pulls (e.g., `git pull --rebase`).
-- When pushing, push to `main` (do not push to feature branches unless explicitly requested).
+- For pushes in the `packages/opencode/` submodule, default to the upstream `dev` flow unless explicitly requested otherwise:
+  - Rebase pull from `dev` first (for example: `git pull --rebase origin dev`).
+  - Then push to the effective `dev` branch/tip for that repository (for example: `git push origin HEAD:dev`).
+- For pushes in the `opencode-cloud` superproject, default to `main` unless explicitly requested otherwise:
+  - Rebase pull from `main` first (for example: `git pull --rebase origin main`).
+  - Then push to `main`.
 
 ## Working with Git Worktrees and Submodules
 

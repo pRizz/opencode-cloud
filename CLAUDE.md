@@ -54,6 +54,16 @@ When updating versions or metadata, keep these files in sync:
 
 The `scripts/set-all-versions.sh` script handles version updates automatically. For other metadata changes, update both files manually.
 
+## Git Workflow
+
+- Always use rebase pulls (e.g., `git pull --rebase`).
+- For pushes in the `packages/opencode/` submodule, default to the upstream `dev` flow unless explicitly requested otherwise:
+  - Rebase pull from `dev` first (for example: `git pull --rebase origin dev`).
+  - Then push to the effective `dev` branch/tip for that repository (for example: `git push origin HEAD:dev`).
+- For pushes in the `opencode-cloud` superproject, default to `main` unless explicitly requested otherwise:
+  - Rebase pull from `main` first (for example: `git pull --rebase origin main`).
+  - Then push to `main`.
+
 ## Working with Git Worktrees and Submodules
 
 Git worktrees and submodules work together, but support is incomplete and requires care.
