@@ -106,8 +106,12 @@ build-opencode-single-ui: opencode-install-if-needed
         perl -pe 'chomp if eof' "{{justfile_directory()}}/packages/opencode/packages/opencode/test/tool/fixtures/models-api.json" > "$tmpfile"; \
         MODELS_DEV_API_JSON="$tmpfile" bun run --cwd packages/opencode/packages/opencode build-single-ui
 
+# Smoke-check compiled opencode binary startup.
+smoke-opencode-compiled: build-opencode-single-ui
+    bun run --cwd packages/opencode/packages/opencode smoke:compiled
+
 # Build opencode app and opencode binary/ui artifact
-build-opencode: build-opencode-app build-opencode-single-ui
+build-opencode: build-opencode-app build-opencode-single-ui smoke-opencode-compiled
 
 # Lint opencode-broker Rust crate
 lint-opencode-broker: opencode-submodule-check
