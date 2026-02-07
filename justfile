@@ -20,9 +20,23 @@ setup:
 # Build everything
 build: build-rust build-node build-opencode build-opencode-broker
 
+# Warn if packages/opencode commit differs from Dockerfile OPENCODE_COMMIT pin.
+warn-opencode-pin-drift:
+    @if [ ! -f packages/opencode/.git ] && [ ! -d packages/opencode/.git ]; then \
+        :; \
+    else \
+        dockerfile="packages/core/src/docker/Dockerfile"; \
+        dockerfile_pinned_commit="$(grep -oE 'OPENCODE_COMMIT=\"[^\"]+\"' "$dockerfile" | head -n1 | sed -E 's/OPENCODE_COMMIT=\"([^\"]+)\"/\1/')"; \
+        submodule_commit="$(git -C packages/opencode rev-parse HEAD 2>/dev/null || true)"; \
+        if [ -n "$dockerfile_pinned_commit" ] && [ -n "$submodule_commit" ] && [ "$dockerfile_pinned_commit" != "$submodule_commit" ]; then \
+            echo "Warning: Dockerfile OPENCODE_COMMIT pin ($dockerfile_pinned_commit) differs from packages/opencode ($submodule_commit)."; \
+            echo "         Run: just update-opencode-commit"; \
+        fi; \
+    fi
+
 # Compile and run the occ binary (arguments automatically get passed to the binary)
 # Example: just run --version
-run *args:
+run *args: warn-opencode-pin-drift
     cargo run -p opencode-cloud --bin occ -- {{args}}
 
 # --- Shared check/build base targets (used by local + CI wrappers) ---
