@@ -24,6 +24,8 @@ if [[ -n "${dirty_state}" ]]; then
   exit 1
 fi
 
+current_submodule_commit="$(git -C "${submodule_dir}" rev-parse HEAD)"
+
 submodule_branch="dev"
 if [[ -f "${gitmodules}" ]]; then
   configured_branch="$(git config -f "${gitmodules}" --get submodule.packages/opencode.branch 2>/dev/null || true)"
@@ -46,13 +48,33 @@ if [[ -z "${latest_commit}" ]]; then
   exit 1
 fi
 
-git -C "${submodule_dir}" checkout --detach "${latest_commit}"
-
 current_pin="$(grep -oE 'OPENCODE_COMMIT="[^\"]+"' "${dockerfile}" | head -n1 || true)"
 if [[ -z "${current_pin}" ]]; then
   echo "Failed to find OPENCODE_COMMIT in ${dockerfile}." >&2
   exit 1
 fi
+
+current_pin_value="${current_pin#OPENCODE_COMMIT=\"}"
+current_pin_value="${current_pin_value%\"}"
+
+needs_update="false"
+if [[ "${latest_commit}" != "${current_submodule_commit}" ]]; then
+  needs_update="true"
+fi
+if [[ "${latest_commit}" != "${current_pin_value}" ]]; then
+  needs_update="true"
+fi
+
+if [[ "${needs_update}" == "false" ]]; then
+  echo "No update needed; opencode is already at the latest commit."
+  echo "  Branch: ${submodule_branch}"
+  echo "  Commit: ${latest_commit}"
+  echo "  Submodule: ${submodule_dir}"
+  echo "  Dockerfile: ${dockerfile}"
+  exit 0
+fi
+
+git -C "${submodule_dir}" checkout --detach "${latest_commit}"
 
 perl -0pi -e "s/OPENCODE_COMMIT=\"[^\"]+\"/OPENCODE_COMMIT=\"${latest_commit}\"/" "${dockerfile}"
 
@@ -63,8 +85,9 @@ if [[ "${updated_pin}" != "${expected_pin}" ]]; then
   exit 1
 fi
 
-echo "Updated opencode submodule and Dockerfile pin."
+echo "Updated opencode references."
 echo "  Branch: ${submodule_branch}"
-echo "  Commit: ${latest_commit}"
+echo "  Submodule: ${current_submodule_commit} -> ${latest_commit}"
+echo "  Dockerfile pin: ${current_pin_value} -> ${latest_commit}"
 echo "  Submodule: ${submodule_dir}"
 echo "  Dockerfile: ${dockerfile}"
