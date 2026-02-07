@@ -151,7 +151,7 @@ check-opencode-submodule-drift:
 
 # Ensure pinned opencode submodule commit is remotely fetchable
 check-opencode-submodule-published:
-    ./scripts/check-opencode-submodule-published.sh
+    ./scripts/check-opencode-submodule-published.sh --from-index
 
 # Update opencode submodule + Dockerfile OPENCODE_COMMIT pin
 update-opencode-commit:

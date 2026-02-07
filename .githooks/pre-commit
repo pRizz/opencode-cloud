@@ -6,18 +6,19 @@ set -euo pipefail
 # Note: cli-node has package-specific README (passthrough wrapper docs)
 
 ROOT_README="README.md"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Guard against unpublished opencode submodule pins.
-if git diff --cached --name-only --diff-filter=ACMR | rg -q '^packages/opencode$'; then
-    ./scripts/check-opencode-submodule-published.sh --from-index
+if git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR | rg -q '^packages/opencode$'; then
+    "$REPO_ROOT"/scripts/check-opencode-submodule-published.sh --from-index
 fi
 
-if [[ -f "$ROOT_README" ]]; then
-    cp "$ROOT_README" packages/core/README.md
-    git add packages/core/README.md
+if [[ -f "$REPO_ROOT/$ROOT_README" ]]; then
+    cp "$REPO_ROOT/$ROOT_README" "$REPO_ROOT/packages/core/README.md"
+    git -C "$REPO_ROOT" add packages/core/README.md
 fi
 
 # Run cfn-lint when CloudFormation templates change.
-if git diff --cached --name-only --diff-filter=ACMR | rg -q '^infra/aws/cloudformation/.*\.(ya?ml)$'; then
-    cfn-lint infra/aws/cloudformation/*.yaml
+if git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR | rg -q '^infra/aws/cloudformation/.*\.(ya?ml)$'; then
+    cfn-lint "$REPO_ROOT"/infra/aws/cloudformation/*.yaml
 fi
