@@ -6,17 +6,23 @@ use anyhow::Result;
 use clap::Args;
 use console::style;
 use dialoguer::Confirm;
-use opencode_cloud_core::docker::{CONTAINER_NAME, container_is_running};
+use futures_util::StreamExt;
+use opencode_cloud_core::bollard::container::LogOutput;
+use opencode_cloud_core::bollard::query_parameters::LogsOptions;
+use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
 use opencode_cloud_core::{Config, load_config_or_default, save_config};
 
 use crate::commands::{cmd_start, cmd_stop};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::wizard::run_wizard;
 
+const IOTP_LOG_PREFIX: &str = "INITIAL ONE-TIME PASSWORD (IOTP): ";
+const IOTP_FALLBACK_COMMAND: &str = "occ logs | grep -F \"INITIAL ONE-TIME PASSWORD (IOTP): \" | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'";
+
 /// Arguments for the setup command
 #[derive(Args)]
 pub struct SetupArgs {
-    /// Skip wizard if auth credentials are already configured
+    /// Skip wizard if configuration already exists
     #[arg(long, short)]
     pub yes: bool,
 
@@ -45,9 +51,9 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
 
     // Handle --yes flag for non-interactive mode
     if args.yes {
-        if let Some(ref config) = existing_config
-            && config.has_required_auth()
-        {
+        let config_exists =
+            opencode_cloud_core::config::paths::get_config_path().is_some_and(|path| path.exists());
+        if config_exists && existing_config.is_some() {
             if !quiet {
                 println!("{}", style("Configuration already set").green());
             }
@@ -55,10 +61,11 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
         }
 
         anyhow::bail!(
-            "Non-interactive mode requires auth credentials to be pre-set.\n\n\
+            "Non-interactive mode requires an existing configuration.\n\n\
             Use:\n  \
-            occ config set username <user>\n  \
-            occ config set password"
+            occ setup\n\n\
+            Or for automated environments:\n  \
+            occ setup --bootstrap"
         );
     }
 
@@ -132,6 +139,7 @@ pub async fn cmd_setup(args: &SetupArgs, quiet: bool) -> Result<()> {
         ..Default::default()
     };
     cmd_start(&start_args, target_host.as_deref(), quiet, 0).await?;
+    maybe_print_iotp_info(&client, host_name.as_deref(), &new_config).await;
 
     Ok(())
 }
@@ -219,6 +227,9 @@ async fn start_or_restart_after_setup(
         ..Default::default()
     };
     cmd_start(&start_args, target_host, quiet || non_interactive, 0).await?;
+    if !quiet {
+        maybe_print_iotp_info(&client, host_name.as_deref(), new_config).await;
+    }
     Ok(())
 }
 
@@ -257,4 +268,134 @@ fn show_running_status(config: &Config, host: Option<&str>) {
         "URL: {}",
         style(format!("http://{}:{}", bind_addr, config.opencode_web_port)).cyan()
     );
+}
+
+async fn maybe_print_iotp_info(client: &DockerClient, host: Option<&str>, config: &Config) {
+    if !config.users.is_empty() {
+        return;
+    }
+
+    println!();
+    let headline = crate::format_host_message(host, "First-time onboarding");
+    println!("{}", style(headline).cyan().bold());
+
+    if let Some(iotp) = find_iotp_in_recent_logs(client, 250).await {
+        println!(
+            "Initial One-Time Password (IOTP): {}",
+            style(iotp).green().bold()
+        );
+        println!(
+            "Enter this in the web login first-time setup panel, then enroll a passkey for {}.",
+            style("opencoder").cyan()
+        );
+        return;
+    }
+
+    for (idx, line) in build_iotp_fallback_message(config.allow_unauthenticated_network)
+        .lines()
+        .enumerate()
+    {
+        if idx == 0 {
+            println!("{}", style(line).yellow());
+        } else {
+            println!("{line}");
+        }
+    }
+}
+
+async fn find_iotp_in_recent_logs(client: &DockerClient, lines: usize) -> Option<String> {
+    let options = LogsOptions {
+        stdout: true,
+        stderr: true,
+        tail: lines.to_string(),
+        ..Default::default()
+    };
+
+    let mut stream = client.inner().logs(CONTAINER_NAME, Some(options));
+    let mut latest: Option<String> = None;
+
+    while let Some(entry) = stream.next().await {
+        let output = match entry {
+            Ok(output) => output,
+            Err(_) => break,
+        };
+
+        let message = match output {
+            LogOutput::StdOut { message } | LogOutput::StdErr { message } => {
+                String::from_utf8_lossy(&message).to_string()
+            }
+            _ => continue,
+        };
+
+        for line in message.lines() {
+            if let Some(iotp) = extract_iotp_from_line(line) {
+                latest = Some(iotp);
+            }
+        }
+    }
+
+    latest
+}
+
+fn extract_iotp_from_line(line: &str) -> Option<String> {
+    let (_, remainder) = line.split_once(IOTP_LOG_PREFIX)?;
+    let token = remainder.split_whitespace().next()?.trim();
+    if token.is_empty() {
+        return None;
+    }
+    Some(token.to_string())
+}
+
+fn build_iotp_fallback_message(allow_unauthenticated_network: bool) -> String {
+    let mut message = format!(
+        "Could not auto-detect the Initial One-Time Password (IOTP) from recent logs.\n\
+Fetch it manually with:\n  {IOTP_FALLBACK_COMMAND}"
+    );
+
+    if allow_unauthenticated_network {
+        message.push_str(
+            "\nNote: allow_unauthenticated_network=true may skip IOTP generation by design.",
+        );
+    }
+
+    message
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_iotp_from_line_valid() {
+        let line = "2026-02-08T00:00:00Z INITIAL ONE-TIME PASSWORD (IOTP): abc123XYZ";
+        assert_eq!(extract_iotp_from_line(line), Some("abc123XYZ".to_string()));
+    }
+
+    #[test]
+    fn test_extract_iotp_from_line_ignores_unrelated() {
+        assert_eq!(extract_iotp_from_line("normal startup line"), None);
+    }
+
+    #[test]
+    fn test_extract_iotp_from_line_rejects_malformed() {
+        assert_eq!(
+            extract_iotp_from_line("INITIAL ONE-TIME PASSWORD (IOTP):   "),
+            None
+        );
+    }
+
+    #[test]
+    fn test_build_iotp_fallback_message_default() {
+        let message = build_iotp_fallback_message(false);
+        assert!(message.contains("Could not auto-detect"));
+        assert!(message.contains(IOTP_FALLBACK_COMMAND));
+        assert!(!message.contains("allow_unauthenticated_network"));
+    }
+
+    #[test]
+    fn test_build_iotp_fallback_message_with_unauth_hint() {
+        let message = build_iotp_fallback_message(true);
+        assert!(message.contains(IOTP_FALLBACK_COMMAND));
+        assert!(message.contains("allow_unauthenticated_network=true"));
+    }
 }

@@ -587,7 +587,7 @@ fn display_bootstrap_mode_warning(bind_addr: &str) {
         style(bind_addr).cyan()
     );
     eprintln!("Open the login page and use the first-time setup panel with that IOTP.");
-    eprintln!("The IOTP is invalidated immediately after the first successful signup.");
+    eprintln!("The IOTP is invalidated immediately after the first successful passkey enrollment.");
     eprintln!();
     eprintln!(
         "Admin alternative: {}",

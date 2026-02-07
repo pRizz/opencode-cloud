@@ -53,9 +53,9 @@ pub fn verify_tty() -> Result<()> {
     if !std::io::stdin().is_terminal() {
         bail!(
             "No TTY detected. Use occ config set or provide config file.\n\n\
-            For non-interactive setup, pre-set auth credentials then run commands:\n  \
-            occ config set username <user>\n  \
-            occ config set password  # will prompt\n\n\
+            For non-interactive setup:\n  \
+            occ setup --bootstrap\n\n\
+            Then start the service and complete IOTP + passkey onboarding in the web login page.\n\n\
             Or edit the config file directly:\n  \
             ~/.config/opencode-cloud/config.json"
         );

@@ -2,22 +2,18 @@
 //!
 //! Guides users through first-time configuration with interactive prompts.
 
-mod auth;
 mod config_view;
 mod network;
 mod prechecks;
 mod summary;
 
-pub use auth::create_container_user;
 pub use prechecks::{verify_docker_available, verify_tty};
 
 use anyhow::{Result, anyhow};
 use console::{Term, style};
 use dialoguer::Confirm;
-use opencode_cloud_core::docker::{CONTAINER_NAME, DockerClient, container_is_running};
 use opencode_cloud_core::{Config, config::default_mounts};
 
-use auth::prompt_auth;
 use config_view::render_config_snapshot;
 use network::{prompt_hostname, prompt_port};
 use summary::display_summary;
@@ -25,10 +21,6 @@ use summary::display_summary;
 /// Wizard state holding collected configuration values
 #[derive(Debug, Clone)]
 pub struct WizardState {
-    /// Username for authentication
-    pub auth_username: Option<String>,
-    /// Password for authentication
-    pub auth_password: Option<String>,
     /// Port for the web UI
     pub port: u16,
     /// Bind address (localhost or 0.0.0.0)
@@ -42,12 +34,6 @@ pub struct WizardState {
 impl WizardState {
     /// Apply wizard state to a Config struct
     pub fn apply_to_config(&self, config: &mut Config) {
-        if let Some(ref username) = self.auth_username {
-            config.auth_username = Some(username.clone());
-        }
-        if let Some(ref password) = self.auth_password {
-            config.auth_password = Some(password.clone());
-        }
         config.opencode_web_port = self.port;
         config.bind = self.bind.clone();
         config.image_source = self.image_source.clone();
@@ -60,6 +46,41 @@ fn handle_interrupt() -> anyhow::Error {
     // Restore cursor in case it was hidden
     let _ = Term::stdout().show_cursor();
     anyhow!("Setup cancelled")
+}
+
+fn display_auth_bootstrap_info(step: usize, total: usize) -> Result<()> {
+    println!(
+        "{}",
+        style(format!("Step {step}/{total}: Authentication Onboarding"))
+            .cyan()
+            .bold()
+    );
+    println!();
+    println!(
+        "First-time sign-in now uses an Initial One-Time Password (IOTP) and passkey enrollment."
+    );
+    println!("This wizard does not create usernames/passwords.");
+    println!();
+    println!(
+        "{}",
+        style("After setup, start the service and complete authentication in the web login page.")
+            .dim()
+    );
+    println!("{}", style("Admin fallback: occ user add <username>").dim());
+    println!();
+
+    let proceed = Confirm::new()
+        .with_prompt("Continue with IOTP-first onboarding?")
+        .default(true)
+        .interact()
+        .map_err(|_| handle_interrupt())?;
+
+    if !proceed {
+        return Err(anyhow!("Setup cancelled"));
+    }
+
+    println!();
+    Ok(())
 }
 
 /// Prompt user to choose image source
@@ -161,9 +182,6 @@ fn prompt_mounts(step: usize, total: usize, mounts: &[String]) -> Result<Vec<Str
 /// Guides the user through configuration, collecting values and returning
 /// a complete Config. Does NOT save - the caller is responsible for saving.
 ///
-/// Creates PAM-based users in the container if it's running.
-/// Migrates old auth_username/auth_password to new users array.
-///
 /// # Arguments
 /// * `existing_config` - Optional existing config to show current values
 ///
@@ -174,12 +192,6 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
     // 1. Prechecks
     verify_tty()?;
     verify_docker_available().await?;
-
-    // Connect to Docker for container operations
-    let client = DockerClient::new()?;
-    let is_container_running = container_is_running(&client, CONTAINER_NAME)
-        .await
-        .unwrap_or(false);
 
     println!();
     println!("{}", style("opencode-cloud Setup Wizard").cyan().bold());
@@ -238,7 +250,7 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
 
     // 3. Quick setup offer
     let quick = Confirm::new()
-        .with_prompt("Use defaults for everything except credentials?")
+        .with_prompt("Use defaults for network and persistence settings?")
         .default(false)
         .interact()
         .map_err(|_| handle_interrupt())?;
@@ -248,7 +260,7 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
     // 4. Collect values
     let total_steps = if quick { 3 } else { 5 };
 
-    let (username, password) = prompt_auth(1, total_steps)?;
+    display_auth_bootstrap_info(1, total_steps)?;
     let image_source = prompt_image_source(2, total_steps)?;
 
     let (port, bind) = if quick {
@@ -268,8 +280,6 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
     };
 
     let state = WizardState {
-        auth_username: Some(username.clone()),
-        auth_password: Some(password.clone()),
         port,
         bind,
         image_source,
@@ -292,46 +302,9 @@ pub async fn run_wizard(existing_config: Option<&Config>) -> Result<Config> {
         return Err(anyhow!("Setup cancelled"));
     }
 
-    // 7. Create user in container if running
-    if is_container_running {
-        println!();
-        println!("{}", style("Creating user in container...").cyan());
-        auth::create_container_user(&client, &username, &password).await?;
-    } else {
-        println!();
-        println!(
-            "{}",
-            style("Note: User will be created when container starts.").dim()
-        );
-    }
-
-    // 8. Build and return config
+    // 7. Build and return config
     let mut config = existing_config.cloned().unwrap_or_default();
     state.apply_to_config(&mut config);
-
-    // Update config.users array (PAM-based auth tracking)
-    if !config.users.contains(&username) {
-        config.users.push(username);
-    }
-
-    // Migrate old auth_username/auth_password if present
-    if let Some(ref old_username) = config.auth_username
-        && !old_username.is_empty()
-        && !config.users.contains(old_username)
-    {
-        println!(
-            "{}",
-            style(format!(
-                "Migrating existing user '{old_username}' to PAM-based authentication..."
-            ))
-            .dim()
-        );
-        config.users.push(old_username.clone());
-    }
-
-    // Clear legacy auth fields (keep them empty for schema compatibility)
-    config.auth_username = Some(String::new());
-    config.auth_password = Some(String::new());
 
     Ok(config)
 }
@@ -343,8 +316,6 @@ mod tests {
     #[test]
     fn test_wizard_state_apply_to_config() {
         let state = WizardState {
-            auth_username: Some("testuser".to_string()),
-            auth_password: Some("testpass".to_string()),
             port: 8080,
             bind: "0.0.0.0".to_string(),
             image_source: "prebuilt".to_string(),
@@ -354,8 +325,6 @@ mod tests {
         let mut config = Config::default();
         state.apply_to_config(&mut config);
 
-        assert_eq!(config.auth_username, Some("testuser".to_string()));
-        assert_eq!(config.auth_password, Some("testpass".to_string()));
         assert_eq!(config.opencode_web_port, 8080);
         assert_eq!(config.bind, "0.0.0.0");
         assert_eq!(config.image_source, "prebuilt");
@@ -364,8 +333,6 @@ mod tests {
     #[test]
     fn test_wizard_state_preserves_other_config_fields() {
         let state = WizardState {
-            auth_username: Some("admin".to_string()),
-            auth_password: Some("secret".to_string()),
             port: 3000,
             bind: "localhost".to_string(),
             image_source: "build".to_string(),
@@ -375,6 +342,8 @@ mod tests {
         let mut config = Config {
             auto_restart: false,
             restart_retries: 10,
+            auth_username: Some("legacy-user".to_string()),
+            auth_password: Some("legacy-password".to_string()),
             ..Config::default()
         };
         state.apply_to_config(&mut config);
@@ -384,7 +353,8 @@ mod tests {
         assert_eq!(config.restart_retries, 10);
 
         // Should update wizard fields
-        assert_eq!(config.auth_username, Some("admin".to_string()));
+        assert_eq!(config.auth_username, Some("legacy-user".to_string()));
+        assert_eq!(config.auth_password, Some("legacy-password".to_string()));
         assert_eq!(config.image_source, "build");
     }
 }

@@ -84,6 +84,8 @@ Extract just the IOTP value (optional):
 occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
 ```
 
+If you used `occ setup`, it will also try to auto-detect and print the IOTP after starting/restarting the service.
+
 Open the web login page through your SSH tunnel and use the first-time setup panel:
 - Enter the IOTP from logs
 - Continue to passkey setup

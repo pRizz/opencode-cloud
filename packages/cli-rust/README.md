@@ -71,8 +71,9 @@ packages/cli-rust/
 │   │   └── urls.rs             # URL formatting helpers
 │   ├── wizard/
 │   │   ├── mod.rs              # Interactive setup wizard
-│   │   ├── auth.rs             # Auth prompts
-│   │   └── network.rs          # Network prompts
+│   │   ├── network.rs          # Network prompts
+│   │   ├── summary.rs          # Wizard summary output
+│   │   └── prechecks.rs        # Environment prechecks
 │   └── lib.rs                  # Shared CLI implementation
 ├── Cargo.toml
 └── README.md                   # This file

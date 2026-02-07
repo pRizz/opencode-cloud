@@ -9,7 +9,7 @@ use opencode_cloud_core::config::paths::get_config_path;
 
 /// Display configuration summary
 ///
-/// Shows all collected values with password masked.
+/// Shows all collected configuration values and onboarding steps.
 pub fn display_summary(state: &WizardState) {
     println!("{}", style("Configuration Summary").bold());
     println!("{}", style("-".repeat(22)).dim());
@@ -18,10 +18,10 @@ pub fn display_summary(state: &WizardState) {
     table.load_preset(comfy_table::presets::NOTHING);
 
     table.add_row(vec![
-        Cell::new("Username:"),
-        Cell::new(state.auth_username.as_deref().unwrap_or("-")),
+        Cell::new("Auth setup:"),
+        Cell::new("Initial One-Time Password (IOTP) + passkey"),
     ]);
-    table.add_row(vec![Cell::new("Password:"), Cell::new("********")]);
+    table.add_row(vec![Cell::new("Bootstrap user:"), Cell::new("opencoder")]);
     table.add_row(vec![Cell::new("Port:"), Cell::new(state.port)]);
     table.add_row(vec![Cell::new("Binding:"), Cell::new(&state.bind)]);
 
@@ -43,6 +43,21 @@ pub fn display_summary(state: &WizardState) {
     table.add_row(vec![Cell::new("Mounts:"), Cell::new(mounts_summary)]);
 
     println!("{table}");
+
+    println!();
+    println!("{}", style("After setup").bold());
+    println!(
+        "{}",
+        style("- Start the service and use the IOTP from logs on the web login page.").dim()
+    );
+    println!(
+        "{}",
+        style("- Enroll a passkey to complete first-time onboarding.").dim()
+    );
+    println!(
+        "{}",
+        style("- Add additional users later with: occ user add <username>").dim()
+    );
 
     // Show config file location
     if let Some(path) = get_config_path() {

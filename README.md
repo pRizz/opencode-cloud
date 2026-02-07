@@ -164,6 +164,14 @@ Quick IOTP extraction from logs:
 occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
 ```
 
+You can also run the setup wizard:
+
+```bash
+occ setup
+```
+
+The wizard now configures runtime settings (image source, bind/port, mounts), keeps authentication on IOTP + passkey onboarding, and attempts to auto-detect the IOTP from logs after start.
+
 ### From source (install locally)
 
 ```bash
@@ -353,6 +361,7 @@ opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authenticatio
 First boot path:
 - If no users are configured, startup logs print an Initial One-Time Password (IOTP).
 - Extract only the IOTP quickly: `occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'`
+- `occ setup` attempts to auto-detect and print the IOTP after starting/restarting the service.
 - Enter that IOTP in the web login page first-time setup panel.
 - Enroll a passkey for the default `opencoder` account.
 - The IOTP is deleted after successful passkey enrollment.
