@@ -1333,7 +1333,7 @@ pub(crate) async fn wait_for_service_ready(
         if last_log_check.elapsed() > log_check_interval {
             if let Some(error) = check_for_fatal_errors(client).await {
                 return Err(anyhow!(
-                    "Fatal error detected in container:\n  {error}\n\nThe service cannot start. Try rebuilding the Docker image: occ start --full-rebuild"
+                    "Fatal error detected in container:\n  {error}\n\nThe service cannot start. Try rebuilding the Docker image: occ start --full-rebuild-sandbox-image"
                 ));
             }
             last_log_check = Instant::now();

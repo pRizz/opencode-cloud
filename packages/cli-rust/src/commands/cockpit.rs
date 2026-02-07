@@ -45,7 +45,7 @@ pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: b
             style("Cockpit is disabled").yellow().bold(),
             style("Note").yellow(),
             style("occ config set cockpit_enabled true").cyan(),
-            style("occ start --cached-rebuild").cyan()
+            style("occ start --cached-rebuild-sandbox-image").cyan()
         );
     }
 

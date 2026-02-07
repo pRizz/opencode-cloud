@@ -408,27 +408,28 @@ When developing locally or after updating opencode-cloud, you may need to rebuil
 
 ```bash
 # Rebuild using Docker cache (fast - only rebuilds changed layers)
-occ start --cached-rebuild
+occ start --cached-rebuild-sandbox-image
 
 # Rebuild from scratch without cache (slow - for troubleshooting)
-occ start --full-rebuild
+occ start --full-rebuild-sandbox-image
 ```
 
-**`--cached-rebuild`** (recommended for most cases):
+**`--cached-rebuild-sandbox-image`** (recommended for most cases):
 - Uses Docker layer cache for fast rebuilds
 - Only rebuilds layers that changed (e.g., if only the CMD changed, it's nearly instant)
 - Stops and removes any existing container before rebuilding
 
-**`--full-rebuild`** (for troubleshooting):
+**`--full-rebuild-sandbox-image`** (for troubleshooting):
 - Ignores Docker cache and rebuilds everything from scratch
 - Takes 10-15 minutes but guarantees a completely fresh image
 - Use when cached rebuild doesn't fix issues
 
 **When to rebuild:**
-- After pulling updates to opencode-cloud → use `--cached-rebuild`
-- When modifying the Dockerfile during development → use `--cached-rebuild`
-- When the container fails to start due to image issues → try `--cached-rebuild` first, then `--full-rebuild`
-- When you want a completely fresh environment → use `--full-rebuild`
+- After pulling updates to opencode-cloud → use `--cached-rebuild-sandbox-image`
+- After pulling new commits in `packages/opencode` (submodule) → run `just run start --cached-rebuild-sandbox-image` once so the running container picks up the new opencode commit
+- When modifying the Dockerfile during development → use `--cached-rebuild-sandbox-image`
+- When the container fails to start due to image issues → try `--cached-rebuild-sandbox-image` first, then `--full-rebuild-sandbox-image`
+- When you want a completely fresh environment → use `--full-rebuild-sandbox-image`
 
 ## Configuration
 
