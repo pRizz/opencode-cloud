@@ -156,7 +156,7 @@ Goal: keep opencode on localhost, expose only `80/443` publicly.
 ### 1) Ensure opencode binds to localhost
 
 ```bash
-occ config set bind_address 127.0.0.1
+occ config set bind_address localhost
 occ restart
 ```
 

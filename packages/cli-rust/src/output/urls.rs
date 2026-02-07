@@ -53,10 +53,24 @@ pub fn normalize_bind_addr(bind_addr: &str) -> &str {
     }
 }
 
+/// Normalize a bind address for user-facing URL display/opening.
+///
+/// For loopback and wildcard bind addresses, this returns `localhost` so browser
+/// navigation uses passkey-eligible localhost origins.
+pub fn localhost_display_addr(bind_addr: &str) -> &str {
+    if bind_addr.eq_ignore_ascii_case("localhost")
+        || matches!(bind_addr, "127.0.0.1" | "::1" | "0.0.0.0" | "::")
+    {
+        "localhost"
+    } else {
+        bind_addr
+    }
+}
+
 /// Format a Cockpit URL for display.
 ///
 /// Uses the remote address if available, otherwise normalizes the bind
-/// address (converting wildcard addresses to 127.0.0.1 for local display).
+/// address for localhost-first local display.
 ///
 /// # Arguments
 ///
@@ -75,7 +89,7 @@ pub fn format_cockpit_url(
     if let Some(remote_addr) = maybe_remote_addr {
         format!("http://{remote_addr}:{cockpit_port}")
     } else {
-        let cockpit_addr = normalize_bind_addr(bind_addr);
+        let cockpit_addr = localhost_display_addr(bind_addr);
         format!("http://{cockpit_addr}:{cockpit_port}")
     }
 }
@@ -83,7 +97,7 @@ pub fn format_cockpit_url(
 /// Format a service URL for display.
 ///
 /// Uses the remote address if available, otherwise uses the bind address
-/// as-is (does not normalize wildcards for the main service URL).
+/// normalized for localhost-first local display.
 ///
 /// # Arguments
 ///
@@ -98,7 +112,8 @@ pub fn format_service_url(maybe_remote_addr: Option<&str>, bind_addr: &str, port
     if let Some(remote_addr) = maybe_remote_addr {
         format!("http://{remote_addr}:{port}")
     } else {
-        format!("http://{bind_addr}:{port}")
+        let service_addr = localhost_display_addr(bind_addr);
+        format!("http://{service_addr}:{port}")
     }
 }
 
@@ -135,7 +150,7 @@ mod tests {
     #[test]
     fn format_cockpit_url_normalizes_wildcard_address() {
         let url = format_cockpit_url(None, "0.0.0.0", 9090);
-        assert_eq!(url, "http://127.0.0.1:9090");
+        assert_eq!(url, "http://localhost:9090");
     }
 
     #[test]
@@ -153,7 +168,20 @@ mod tests {
     #[test]
     fn format_service_url_uses_bind_addr_when_no_remote() {
         let url = format_service_url(None, "0.0.0.0", 3000);
-        assert_eq!(url, "http://0.0.0.0:3000");
+        assert_eq!(url, "http://localhost:3000");
+    }
+
+    #[test]
+    fn localhost_display_addr_normalizes_loopback_and_wildcard() {
+        assert_eq!(localhost_display_addr("127.0.0.1"), "localhost");
+        assert_eq!(localhost_display_addr("::1"), "localhost");
+        assert_eq!(localhost_display_addr("0.0.0.0"), "localhost");
+        assert_eq!(localhost_display_addr("::"), "localhost");
+    }
+
+    #[test]
+    fn localhost_display_addr_preserves_non_loopback_address() {
+        assert_eq!(localhost_display_addr("192.168.1.100"), "192.168.1.100");
     }
 
     #[test]

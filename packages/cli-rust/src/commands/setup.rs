@@ -12,6 +12,7 @@ use opencode_cloud_core::{Config, load_config_or_default, save_config};
 use crate::commands::iotp::{IOTP_FALLBACK_COMMAND, IotpState, fetch_iotp_snapshot};
 use crate::commands::{cmd_start, cmd_stop};
 use crate::constants::COCKPIT_EXPOSED;
+use crate::output::format_service_url;
 use crate::wizard::run_wizard;
 
 /// Arguments for the setup command
@@ -253,16 +254,9 @@ fn show_running_status(config: &Config, host: Option<&str>) {
     println!("{}", style(msg).dim());
     println!();
 
-    let bind_addr = if config.bind == "0.0.0.0" || config.bind == "::" {
-        "127.0.0.1"
-    } else {
-        &config.bind
-    };
+    let url = format_service_url(None, &config.bind, config.opencode_web_port);
 
-    println!(
-        "URL: {}",
-        style(format!("http://{}:{}", bind_addr, config.opencode_web_port)).cyan()
-    );
+    println!("URL: {}", style(url).cyan());
 }
 
 async fn maybe_print_iotp_info(client: &DockerClient, host: Option<&str>, config: &Config) {

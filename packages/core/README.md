@@ -269,6 +269,12 @@ occ reset container
 # Remove container and volumes (data loss)
 occ reset container --volumes --force
 
+# Reset completed IOTP bootstrap and generate a fresh one-time password
+occ reset iotp
+
+# If bind_address is exposed (for example behind HTTPS reverse proxy), confirm intentionally
+occ reset iotp --force
+
 # Clean bind mount contents (data loss)
 occ mount clean --force
 
@@ -366,6 +372,7 @@ First boot path:
 - Enter that IOTP in the web login page first-time setup panel.
 - Enroll a passkey for the default `opencoder` account.
 - The IOTP is deleted after successful passkey enrollment.
+- To restart first-time onboarding after completion, run `occ reset iotp`.
 - Built-in image users (for example `ubuntu`/`opencoder`) do not disable IOTP bootstrap.
 
 Admin path:

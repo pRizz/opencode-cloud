@@ -5,7 +5,7 @@
 use crate::commands::runtime_shared::mounts::{collect_bind_mounts, mounts_equal};
 use crate::commands::start::{wait_for_broker_ready, wait_for_service_ready};
 use crate::constants::COCKPIT_EXPOSED;
-use crate::output::{CommandSpinner, format_docker_error, show_docker_error};
+use crate::output::{CommandSpinner, format_docker_error, format_service_url, show_docker_error};
 use anyhow::{Result, anyhow};
 use clap::Args;
 use console::style;
@@ -242,7 +242,7 @@ pub async fn cmd_restart(
             ));
 
             if !quiet {
-                let url = format!("http://{bind_addr}:{port}");
+                let url = format_service_url(None, bind_addr, port);
                 println!();
                 println!("URL:        {}", style(&url).cyan());
                 println!(

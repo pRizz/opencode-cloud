@@ -10,6 +10,9 @@ mod passwords;
 mod sandbox_profile;
 pub mod wizard;
 
+use crate::commands::runtime_shared::drift::{
+    RuntimeAssetDrift, detect_runtime_asset_drift, stale_container_warning_lines,
+};
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand, ValueEnum};
 use console::style;
@@ -105,6 +108,13 @@ enum RuntimeChoice {
 enum RuntimeMode {
     Host,
     Container,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommandKind {
+    None,
+    Status,
+    Other,
 }
 
 /// Get the ASCII banner for help display
@@ -231,6 +241,25 @@ fn container_mode_unsupported_error() -> anyhow::Error {
 Supported commands:\n  occ status\n  occ logs\n  occ user\n  occ update opencode\n\
 To force host runtime:\n  occ --runtime host <command>\n  OPENCODE_RUNTIME=host occ <command>"
     )
+}
+
+fn command_kind(command: Option<&Commands>) -> CommandKind {
+    match command {
+        None => CommandKind::None,
+        Some(Commands::Status(_)) => CommandKind::Status,
+        Some(_) => CommandKind::Other,
+    }
+}
+
+fn should_run_runtime_asset_preflight(
+    kind: CommandKind,
+    target_host: Option<&str>,
+    quiet: bool,
+) -> bool {
+    if quiet || target_host.is_some() {
+        return false;
+    }
+    matches!(kind, CommandKind::Other)
 }
 
 fn run_container_mode(cli: &Cli) -> Result<()> {
@@ -398,6 +427,32 @@ Use host mode instead:\n  occ --runtime host <command>"
 
     // Store target host for command handlers
     let target_host = resolve_target_host(cli.remote_host.as_deref(), cli.local);
+    let dispatch_kind = command_kind(cli.command.as_ref());
+
+    if should_run_runtime_asset_preflight(dispatch_kind, target_host.as_deref(), cli.quiet) {
+        match tokio::runtime::Runtime::new() {
+            Ok(rt) => {
+                if let Err(err) = rt.block_on(maybe_print_runtime_asset_preflight(
+                    target_host.as_deref(),
+                    cli.verbose,
+                )) && cli.verbose > 0
+                {
+                    eprintln!(
+                        "{} Runtime drift preflight failed: {err}",
+                        style("[warn]").yellow()
+                    );
+                }
+            }
+            Err(err) => {
+                if cli.verbose > 0 {
+                    eprintln!(
+                        "{} Failed to initialize runtime drift preflight: {err}",
+                        style("[warn]").yellow()
+                    );
+                }
+            }
+        }
+    }
 
     match cli.command {
         Some(Commands::Start(args)) => {
@@ -560,6 +615,43 @@ async fn handle_no_command(target_host: Option<&str>, quiet: bool, verbose: u8) 
     Ok(())
 }
 
+async fn maybe_print_runtime_asset_preflight(target_host: Option<&str>, verbose: u8) -> Result<()> {
+    let (client, host_name) = resolve_docker_client(target_host).await?;
+    if host_name.is_some() {
+        return Ok(());
+    }
+
+    let report = detect_runtime_asset_drift(&client).await;
+    print_runtime_asset_preflight_warning(&report, verbose);
+    Ok(())
+}
+
+fn print_runtime_asset_preflight_warning(report: &RuntimeAssetDrift, verbose: u8) {
+    if !report.drift_detected {
+        return;
+    }
+
+    eprintln!(
+        "{} {}",
+        style("Warning:").yellow().bold(),
+        style("Local container drift detected.").yellow()
+    );
+    for line in render_runtime_asset_preflight_lines(report, verbose) {
+        eprintln!("  {line}");
+    }
+    eprintln!();
+}
+
+fn render_runtime_asset_preflight_lines(report: &RuntimeAssetDrift, verbose: u8) -> Vec<String> {
+    let mut lines = stale_container_warning_lines(report);
+    if verbose > 0 {
+        for detail in &report.diagnostics {
+            lines.push(format!("diagnostic: {detail}"));
+        }
+    }
+    lines
+}
+
 fn print_help_hint() {
     println!(
         "{} {}",
@@ -672,5 +764,80 @@ mod tests {
         let (mode, auto) = resolve_runtime_with_autodetect(RuntimeChoice::Auto, false);
         assert_eq!(mode, RuntimeMode::Host);
         assert!(!auto);
+    }
+
+    #[test]
+    fn command_kind_maps_none_status_and_other() {
+        assert_eq!(command_kind(None), CommandKind::None);
+
+        let status = Commands::Status(commands::StatusArgs {});
+        assert_eq!(command_kind(Some(&status)), CommandKind::Status);
+
+        let start = Commands::Start(commands::StartArgs::default());
+        assert_eq!(command_kind(Some(&start)), CommandKind::Other);
+    }
+
+    #[test]
+    fn should_run_runtime_asset_preflight_gating() {
+        assert!(should_run_runtime_asset_preflight(
+            CommandKind::Other,
+            None,
+            false
+        ));
+        assert!(!should_run_runtime_asset_preflight(
+            CommandKind::Status,
+            None,
+            false
+        ));
+        assert!(!should_run_runtime_asset_preflight(
+            CommandKind::None,
+            None,
+            false
+        ));
+        assert!(!should_run_runtime_asset_preflight(
+            CommandKind::Other,
+            Some("prod-host"),
+            false
+        ));
+        assert!(!should_run_runtime_asset_preflight(
+            CommandKind::Other,
+            None,
+            true
+        ));
+    }
+
+    #[test]
+    fn render_runtime_asset_preflight_lines_include_rebuild_suggestions() {
+        let report = RuntimeAssetDrift {
+            drift_detected: true,
+            mismatched_assets: vec!["bootstrap helper".to_string()],
+            diagnostics: vec![],
+        };
+        let lines = render_runtime_asset_preflight_lines(&report, 0);
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("--cached-rebuild-sandbox-image"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("--full-rebuild-sandbox-image"))
+        );
+    }
+
+    #[test]
+    fn render_runtime_asset_preflight_lines_appends_diagnostics_in_verbose() {
+        let report = RuntimeAssetDrift {
+            drift_detected: true,
+            mismatched_assets: vec!["entrypoint".to_string()],
+            diagnostics: vec!["entrypoint: exit status 1".to_string()],
+        };
+        let lines = render_runtime_asset_preflight_lines(&report, 1);
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("diagnostic: entrypoint"))
+        );
     }
 }

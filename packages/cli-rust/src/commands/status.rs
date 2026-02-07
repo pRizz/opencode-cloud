@@ -10,13 +10,17 @@ use crate::commands::disk_usage::{
 use crate::commands::iotp::{IOTP_FALLBACK_COMMAND, IotpSnapshot, IotpState, fetch_iotp_snapshot};
 use crate::commands::runtime_shared::backend::HostBackend;
 use crate::commands::runtime_shared::collect_status_view;
+use crate::commands::runtime_shared::drift::{
+    RuntimeAssetDrift, detect_runtime_asset_drift, stale_container_warning_lines,
+};
 use crate::commands::runtime_shared::status_model::{
     BrokerHealthStatus, OpencodeHealthStatus, format_broker_health_label,
     format_opencode_health_label,
 };
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
-    format_cockpit_url, format_docker_error_anyhow, resolve_remote_addr, state_style,
+    format_cockpit_url, format_docker_error_anyhow, format_service_url, resolve_remote_addr,
+    state_style,
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -58,7 +62,7 @@ pub async fn cmd_status(
     _args: &StatusArgs,
     maybe_host: Option<&str>,
     quiet: bool,
-    _verbose: u8,
+    verbose: u8,
 ) -> Result<()> {
     let resources = active_resource_names();
 
@@ -270,6 +274,13 @@ pub async fn cmd_status(
         println!("{}", format_kv("Image src:", style(&source_info).dim()));
     }
 
+    let runtime_asset_drift = if running && host_name.is_none() {
+        detect_runtime_asset_drift(&client).await
+    } else {
+        RuntimeAssetDrift::default()
+    };
+    print_runtime_asset_drift_warning(&runtime_asset_drift, verbose);
+
     print_disk_usage_section(&client, host_name.as_deref()).await;
 
     if running {
@@ -469,14 +480,14 @@ fn print_opencode_broker_section(status: BrokerHealthStatus) {
 
 fn print_urls(maybe_remote_addr: Option<&str>, bind_addr: &str, host_port: u16) {
     let Some(remote_addr) = maybe_remote_addr else {
-        let url = format!("http://{bind_addr}:{host_port}");
-        println!("{}", format_kv("URL:", style(&url).cyan()));
+        let url = format_service_url(None, bind_addr, host_port);
+        println!("{}", format_kv("Local URL:", style(&url).cyan()));
         return;
     };
 
-    let remote_url = format!("http://{remote_addr}:{host_port}");
+    let remote_url = format_service_url(Some(remote_addr), bind_addr, host_port);
     println!("{}", format_kv("Remote URL:", style(&remote_url).cyan()));
-    let local_url = format!("http://127.0.0.1:{host_port}");
+    let local_url = format_service_url(None, "127.0.0.1", host_port);
     println!(
         "{}",
         format_kv(
@@ -568,6 +579,33 @@ fn print_remote_health(maybe_health: Option<&str>) {
         _ => style(health_status).dim(),
     };
     println!("{}", format_kv("Sandbox Health:", health_styled));
+}
+
+fn print_runtime_asset_drift_warning(report: &RuntimeAssetDrift, verbose: u8) {
+    if !report.drift_detected {
+        return;
+    }
+
+    println!(
+        "{}",
+        format_kv(
+            "Dev sync:",
+            style("stale container assets detected").yellow()
+        )
+    );
+    for line in render_runtime_asset_drift_lines(report, verbose) {
+        println!("{}", format_continuation(style(line).yellow()));
+    }
+}
+
+fn render_runtime_asset_drift_lines(report: &RuntimeAssetDrift, verbose: u8) -> Vec<String> {
+    let mut lines = stale_container_warning_lines(report);
+    if verbose > 0 {
+        for detail in &report.diagnostics {
+            lines.push(format!("diagnostic: {detail}"));
+        }
+    }
+    lines
 }
 
 fn print_config_path(maybe_host_name: Option<&str>, config_path: &str) {
@@ -870,6 +908,14 @@ async fn display_security_section(
     if let Some(detail) = iotp_detail {
         println!("{}", format_continuation(style(detail).dim()));
     }
+    if matches!(iotp_snapshot.state, IotpState::InactiveCompleted) {
+        for line in iotp_reset_hint_lines(!config.is_localhost()) {
+            println!(
+                "{}",
+                format_continuation(format_iotp_reset_hint_line(&line))
+            );
+        }
+    }
     if !matches!(iotp_snapshot.state, IotpState::ActiveUnused) {
         println!(
             "{}",
@@ -927,6 +973,21 @@ fn render_iotp_status(
     }
 
     (state_text, value_text, detail)
+}
+
+fn iotp_reset_hint_lines(non_localhost_bind: bool) -> Vec<String> {
+    let mut lines = vec!["Reset IOTP: occ reset iotp".to_string()];
+    if non_localhost_bind {
+        lines.push("Use --force for exposed bind configurations.".to_string());
+    }
+    lines
+}
+
+fn format_iotp_reset_hint_line(line: &str) -> String {
+    if let Some(command) = line.strip_prefix("Reset IOTP: ") {
+        return format!("{} {}", style("Reset IOTP:").dim(), style(command).cyan());
+    }
+    style(line).dim().to_string()
 }
 
 #[cfg(test)]
@@ -1037,5 +1098,61 @@ mod tests {
         let detail = detail.expect("detail should exist");
         assert!(detail.contains("not_initialized"));
         assert!(detail.contains("allow_unauthenticated_network=true"));
+    }
+
+    #[test]
+    fn iotp_reset_hint_lines_includes_force_hint_when_exposed() {
+        let lines = iotp_reset_hint_lines(true);
+        assert_eq!(lines[0], "Reset IOTP: occ reset iotp");
+        assert!(lines.iter().any(|line| line.contains("--force")));
+    }
+
+    #[test]
+    fn iotp_reset_hint_lines_without_exposed_only_shows_command() {
+        let lines = iotp_reset_hint_lines(false);
+        assert_eq!(lines, vec!["Reset IOTP: occ reset iotp".to_string()]);
+    }
+
+    #[test]
+    fn render_runtime_asset_drift_lines_empty_when_no_drift() {
+        let report = RuntimeAssetDrift::default();
+        let lines = render_runtime_asset_drift_lines(&report, 0);
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn render_runtime_asset_drift_lines_includes_rebuild_commands() {
+        let report = RuntimeAssetDrift {
+            drift_detected: true,
+            mismatched_assets: vec!["bootstrap helper".to_string()],
+            diagnostics: vec![],
+        };
+        let lines = render_runtime_asset_drift_lines(&report, 0);
+        assert!(lines.iter().any(|line| line.contains("bootstrap helper")));
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("--cached-rebuild-sandbox-image"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("--full-rebuild-sandbox-image"))
+        );
+    }
+
+    #[test]
+    fn render_runtime_asset_drift_lines_includes_diagnostics_when_verbose() {
+        let report = RuntimeAssetDrift {
+            drift_detected: true,
+            mismatched_assets: vec!["entrypoint".to_string()],
+            diagnostics: vec!["healthcheck: exec failed".to_string()],
+        };
+        let lines = render_runtime_asset_drift_lines(&report, 1);
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("diagnostic: healthcheck"))
+        );
     }
 }

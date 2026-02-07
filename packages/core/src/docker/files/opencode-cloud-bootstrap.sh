@@ -240,10 +240,7 @@ emit_status() {
     jq -cn --arg created_at "${created_at}" '{ok:true,active:true,created_at:$created_at}'
 }
 
-cmd_init() {
-    ensure_state_dir
-    acquire_lock
-
+cmd_init_internal() {
     if has_non_protected_configured_user; then
         emit_inactive_and_cleanup
         return 0
@@ -278,6 +275,22 @@ cmd_init() {
     chmod 600 "${STATE_FILE}" "${SECRET_FILE}"
 
     jq -cn --arg created_at "${created_at}" --arg otp "${otp}" '{ok:true,active:true,created_at:$created_at,otp:$otp}'
+}
+
+cmd_init() {
+    ensure_state_dir
+    acquire_lock
+    cmd_init_internal
+}
+
+cmd_reset() {
+    ensure_state_dir
+    acquire_lock
+
+    rm -f "${COMPLETE_MARKER_FILE}"
+    remove_state_files
+
+    cmd_init_internal
 }
 
 cmd_status() {
@@ -459,6 +472,7 @@ Usage: opencode-cloud-bootstrap <command>
 
 Commands:
   init                 Initialize bootstrap OTP if needed
+  reset                Reset bootstrap completion and reinitialize OTP
   status [--include-secret]
                        Show bootstrap status
   verify               Verify OTP (expects JSON stdin: {"otp":"..."})
@@ -474,6 +488,9 @@ main() {
     case "${command}" in
         init)
             cmd_init "$@"
+            ;;
+        reset)
+            cmd_reset "$@"
             ;;
         status)
             cmd_status "$@"

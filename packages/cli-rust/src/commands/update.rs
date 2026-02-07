@@ -11,7 +11,7 @@ use crate::commands::disk_usage::{
 };
 use crate::commands::{RestartArgs, cmd_restart};
 use crate::constants::COCKPIT_EXPOSED;
-use crate::output::CommandSpinner;
+use crate::output::{CommandSpinner, format_service_url};
 use anyhow::{Result, anyhow};
 use clap::{Args, Subcommand};
 use console::style;
@@ -2038,7 +2038,7 @@ async fn handle_update(
         eprintln!();
         eprintln!(
             "URL:      {}",
-            style(format!("http://{bind_addr}:{port}")).cyan()
+            style(format_service_url(None, bind_addr, port)).cyan()
         );
         eprintln!();
     }
@@ -2153,7 +2153,7 @@ async fn handle_rollback(
         eprintln!();
         eprintln!(
             "URL:      {}",
-            style(format!("http://{bind_addr}:{port}")).cyan()
+            style(format_service_url(None, bind_addr, port)).cyan()
         );
         eprintln!();
     }

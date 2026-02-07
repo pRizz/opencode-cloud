@@ -35,13 +35,19 @@ impl IotpSnapshot {
 }
 
 pub(crate) async fn fetch_iotp_snapshot(client: &DockerClient) -> IotpSnapshot {
-    let (output, status) = match exec_command_with_status(
+    query_iotp_snapshot(
         client,
-        CONTAINER_NAME,
         vec![BOOTSTRAP_HELPER_PATH, "status", "--include-secret"],
     )
     .await
-    {
+}
+
+pub(crate) async fn reset_iotp_snapshot(client: &DockerClient) -> IotpSnapshot {
+    query_iotp_snapshot(client, vec![BOOTSTRAP_HELPER_PATH, "reset"]).await
+}
+
+async fn query_iotp_snapshot(client: &DockerClient, command: Vec<&str>) -> IotpSnapshot {
+    let (output, status) = match exec_command_with_status(client, CONTAINER_NAME, command).await {
         Ok(result) => result,
         Err(err) => {
             return IotpSnapshot::unavailable(format!("failed to query bootstrap helper: {err}"));

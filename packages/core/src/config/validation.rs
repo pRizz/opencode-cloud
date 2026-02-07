@@ -51,7 +51,7 @@ pub fn validate_config(config: &Config) -> Result<Vec<ValidationWarning>, Valida
         return Err(ValidationError {
             field: "bind_address".to_string(),
             message: msg,
-            fix_command: "occ config set bind_address 127.0.0.1".to_string(),
+            fix_command: "occ config set bind_address localhost".to_string(),
         });
     }
 

@@ -36,8 +36,12 @@ display_local_host() {
     local host="$1"
 
     if [ "${host}" = "0.0.0.0" ] || [ "${host}" = "::" ]; then
-        printf "127.0.0.1"
+        printf "localhost"
     else
+        if [ "${host}" = "127.0.0.1" ] || [ "${host}" = "::1" ]; then
+            printf "localhost"
+            return
+        fi
         printf "%s" "${host}"
     fi
 }

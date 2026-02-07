@@ -88,7 +88,7 @@ pub fn cmd_config_set(key: &str, value: Option<&str>, quiet: bool, force: bool) 
                 eprintln!();
                 eprintln!(
                     "To bind to localhost only: {}",
-                    style("occ config set bind_address 127.0.0.1").cyan()
+                    style("occ config set bind_address localhost").cyan()
                 );
                 eprintln!();
             }

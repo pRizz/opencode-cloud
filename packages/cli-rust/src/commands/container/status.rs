@@ -6,7 +6,7 @@ use crate::commands::runtime_shared::collect_status_view;
 use crate::commands::runtime_shared::status_model::{
     OpencodeHealthStatus, format_broker_health_label,
 };
-use crate::output::state_style;
+use crate::output::{format_service_url, state_style};
 use anyhow::Result;
 use console::style;
 use opencode_cloud_core::docker::get_cli_version;
@@ -55,7 +55,7 @@ pub async fn cmd_status_container(
         "{}",
         format_kv(
             "URL:",
-            style(format!("http://127.0.0.1:{host_port}")).cyan()
+            style(format_service_url(None, "127.0.0.1", host_port)).cyan()
         )
     );
 

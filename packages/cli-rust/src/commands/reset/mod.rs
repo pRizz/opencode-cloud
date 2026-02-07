@@ -10,6 +10,7 @@ use crate::commands::disk_usage::{
     DiskUsageReport, HostDiskReport, format_disk_usage_report, format_host_disk_report,
     get_disk_usage_report, get_host_disk_report,
 };
+use crate::commands::iotp::{IotpState, reset_iotp_snapshot};
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::commands::start::{StartArgs, cmd_start};
 use crate::output::{CommandSpinner, show_docker_error};
@@ -21,8 +22,8 @@ use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::config::paths::{get_config_dir, get_data_dir};
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, clear_state, container_exists, remove_all_volumes,
-    remove_images_by_name,
+    CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, clear_state, container_exists, container_is_running,
+    remove_all_volumes, remove_images_by_name,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::fs;
@@ -48,6 +49,8 @@ pub enum ResetCommands {
     Container(ResetContainerArgs),
     /// Factory reset the host installation (container, volumes, mounts, config, data)
     Host(ResetHostArgs),
+    /// Reset bootstrap IOTP state and generate a fresh one-time password
+    Iotp(ResetIotpArgs),
 }
 
 /// Arguments for reset container
@@ -90,6 +93,14 @@ pub struct ResetHostArgs {
     pub images: bool,
 }
 
+/// Arguments for reset iotp
+#[derive(Args)]
+pub struct ResetIotpArgs {
+    /// Proceed even when bind_address is non-localhost
+    #[arg(long)]
+    pub force: bool,
+}
+
 pub async fn cmd_reset(
     args: &ResetArgs,
     maybe_host: Option<&str>,
@@ -103,7 +114,84 @@ pub async fn cmd_reset(
         ResetCommands::Host(host_args) => {
             cmd_reset_host(host_args, maybe_host, quiet, verbose).await
         }
+        ResetCommands::Iotp(iotp_args) => cmd_reset_iotp(iotp_args, maybe_host, quiet).await,
     }
+}
+
+async fn cmd_reset_iotp(args: &ResetIotpArgs, maybe_host: Option<&str>, quiet: bool) -> Result<()> {
+    let (client, host_name) = crate::resolve_docker_client(maybe_host).await?;
+    client.verify_connection().await.map_err(|e| {
+        let msg = crate::output::format_docker_error(&e);
+        anyhow!("{msg}")
+    })?;
+
+    if !container_is_running(&client, CONTAINER_NAME).await? {
+        bail!(
+            "Service is not running.\n\
+             Start it first with: {}",
+            style("occ start").cyan()
+        );
+    }
+
+    let config = load_config_or_default()?;
+    if should_block_iotp_reset(&config, args.force) {
+        bail!("{}", iotp_reset_force_message(&config.bind_address));
+    }
+
+    let snapshot = reset_iotp_snapshot(&client).await;
+    if matches!(snapshot.state, IotpState::ActiveUnused)
+        && let Some(iotp) = snapshot.otp.as_deref()
+    {
+        if quiet {
+            println!("{iotp}");
+            return Ok(());
+        }
+
+        println!();
+        println!(
+            "{}",
+            style(crate::format_host_message(
+                host_name.as_deref(),
+                "IOTP reset"
+            ))
+            .cyan()
+            .bold()
+        );
+        println!(
+            "Initial One-Time Password (IOTP): {}",
+            style(iotp).green().bold()
+        );
+        println!(
+            "Enter this in the web login first-time setup panel, then enroll a passkey for {}.",
+            style("opencoder").cyan()
+        );
+        return Ok(());
+    }
+
+    let reason = snapshot
+        .detail
+        .as_deref()
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("IOTP state is {}", snapshot.state_label));
+    bail!(
+        "IOTP was not reset to an active onboarding state.\n\
+         Reason: {reason}"
+    );
+}
+
+fn iotp_reset_force_message(bind_address: &str) -> String {
+    format!(
+        "Refusing to reset IOTP while bind_address={} is non-localhost.\n\
+         Resetting IOTP reopens first-time onboarding and can expose bootstrap enrollment beyond localhost.\n\
+         If this host is intentionally fronted by a trusted HTTPS reverse proxy with access controls,\n\
+         rerun explicitly with:\n  {}",
+        style(bind_address).cyan(),
+        style("occ reset iotp --force").cyan()
+    )
+}
+
+fn should_block_iotp_reset(config: &opencode_cloud_core::Config, force: bool) -> bool {
+    !config.is_localhost() && !force
 }
 
 /// Capture Docker + host disk usage for reporting before/after destructive steps.
@@ -638,5 +726,53 @@ fn remove_dir_if_exists(path: Option<PathBuf>, label: &str, quiet: bool, errors:
 
     if !quiet {
         println!("Removed {label} directory: {}", style(path.display()).dim());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_block_iotp_reset_for_exposed_bind_without_force() {
+        let config = opencode_cloud_core::Config {
+            bind_address: "0.0.0.0".to_string(),
+            ..Default::default()
+        };
+        assert!(should_block_iotp_reset(&config, false));
+    }
+
+    #[test]
+    fn should_allow_iotp_reset_for_exposed_bind_with_force() {
+        let config = opencode_cloud_core::Config {
+            bind_address: "::".to_string(),
+            ..Default::default()
+        };
+        assert!(!should_block_iotp_reset(&config, true));
+    }
+
+    #[test]
+    fn should_block_iotp_reset_for_specific_non_localhost_without_force() {
+        let config = opencode_cloud_core::Config {
+            bind_address: "192.168.1.10".to_string(),
+            ..Default::default()
+        };
+        assert!(should_block_iotp_reset(&config, false));
+    }
+
+    #[test]
+    fn should_allow_iotp_reset_for_localhost_without_force() {
+        let config = opencode_cloud_core::Config {
+            bind_address: "127.0.0.1".to_string(),
+            ..Default::default()
+        };
+        assert!(!should_block_iotp_reset(&config, false));
+    }
+
+    #[test]
+    fn iotp_reset_force_message_mentions_reverse_proxy_and_force_flag() {
+        let message = iotp_reset_force_message("0.0.0.0");
+        assert!(message.contains("reverse proxy"));
+        assert!(message.contains("occ reset iotp --force"));
     }
 }

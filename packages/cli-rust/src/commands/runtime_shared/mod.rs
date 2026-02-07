@@ -1,6 +1,7 @@
 //! Shared runtime command core to keep host/container implementations aligned.
 
 pub mod backend;
+pub mod drift;
 pub mod health;
 pub mod mounts;
 pub mod status_model;

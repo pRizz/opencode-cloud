@@ -3,6 +3,7 @@
 //! Opens the Cockpit web console in the default browser.
 
 use crate::constants::COCKPIT_EXPOSED;
+use crate::output::localhost_display_addr;
 use anyhow::{Result, bail};
 use clap::Args;
 use console::style;
@@ -59,12 +60,7 @@ pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: b
 
     let running = container_is_running(&client, CONTAINER_NAME).await?;
     if !running {
-        // For 0.0.0.0 or :: bind addresses, use localhost for display
-        let display_addr = if config.bind_address == "0.0.0.0" || config.bind_address == "::" {
-            "127.0.0.1"
-        } else {
-            &config.bind_address
-        };
+        let display_addr = localhost_display_addr(&config.bind_address);
         bail!(
             "{}\n\n\
              The container is not running. Cockpit runs inside the container.\n\n\
@@ -77,12 +73,7 @@ pub async fn cmd_cockpit(_args: &CockpitArgs, maybe_host: Option<&str>, quiet: b
     }
 
     // Build URL
-    // For 0.0.0.0 or :: bind addresses, use localhost for browser
-    let browser_addr = if config.bind_address == "0.0.0.0" || config.bind_address == "::" {
-        "127.0.0.1"
-    } else {
-        &config.bind_address
-    };
+    let browser_addr = localhost_display_addr(&config.bind_address);
     let url = format!("http://{}:{}", browser_addr, config.cockpit_port);
 
     if !quiet {

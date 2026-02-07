@@ -12,8 +12,8 @@ use crate::commands::runtime_shared::{
 use crate::commands::service::{StopSpinnerMessages, stop_service_with_spinner};
 use crate::constants::COCKPIT_EXPOSED;
 use crate::output::{
-    CommandSpinner, format_cockpit_url, format_docker_error, normalize_bind_addr,
-    resolve_remote_addr, show_docker_error,
+    CommandSpinner, format_cockpit_url, format_docker_error, format_service_url,
+    localhost_display_addr, normalize_bind_addr, resolve_remote_addr, show_docker_error,
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -1282,11 +1282,8 @@ fn show_start_result(
     let maybe_remote_addr = resolve_remote_addr(host_name);
 
     if quiet {
-        if let Some(ref remote_addr) = maybe_remote_addr {
-            println!("http://{remote_addr}:{port}");
-        } else {
-            println!("http://{bind_addr}:{port}");
-        }
+        let url = format_service_url(maybe_remote_addr.as_deref(), bind_addr, port);
+        println!("{url}");
         return;
     }
 
@@ -1294,10 +1291,10 @@ fn show_start_result(
 
     // Show URL - use remote address if available
     if let Some(ref remote_addr) = maybe_remote_addr {
-        let remote_url = format!("http://{remote_addr}:{port}");
+        let remote_url = format_service_url(Some(remote_addr), bind_addr, port);
         println!("Remote URL: {}", style(&remote_url).cyan());
     } else {
-        let url = format!("http://{bind_addr}:{port}");
+        let url = format_service_url(None, bind_addr, port);
         println!("URL:        {}", style(&url).cyan());
     }
 
@@ -1388,8 +1385,8 @@ fn open_browser_if_requested(should_open: bool, port: u16, bind_addr: &str) {
         return;
     }
 
-    // For network-exposed addresses like 0.0.0.0, use localhost for browser
-    let browser_addr = normalize_bind_addr(bind_addr);
+    // Use localhost for loopback/wildcard browser URLs to preserve passkey support.
+    let browser_addr = localhost_display_addr(bind_addr);
     let url = format!("http://{browser_addr}:{port}");
     if let Err(e) = webbrowser::open(&url) {
         eprintln!(
