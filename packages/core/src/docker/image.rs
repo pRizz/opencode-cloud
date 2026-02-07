@@ -5,8 +5,9 @@
 
 use super::progress::ProgressReporter;
 use super::{
-    CONTAINER_NAME, DOCKERFILE, DockerClient, DockerError, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR,
-    IMAGE_TAG_DEFAULT, active_resource_names, remap_image_tag,
+    CONTAINER_NAME, DOCKERFILE, DockerClient, DockerError, ENTRYPOINT_SH, HEALTHCHECK_SH,
+    IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, OPENCODE_CLOUD_BOOTSTRAP_SH,
+    active_resource_names, remap_image_tag,
 };
 use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
@@ -1028,19 +1029,19 @@ fn create_build_context_with_repo_root(
         append_bytes(
             &mut tar,
             "packages/core/src/docker/files/entrypoint.sh",
-            include_bytes!("files/entrypoint.sh"),
+            ENTRYPOINT_SH,
             0o644,
         )?;
         append_bytes(
             &mut tar,
             "packages/core/src/docker/files/opencode-cloud-bootstrap.sh",
-            include_bytes!("files/opencode-cloud-bootstrap.sh"),
+            OPENCODE_CLOUD_BOOTSTRAP_SH,
             0o644,
         )?;
         append_bytes(
             &mut tar,
             "packages/core/src/docker/files/healthcheck.sh",
-            include_bytes!("files/healthcheck.sh"),
+            HEALTHCHECK_SH,
             0o644,
         )?;
         append_bytes(

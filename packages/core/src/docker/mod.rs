@@ -12,6 +12,7 @@
 //! - User management operations (create, delete, lock/unlock users)
 //! - Image update and rollback operations
 
+mod assets;
 mod client;
 pub mod container;
 mod dockerfile;
@@ -40,6 +41,7 @@ pub use health::{
 };
 
 // Dockerfile constants
+pub use assets::{ENTRYPOINT_SH, HEALTHCHECK_SH, OPENCODE_CLOUD_BOOTSTRAP_SH};
 pub use dockerfile::{DOCKERFILE, IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
 
 // Image operations

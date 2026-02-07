@@ -4,7 +4,8 @@
 //! running container copies to detect stale local-dev/container mismatches.
 
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, container_is_running, exec_command_with_status,
+    CONTAINER_NAME, DockerClient, ENTRYPOINT_SH, HEALTHCHECK_SH, OPENCODE_CLOUD_BOOTSTRAP_SH,
+    container_is_running, exec_command_with_status,
 };
 
 pub const REBUILD_CACHED_COMMAND: &str = "occ start --cached-rebuild-sandbox-image";
@@ -37,19 +38,17 @@ const TRACKED_RUNTIME_ASSETS: &[RuntimeAsset] = &[
     RuntimeAsset {
         name: "bootstrap helper",
         container_path: "/usr/local/bin/opencode-cloud-bootstrap",
-        expected_bytes: include_bytes!(
-            "../../../../core/src/docker/files/opencode-cloud-bootstrap.sh"
-        ),
+        expected_bytes: OPENCODE_CLOUD_BOOTSTRAP_SH,
     },
     RuntimeAsset {
         name: "entrypoint",
         container_path: "/usr/local/bin/entrypoint.sh",
-        expected_bytes: include_bytes!("../../../../core/src/docker/files/entrypoint.sh"),
+        expected_bytes: ENTRYPOINT_SH,
     },
     RuntimeAsset {
         name: "healthcheck",
         container_path: "/usr/local/bin/healthcheck.sh",
-        expected_bytes: include_bytes!("../../../../core/src/docker/files/healthcheck.sh"),
+        expected_bytes: HEALTHCHECK_SH,
     },
 ];
 

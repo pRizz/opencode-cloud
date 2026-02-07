@@ -74,6 +74,88 @@ jobs:
             --tag opencode-cloud-sandbox:ci-check \
             .
 
+  cargo-package-verify:
+    name: Cargo Package Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Package opencode-cloud-core
+        run: cargo package -p opencode-cloud-core --allow-dirty
+
+      - name: Determine core version and publication status
+        id: core-publication
+        run: |
+          set -euo pipefail
+
+          core_version="$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("packages/core/Cargo.toml").read_text())["package"]["version"])')"
+          echo "core_version=${core_version}" >> "$GITHUB_OUTPUT"
+
+          if ./scripts/check-crate-version-published.sh opencode-cloud-core "${core_version}"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            check_exit=$?
+            if [ "${check_exit}" -eq 1 ]; then
+              echo "published=false" >> "$GITHUB_OUTPUT"
+            else
+              exit "${check_exit}"
+            fi
+          fi
+
+      - name: Package opencode-cloud (PR no-verify archive)
+        if: github.event_name == 'pull_request'
+        run: cargo package -p opencode-cloud --allow-dirty --no-verify
+
+      - name: Verify packaged opencode-cloud against local core (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+
+          crate_archive="$(ls -t target/package/opencode-cloud-*.crate | head -n1)"
+          if [ -z "${crate_archive}" ]; then
+            echo "Error: opencode-cloud package archive not found."
+            exit 1
+          fi
+
+          crate_basename="$(basename "${crate_archive}" .crate)"
+          unpack_dir="$(mktemp -d)"
+          config_file="$(mktemp)"
+          trap 'rm -rf "${unpack_dir}" "${config_file}"' EXIT
+
+          tar -xzf "${crate_archive}" -C "${unpack_dir}"
+          crate_dir="${unpack_dir}/${crate_basename}"
+          manifest_path="${crate_dir}/Cargo.toml"
+          if [ ! -f "${manifest_path}" ]; then
+            echo "Error: unpacked package manifest not found at ${manifest_path}"
+            exit 1
+          fi
+
+          cat > "${config_file}" <<EOF
+          [patch.crates-io]
+          opencode-cloud-core = { path = "${GITHUB_WORKSPACE}/packages/core" }
+          EOF
+
+          cargo check --manifest-path "${manifest_path}" --config "${config_file}"
+
+      - name: Package opencode-cloud (main push, published core)
+        if: github.event_name == 'push' && steps.core-publication.outputs.published == 'true'
+        run: cargo package -p opencode-cloud --allow-dirty
+
+      - name: Skip opencode-cloud package verify (main push, core unpublished)
+        if: github.event_name == 'push' && steps.core-publication.outputs.published != 'true'
+        run: |
+          echo "Skipping opencode-cloud packaging verify on main push."
+          echo "Reason: opencode-cloud-core ${{ steps.core-publication.outputs.core_version }} is not yet published on crates.io."
+          {
+            echo "## Cargo Package Verify"
+            echo ""
+            echo "Skipped \`cargo package -p opencode-cloud\` on push to main."
+            echo "Reason: dependency \`opencode-cloud-core ${{ steps.core-publication.outputs.core_version }}\` is not yet published on crates.io."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
   # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)
