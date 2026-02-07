@@ -499,6 +499,24 @@ just fmt
 just lint
 ```
 
+### Visual E2E (Playwright)
+
+From the repository root, run UI tests in a visible browser with:
+
+```bash
+bun run --cwd packages/opencode/packages/app test:e2e:local -- --headed --project=chromium e2e/settings/settings-authentication.spec.ts
+bun run --cwd packages/opencode/packages/app test:e2e:local -- --ui e2e/settings/settings-authentication.spec.ts
+PWDEBUG=1 bun run --cwd packages/opencode/packages/app test:e2e:local -- --headed --project=chromium e2e/settings/settings-authentication.spec.ts
+```
+
+Headless run (default Playwright mode):
+
+```bash
+bun run --cwd packages/opencode/packages/app test:e2e:local -- --project=chromium e2e/settings/settings-authentication.spec.ts
+```
+
+Use `test:e2e:local` for local harness/sandbox provisioning. Plain `test:e2e` expects a backend that is already running at the configured Playwright host/port.
+
 > **Note:** The git hooks automatically sync `README.md` to npm package directories on commit.
 
 ## Architecture
