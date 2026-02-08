@@ -9,7 +9,17 @@
 #
 # Build Hygiene Rules:
 # - Prefer `RUN --mount=type=cache` for package caches (`apt`, `bun`, `cargo`,
-#   `pip`, and `pnpm/npm`) when BuildKit is available.
+#   `pip`, and `pnpm/npm`) when BuildKit is available. New RUN steps that
+#   download or compile dependencies should reuse existing cache mounts or add
+#   new ones following the same patterns:
+#     - APT:   --mount=type=cache,target=/var/lib/apt/lists
+#              --mount=type=cache,target=/var/cache/apt
+#     - Cargo: --mount=type=cache,id=cargo-registry-${TARGETARCH},target=...registry,uid=1000,gid=1000,mode=0755
+#              (also cargo-git and cargo-target; scope per TARGETARCH for multi-platform)
+#     - Bun:   --mount=type=cache,target=.../.bun/install/cache,uid=1000,gid=1000,mode=0755
+#     - pip:   --mount=type=cache,target=.../.cache/pip,uid=1000,gid=1000,mode=0755
+#   For non-root caches, always set uid/gid/mode and add a `chown -R` guard
+#   at the start of the RUN body to fix subdirectory ownership from prior builds.
 # - Remove temp workdirs in the same layer where they are created (for example
 #   `/tmp/opencode-repo`) so transient artifacts do not persist in image layers.
 # - Do not rely on cleanup in later layers; deleted files still exist in lower
@@ -295,11 +305,15 @@ RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
 # -----------------------------------------------------------------------------
 # ripgrep 15.1.0 - fast regex search
 # eza 0.23.4 - modern ls replacement
-# NOTE: Avoid cache mounts here due to permission issues with non-root Cargo cache
-RUN mkdir -p /home/opencoder/.cargo/registry /home/opencoder/.cargo/git \
+# Cache cargo registry/git indices across builds to skip re-downloading crate metadata.
+# Scoped per architecture to prevent amd64/arm64 cache corruption during multi-platform builds.
+# uid/gid match opencoder (1000); chown fixes subdirectory ownership from prior builds.
+ARG TARGETARCH
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
+    sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git \
     && . /home/opencoder/.cargo/env \
-    && cargo install --locked ripgrep@15.1.0 eza@0.23.4 \
-    && rm -rf /home/opencoder/.cargo/registry /home/opencoder/.cargo/git
+    && cargo install --locked ripgrep@15.1.0 eza@0.23.4
 
 # lazygit v0.58.1 (2026-01-12) - terminal UI for git
 # Disabled temporarily to reduce Docker build time.
@@ -510,6 +524,7 @@ USER opencoder
 ARG OPENCODE_SOURCE=remote
 ARG OPENCODE_COMMIT
 ARG OPENCODE_LOCAL_REF
+ARG TARGETARCH
 
 # CLI builds use a custom build-context generator that always adds
 # packages/opencode. Repo-root Docker builds rely on checkout + .dockerignore to
@@ -536,7 +551,15 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 #   which causes `bun install --frozen-lockfile` to fail nondeterministically.
 # - The retry loop intentionally clears only this cache dir between attempts so
 #   each retry gets a clean cache state while preserving reproducibility.
+# Cargo cache mounts: registry/git for crate metadata, target dir for compiled
+# artifacts (the big win — enables incremental compilation across builds).
+# Target dir lives at /tmp/cargo-target-broker instead of inside the source tree
+# to avoid conflicts with `rm -rf /tmp/opencode-repo` cleanup later in this RUN.
+# All cargo caches scoped per TARGETARCH to prevent multi-platform corruption.
 RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-target-broker-${TARGETARCH},target=/tmp/cargo-target-broker,uid=1000,gid=1000,mode=0755 \
     OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
     && OPENCODE_COMMIT="9fc1f2cd6084bb1611ee33d7085fa86a5ea6511f" \
@@ -558,6 +581,7 @@ RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=10
     && cd /tmp/opencode-repo \
     && sudo mkdir -p /home/opencoder/.bun/install/cache \
     && sudo chown -R opencoder:opencoder /home/opencoder/.bun/install/cache \
+    && sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git /tmp/cargo-target-broker \
     && export BUN_INSTALL_CACHE_DIR=/home/opencoder/.bun/install/cache \
     && bun_install_ok=0; \
       for attempt in 1 2 3; do \
@@ -593,9 +617,9 @@ RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=10
     && sudo chown -R opencoder:opencoder /opt/opencode \
     && sudo chmod +x /opt/opencode/bin/opencode \
     && cd /tmp/opencode-repo/packages/opencode-broker \
-    && cargo build --release \
+    && CARGO_TARGET_DIR=/tmp/cargo-target-broker cargo build --release \
     && sudo mkdir -p /usr/local/bin \
-    && sudo cp target/release/opencode-broker /usr/local/bin/opencode-broker \
+    && sudo cp /tmp/cargo-target-broker/release/opencode-broker /usr/local/bin/opencode-broker \
     && sudo chmod 4755 /usr/local/bin/opencode-broker \
     && rm -rf /tmp/opencode-repo /tmp/opencode-local \
     && sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true \
