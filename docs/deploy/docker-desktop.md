@@ -13,6 +13,18 @@ What you get:
 
 No cloud account or `occ` CLI installation is required.
 
+## Quick Start (One-Liner)
+
+The fastest path — installs Docker if needed, downloads the Compose config, starts the service, and prints the IOTP:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
+```
+
+> **macOS/Windows:** Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) first.
+
+> **Interactive mode:** `curl -fsSL .../scripts/quick-deploy.sh | bash -s -- --interactive`
+
 ## Quick Start (Docker Compose)
 
 The project includes a `docker-compose.yml` that configures all persistent

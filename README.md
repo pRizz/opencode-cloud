@@ -19,6 +19,22 @@ A production-ready toolkit for deploying and managing [opencode](https://github.
 
 This project uses the opencode fork at https://github.com/pRizz/opencode, which adds additional authentication and security features.
 
+## Quick Deploy (Docker)
+
+Deploy opencode-cloud with one command. Installs Docker if needed (Linux), downloads the Docker Compose config, starts the service, and prints the login credentials:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
+```
+
+Then open [http://localhost:3000](http://localhost:3000) and enter the Initial One-Time Password (IOTP) to complete setup.
+
+> **macOS/Windows:** Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) first, then run the command above.
+
+> **Remote server:** SSH into the server, run the command, then access via SSH tunnel: `ssh -L 3000:localhost:3000 root@<server-ip>`
+
+> **Interactive mode:** Add `--interactive` to be prompted before each step: `curl -fsSL .../scripts/quick-deploy.sh | bash -s -- --interactive`
+
 ## Quick install (cargo)
 
 ```bash
@@ -66,6 +82,8 @@ Docs: `docs/deploy/railway.md`
 
 ## Run with Docker / Docker Desktop
 
+> **Tip:** For a fully automated setup, see [Quick Deploy](#quick-deploy-docker) above.
+
 The fastest way to run opencode-cloud locally:
 
 ```bash
@@ -95,16 +113,12 @@ Docs: `docs/deploy/digitalocean-marketplace.md`
 SSH into an Ubuntu 24.04 Droplet and run:
 
 ```bash
-curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml
-apt-get update -y && apt-get install -y docker.io && systemctl enable --now docker
-docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
 ```
 
-Retrieve the IOTP and open `http://localhost:3000` via SSH tunnel:
+This installs Docker, downloads the Compose file, starts the service, and prints the IOTP.
 
-```bash
-docker compose logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
-```
+Access via SSH tunnel: `ssh -L 3000:localhost:3000 root@<droplet-ip>`, then open `http://localhost:3000`.
 
 Docs: `docs/deploy/digitalocean-droplet.md`
 
