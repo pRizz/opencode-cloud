@@ -82,15 +82,31 @@ docker compose logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | 
 
 Docs: `docs/deploy/docker-desktop.md`
 
-## Deploy to DigitalOcean (Coming Soon)
+## Deploy to DigitalOcean
 
-DigitalOcean Marketplace one-click deployment is not implemented yet. Support is coming soon.
+### Marketplace (Coming Soon)
 
-Warning: direct manual Droplet deployments are currently not recommended because persistence support is incomplete and data loss is likely.
+DigitalOcean Marketplace one-click deployment is in progress. Support is coming soon.
 
-For testing-only reference:
-- Manual Droplet setup: `docs/deploy/digitalocean-droplet.md`
-- Marketplace docs/status: `docs/deploy/digitalocean-marketplace.md`
+Docs: `docs/deploy/digitalocean-marketplace.md`
+
+### Droplet (Manual)
+
+SSH into an Ubuntu 24.04 Droplet and run:
+
+```bash
+curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml
+apt-get update -y && apt-get install -y docker.io && systemctl enable --now docker
+docker compose up -d
+```
+
+Retrieve the IOTP and open `http://localhost:3000` via SSH tunnel:
+
+```bash
+docker compose logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
+Docs: `docs/deploy/digitalocean-droplet.md`
 
 ## Features
 

@@ -57,6 +57,15 @@ jobs:
       - name: Packer validate
         run: packer validate -var-file=infra/digitalocean/packer/variables.pkr.hcl infra/digitalocean/packer/opencode-marketplace.pkr.hcl
 
+  compose-validate:
+    name: Compose File Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
   docker-context-guard:
     name: Docker Context Guard
     runs-on: ubuntu-latest

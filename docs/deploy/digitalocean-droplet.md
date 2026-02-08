@@ -225,13 +225,80 @@ occ restart
 
 Use this if you don't want `occ` installed on the Droplet.
 
-> **Tip:** You can also use `docker compose up -d` with the project's
-> [`docker-compose.yml`](https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml)
-> instead of manual `docker run` commands. The Docker image also declares
-> `VOLUME` directives for all critical paths, providing anonymous volume
-> fallback if you forget explicit `-v` flags.
+> The Docker image declares `VOLUME` directives for all critical paths,
+> providing anonymous volume fallback if you forget explicit `-v` flags.
+> Named volumes (used by both methods below) are recommended for durable
+> persistence.
 
-### 1) Install Docker
+### Path 2A: Docker Compose (Recommended)
+
+Docker Compose configures all 6 named volumes automatically.
+
+#### 1) Install Docker
+
+```bash
+apt-get update -y
+apt-get install -y docker.io curl jq
+systemctl enable --now docker
+```
+
+#### 2) Download docker-compose.yml
+
+```bash
+curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml
+```
+
+#### 3) Start the service
+
+```bash
+docker compose up -d
+```
+
+#### 4) Retrieve the IOTP
+
+```bash
+docker compose logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
+#### 5) Access via SSH tunnel (recommended default)
+
+From your laptop:
+
+```bash
+ssh -L 3000:localhost:3000 root@<droplet-ip>
+```
+
+Then open `http://localhost:3000`.
+
+Enter the IOTP on the login page first-time setup panel, then enroll a passkey
+for the default `opencoder` account or use username/password fallback.
+
+#### 6) Expose publicly (optional)
+
+Edit `docker-compose.yml` and change the port binding:
+
+```yaml
+ports:
+  - "3000:3000"  # was "127.0.0.1:3000:3000"
+```
+
+Then restart:
+
+```bash
+docker compose down && docker compose up -d
+```
+
+Firewall recommendations:
+
+- Allow inbound `3000/tcp` **only** from your IP (or office/VPN CIDR).
+- Keep inbound `22/tcp` restricted.
+- Consider adding HTTPS via Caddy (see [Optional HTTPS](#optional-https-caddy) above).
+
+### Path 2B: Docker CLI (Manual)
+
+Use this if you prefer direct `docker run` commands without Compose.
+
+#### 1) Install Docker
 
 ```bash
 apt-get update -y
@@ -240,7 +307,7 @@ systemctl enable --now docker
 docker --version
 ```
 
-### 2) Create Docker volumes
+#### 2) Create Docker volumes
 
 ```bash
 docker volume create opencode-data
@@ -251,7 +318,7 @@ docker volume create opencode-config
 docker volume create opencode-users
 ```
 
-### 3) Run the container (SSH tunnel default: bind host port to localhost)
+#### 3) Run the container (SSH tunnel default: bind host port to localhost)
 
 ```bash
 docker run -d --name opencode-cloud-sandbox \
@@ -271,7 +338,7 @@ Notes:
 - Prefer a **pinned tag** (like `15.2.0`) for reproducible deployments.
 - See Docker Hub for tags: https://hub.docker.com/r/prizz/opencode-cloud-sandbox
 
-### 4) Access via SSH tunnel
+#### 4) Access via SSH tunnel
 
 From your laptop:
 
@@ -295,7 +362,7 @@ docker logs opencode-cloud-sandbox 2>&1 | grep -F "INITIAL ONE-TIME PASSWORD (IO
 
 Use the login page first-time setup panel with that IOTP, then continue to passkey setup where you can either enroll a passkey for `opencoder` or choose username/password registration to create your first managed user.
 
-### 5) Expose publicly (optional)
+#### 5) Expose publicly (optional)
 
 - Change to `-p 0.0.0.0:3000:3000` (or `-p 3000:3000`)
 - Apply a DigitalOcean firewall allowlist (recommended)

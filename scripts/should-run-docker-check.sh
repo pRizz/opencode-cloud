@@ -25,6 +25,7 @@ fi
 is_docker_risk_path() {
   case "$1" in
     .dockerignore) return 0 ;;
+    docker-compose.yml) return 0 ;;
     packages/core/src/docker/*) return 0 ;;
     .github/workflows/ci.yml) return 0 ;;
     .github/workflows/docker-publish.yml) return 0 ;;

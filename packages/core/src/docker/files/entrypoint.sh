@@ -253,6 +253,56 @@ EOF
         log "Created default auth config at ${config_jsonc}."
     }
 
+    check_auth_enabled() {
+        local config_dir="/home/opencoder/.config/opencode"
+        local config_file=""
+
+        for candidate in "${config_dir}/opencode.json" "${config_dir}/opencode.jsonc"; do
+            if [ -f "${candidate}" ]; then
+                config_file="${candidate}"
+                break
+            fi
+        done
+
+        if [ -z "${config_file}" ]; then
+            return 1
+        fi
+
+        local auth_enabled
+        # Strip // line-comments before parsing (JSONC compat)
+        auth_enabled="$(grep -v '^\s*//' "${config_file}" | jq -r '.auth.enabled // false' 2>/dev/null || echo "false")"
+        [ "${auth_enabled}" = "true" ]
+    }
+
+    warn_security_posture() {
+        if ! check_auth_enabled; then
+            log "================================================================="
+            log "SECURITY WARNING: Authentication is not enabled."
+            log "Anyone who can reach this container can use opencode without signing in."
+            log "Enable auth by creating or editing the opencode config:"
+            log "  /home/opencoder/.config/opencode/opencode.jsonc"
+            log '  { "auth": { "enabled": true } }'
+            log "Docs: https://github.com/pRizz/opencode-cloud/tree/main/docs/deploy"
+            log "================================================================="
+        fi
+
+        # Advisory HTTPS notice for cloud deployments binding to all interfaces
+        if [ "${OPENCODE_HOST}" = "0.0.0.0" ] || [ "${OPENCODE_HOST}" = "::" ]; then
+            if detect_droplet; then
+                log "================================================================="
+                log "SECURITY NOTICE: opencode is binding to all network interfaces."
+                log "If this container is exposed to the internet without HTTPS,"
+                log "credentials and session data will be transmitted in the clear."
+                log ""
+                log "Recommended: terminate TLS in front of opencode."
+                log "  - Reverse proxy (Caddy, Nginx, Traefik)"
+                log "  - Cloud load balancer with TLS"
+                log "Caddy setup: https://github.com/pRizz/opencode-cloud/blob/main/docs/deploy/digitalocean-droplet.md#optional-https-caddy"
+                log "================================================================="
+            fi
+        fi
+    }
+
     restore_users() {
         shopt -s nullglob
         local records=(/var/lib/opencode-users/*.json)
@@ -475,6 +525,7 @@ EOF
     restore_or_bootstrap_users
     migrate_unmanaged_home_users_to_records
     sync_bootstrap_state
+    warn_security_posture
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"
     /usr/local/bin/opencode-broker &
