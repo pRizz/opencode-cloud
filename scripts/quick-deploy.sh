@@ -13,7 +13,8 @@ set -euo pipefail
 COMPOSE_URL="https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml"
 COMPOSE_FILE="docker-compose.yml"
 CONTAINER_NAME="opencode-cloud-sandbox"
-# Must match entrypoint.sh greppable_iotp_prefix
+# Coupling: must match entrypoint.sh greppable_iotp_prefix (line 104).
+# Do not change this string without updating entrypoint.sh and vice versa.
 IOTP_GREP_PATTERN="INITIAL ONE-TIME PASSWORD (IOTP): "
 IOTP_MAX_WAIT_SECONDS=120
 IOTP_POLL_INTERVAL=3
@@ -298,6 +299,7 @@ ensure_docker() {
 
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     success "Docker is installed and running"
+    info "Docker version: $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'unknown')"
     return 0
   fi
 
@@ -311,6 +313,7 @@ ensure_docker() {
       || run_privileged service docker start 2>/dev/null \
       || die "Could not start Docker. Start it manually and re-run this script."
     wait_for_docker
+    info "Docker version: $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'unknown')"
     return 0
   fi
 
@@ -328,6 +331,7 @@ ensure_docker() {
 
   install_docker_linux
   wait_for_docker
+  info "Docker version: $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 'unknown')"
 }
 
 # ---------------------------------------------------------------------------
@@ -343,7 +347,9 @@ ensure_compose_command() {
     die "Neither 'docker compose' (plugin) nor 'docker-compose' (standalone) found.
   Install Docker Compose: https://docs.docker.com/compose/install/"
   fi
-  success "Compose command: $COMPOSE_CMD"
+  local compose_version
+  compose_version="$($COMPOSE_CMD version --short 2>/dev/null || echo 'unknown')"
+  success "Compose command: $COMPOSE_CMD (v$compose_version)"
 }
 
 download_compose_file() {
@@ -371,14 +377,38 @@ download_compose_file() {
 }
 
 # ---------------------------------------------------------------------------
+# Container helpers
+# ---------------------------------------------------------------------------
+
+get_container_id() {
+  docker ps --filter "name=^${CONTAINER_NAME}$" --format '{{.ID}}' 2>/dev/null || true
+}
+
+# Coupling: queries opencode-cloud-bootstrap status inside the container.
+# The JSON contract (active, reason fields) is defined in
+# opencode-cloud-bootstrap.sh emit_status(). Do not change that contract
+# without updating this function.
+query_bootstrap_status() {
+  docker exec "$CONTAINER_NAME" \
+    /usr/local/bin/opencode-cloud-bootstrap status 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
 # Service lifecycle
 # ---------------------------------------------------------------------------
 
 start_services() {
   header "Starting opencode-cloud"
 
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qxF "$CONTAINER_NAME"; then
+  local container_id
+  container_id="$(get_container_id)"
+
+  if [ -n "$container_id" ]; then
+    local image
+    image="$(docker inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || echo "unknown")"
     info "Container '$CONTAINER_NAME' is already running"
+    info "  Container ID: $container_id"
+    info "  Image:        $image"
     info "  Restart: $COMPOSE_CMD restart"
     info "  Stop:    $COMPOSE_CMD down"
     return 0
@@ -390,28 +420,80 @@ start_services() {
   fi
 
   $COMPOSE_CMD up -d
-  success "Services started"
+  container_id="$(get_container_id)"
+  success "Services started (container: ${container_id:-unknown})"
 }
 
 # ---------------------------------------------------------------------------
-# IOTP extraction
+# Status check and IOTP extraction
 # ---------------------------------------------------------------------------
 
-wait_for_iotp() {
-  header "Waiting for Initial One-Time Password (IOTP)"
-  info "The container is starting up. This may take a moment..."
+check_status_and_iotp() {
+  header "Checking Setup Status"
 
-  local elapsed=0
-  local iotp=""
+  local elapsed=0 status_json="" active="" reason=""
 
+  # Phase 1: poll bootstrap status via docker exec until a terminal state
+  info "Waiting for container to initialize..."
   while [ "$elapsed" -lt "$IOTP_MAX_WAIT_SECONDS" ]; do
-    iotp="$($COMPOSE_CMD logs 2>&1 \
+    status_json="$(query_bootstrap_status)"
+    if [ -n "$status_json" ]; then
+      active="$(printf '%s' "$status_json" | jq -r '.active // empty' 2>/dev/null || true)"
+      reason="$(printf '%s' "$status_json" | jq -r '.reason // empty' 2>/dev/null || true)"
+
+      if [ "$active" = "true" ]; then
+        break # IOTP is active — proceed to phase 2
+      fi
+
+      case "$reason" in
+        user_exists)
+          printf '\n' >&2
+          display_already_configured
+          return 0
+          ;;
+        completed)
+          printf '\n' >&2
+          display_setup_complete
+          return 0
+          ;;
+        not_initialized)
+          ;; # container still starting up, keep polling
+        invalid_state|invalid_secret)
+          printf '\n' >&2
+          warn "Bootstrap state is corrupted (reason: $reason)."
+          warn "Reset with: docker exec $CONTAINER_NAME /usr/local/bin/opencode-cloud-bootstrap reset"
+          display_ready_generic
+          return 0
+          ;;
+        *)
+          ;; # unknown reason, keep polling
+      esac
+    fi
+
+    sleep "$IOTP_POLL_INTERVAL"
+    elapsed=$((elapsed + IOTP_POLL_INTERVAL))
+    printf '.' >&2
+  done
+
+  if [ "$active" != "true" ]; then
+    printf '\n' >&2
+    warn "Container did not produce bootstrap status within ${IOTP_MAX_WAIT_SECONDS}s."
+    warn "Check container logs: docker logs $CONTAINER_NAME"
+    return 0
+  fi
+
+  # Phase 2: IOTP is active — extract the actual value from container logs
+  printf '\n' >&2
+  info "IOTP is active. Extracting from container logs..."
+  local iotp=""
+  while [ "$elapsed" -lt "$IOTP_MAX_WAIT_SECONDS" ]; do
+    iotp="$(docker logs "$CONTAINER_NAME" 2>&1 \
       | grep -F "$IOTP_GREP_PATTERN" \
       | tail -n1 \
       | sed "s/.*${IOTP_GREP_PATTERN}//" || true)"
 
     if [ -n "$iotp" ]; then
-      display_success "$iotp"
+      display_fresh_setup "$iotp"
       return 0
     fi
 
@@ -421,15 +503,27 @@ wait_for_iotp() {
   done
 
   printf '\n' >&2
-  warn "Timed out waiting for IOTP after ${IOTP_MAX_WAIT_SECONDS}s."
-  warn "The container may still be starting. Check logs manually:"
-  warn "  $COMPOSE_CMD logs | grep -F \"INITIAL ONE-TIME PASSWORD (IOTP): \""
-  warn ""
-  warn "If a user was already configured, no IOTP is emitted."
-  warn "Open $SERVICE_URL and sign in with your existing credentials."
+  warn "Could not extract IOTP from logs within ${IOTP_MAX_WAIT_SECONDS}s."
+  warn "The IOTP should be in the container logs:"
+  warn "  docker logs $CONTAINER_NAME | grep -F \"INITIAL ONE-TIME PASSWORD (IOTP): \""
 }
 
-display_success() {
+# ---------------------------------------------------------------------------
+# Display banners
+# ---------------------------------------------------------------------------
+
+display_useful_commands() {
+  printf '  %sUseful commands:%s\n' "$COLOR_BOLD" "$COLOR_RESET"
+  printf '    View logs:     docker logs -f %s\n' "$CONTAINER_NAME"
+  printf '    Stop service:  %s down\n' "$COMPOSE_CMD"
+  printf '    Restart:       %s restart\n' "$COMPOSE_CMD"
+  printf '    Update image:  %s pull && %s up -d\n' "$COMPOSE_CMD" "$COMPOSE_CMD"
+  printf '\n'
+  printf '  Docs: https://github.com/pRizz/opencode-cloud\n'
+  printf '\n'
+}
+
+display_fresh_setup() {
   local iotp="$1"
   printf '\n'
   printf '%s%s\n' "$COLOR_GREEN" "$COLOR_BOLD"
@@ -449,14 +543,49 @@ display_success() {
   printf '\n'
   printf '  The IOTP is deleted after successful setup.\n'
   printf '\n'
-  printf '  %sUseful commands:%s\n' "$COLOR_BOLD" "$COLOR_RESET"
-  printf '    View logs:     %s logs -f\n' "$COMPOSE_CMD"
-  printf '    Stop service:  %s down\n' "$COMPOSE_CMD"
-  printf '    Restart:       %s restart\n' "$COMPOSE_CMD"
-  printf '    Update image:  %s pull && %s up -d\n' "$COMPOSE_CMD" "$COMPOSE_CMD"
+  display_useful_commands
+}
+
+display_already_configured() {
   printf '\n'
-  printf '  Docs: https://github.com/pRizz/opencode-cloud\n'
+  printf '%s%s\n' "$COLOR_GREEN" "$COLOR_BOLD"
+  printf '========================================================\n'
+  printf '  opencode-cloud is ready!\n'
+  printf '========================================================\n'
+  printf '%s\n' "$COLOR_RESET"
   printf '\n'
+  printf '  A user account is already configured.\n'
+  printf '  No Initial One-Time Password is needed.\n'
+  printf '\n'
+  printf '  Open %s%s%s and sign in with your existing credentials.\n' "$COLOR_CYAN" "$SERVICE_URL" "$COLOR_RESET"
+  printf '\n'
+  display_useful_commands
+}
+
+display_setup_complete() {
+  printf '\n'
+  printf '%s%s\n' "$COLOR_GREEN" "$COLOR_BOLD"
+  printf '========================================================\n'
+  printf '  opencode-cloud is ready!\n'
+  printf '========================================================\n'
+  printf '%s\n' "$COLOR_RESET"
+  printf '\n'
+  printf '  First-time setup was previously completed.\n'
+  printf '  No Initial One-Time Password is needed.\n'
+  printf '\n'
+  printf '  Open %s%s%s and sign in with your credentials.\n' "$COLOR_CYAN" "$SERVICE_URL" "$COLOR_RESET"
+  printf '\n'
+  printf '  To reset and generate a new IOTP:\n'
+  printf '    docker exec %s /usr/local/bin/opencode-cloud-bootstrap reset\n' "$CONTAINER_NAME"
+  printf '\n'
+  display_useful_commands
+}
+
+display_ready_generic() {
+  printf '\n'
+  printf '  Open %s%s%s to access opencode-cloud.\n' "$COLOR_CYAN" "$SERVICE_URL" "$COLOR_RESET"
+  printf '\n'
+  display_useful_commands
 }
 
 # ---------------------------------------------------------------------------
@@ -480,7 +609,7 @@ main() {
   ensure_compose_command
   download_compose_file
   start_services
-  wait_for_iotp
+  check_status_and_iotp
 }
 
 main "$@"
