@@ -21,11 +21,10 @@ jobs:
       - name: Initialize opencode submodule
         run: |
           # .gitmodules tracks opencode with an SSH URL. Actions runners
-          # typically lack SSH deploy keys, so force GitHub remotes to HTTPS.
-          git config --global --add url."https://github.com/".insteadOf git@github.com:
-          git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/
-          git submodule sync --recursive
-          git submodule update --init --recursive packages/opencode
+          # typically lack SSH deploy keys, so rewrite to HTTPS inline.
+          git -c url."https://github.com/".insteadOf=git@github.com: \
+              -c url."https://github.com/".insteadOf=ssh://git@github.com/ \
+              submodule update --init --recursive packages/opencode
           git submodule status --recursive
 
       - name: Configure Git

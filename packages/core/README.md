@@ -182,7 +182,6 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
-git submodule sync --recursive
 git submodule update --init --recursive packages/opencode
 cargo install --path packages/cli-rust
 ```
@@ -196,7 +195,6 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
-git submodule sync --recursive
 git submodule update --init --recursive packages/opencode
  
 # Bun is required for packages/opencode checks/builds

@@ -33,7 +33,6 @@ git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
 # Initialize submodule checkout
-git submodule sync --recursive
 git submodule update --init --recursive packages/opencode
 
 # Bun is required for packages/opencode checks/builds

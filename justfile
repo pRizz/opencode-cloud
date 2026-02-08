@@ -10,7 +10,6 @@ list:
 # Setup development environment (run once after cloning)
 setup:
     git config core.hooksPath .githooks
-    git submodule sync --recursive
     git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
     @command -v bun >/dev/null 2>&1 || (echo "Error: bun is required for packages/opencode checks/builds. Install from https://bun.sh and rerun just setup." && exit 1)
     bun install --cwd packages/opencode --frozen-lockfile

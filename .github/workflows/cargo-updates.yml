@@ -27,7 +27,6 @@ jobs:
 
       - name: Initialize opencode submodule
         run: |
-          git submodule sync --recursive
           git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
           git submodule status --recursive
 
