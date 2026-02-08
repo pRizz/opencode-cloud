@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # opencode-cloud quick deploy
-# Downloads docker-compose.yml and starts the service with persistent volumes.
+# Downloads or refreshes docker-compose.yml and starts the service with persistent volumes.
 # Usage: curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
 # Interactive: curl -fsSL .../scripts/quick-deploy.sh | bash -s -- --interactive
 
@@ -12,6 +12,8 @@ set -euo pipefail
 
 COMPOSE_URL="https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml"
 COMPOSE_FILE="docker-compose.yml"
+# Stores upstream ETag so reruns can use If-None-Match and skip unchanged downloads.
+COMPOSE_ETAG_FILE=".docker-compose.yml.etag"
 CONTAINER_NAME="opencode-cloud-sandbox"
 IOTP_MAX_WAIT_SECONDS=120
 IOTP_POLL_INTERVAL=3
@@ -349,28 +351,137 @@ ensure_compose_command() {
   success "Compose command: $COMPOSE_CMD (v$compose_version)"
 }
 
-download_compose_file() {
-  header "Docker Compose File"
+cleanup_temp_files() {
+  local temp_file="${1:-}" headers_file="${2:-}"
+  [ -n "$temp_file" ] && rm -f "$temp_file"
+  [ -n "$headers_file" ] && rm -f "$headers_file"
+}
 
-  if [ -f "$COMPOSE_FILE" ]; then
-    info "$COMPOSE_FILE already exists — using existing file"
+read_compose_etag() {
+  [ -s "$COMPOSE_ETAG_FILE" ] || return 0
+  tr -d '\r\n' < "$COMPOSE_ETAG_FILE"
+}
+
+extract_header_etag() {
+  local headers_file="$1"
+  awk 'BEGIN{IGNORECASE=1} /^etag:/{sub(/^[^:]*:[[:space:]]*/, ""); gsub(/\r/,""); print; exit}' "$headers_file"
+}
+
+save_compose_etag() {
+  local remote_etag="${1:-}"
+  [ -n "$remote_etag" ] || return 0
+  printf '%s\n' "$remote_etag" > "$COMPOSE_ETAG_FILE"
+}
+
+curl_fetch_compose() {
+  local temp_file="$1" headers_file="$2" etag="${3:-}" http_code
+  if [ -n "$etag" ]; then
+    http_code="$(curl -sSL -D "$headers_file" -o "$temp_file" -w '%{http_code}' -H "If-None-Match: $etag" "$COMPOSE_URL")" || return 1
+  else
+    http_code="$(curl -sSL -D "$headers_file" -o "$temp_file" -w '%{http_code}' "$COMPOSE_URL")" || return 1
+  fi
+  printf '%s\n' "$http_code"
+}
+
+reconcile_compose_file() {
+  local temp_file="$1" remote_etag="${2:-}"
+
+  if [ ! -f "$COMPOSE_FILE" ]; then
+    mv "$temp_file" "$COMPOSE_FILE"
+    save_compose_etag "$remote_etag"
+    success "Downloaded $COMPOSE_FILE"
     return 0
   fi
 
-  if ! confirm "Download $COMPOSE_FILE from GitHub?"; then
+  if cmp -s "$temp_file" "$COMPOSE_FILE"; then
+    rm -f "$temp_file"
+    save_compose_etag "$remote_etag"
+    success "$COMPOSE_FILE is already up to date"
+    return 0
+  fi
+
+  if [ "$INTERACTIVE" = true ] && ! confirm "$COMPOSE_FILE differs from upstream. Replace it? (A backup will be created.)"; then
+    rm -f "$temp_file"
+    warn "Keeping existing $COMPOSE_FILE (it may be stale)."
+    return 0
+  fi
+
+  local backup_file
+  backup_file="${COMPOSE_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  cp "$COMPOSE_FILE" "$backup_file"
+  mv "$temp_file" "$COMPOSE_FILE"
+  save_compose_etag "$remote_etag"
+  success "Updated $COMPOSE_FILE (backup: $backup_file)"
+}
+
+download_compose_file() {
+  header "Docker Compose File"
+
+  if ! confirm "Download latest $COMPOSE_FILE from GitHub?"; then
+    if [ -f "$COMPOSE_FILE" ]; then
+      warn "Skipping download — using existing $COMPOSE_FILE (it may be stale)."
+      return 0
+    fi
     die "$COMPOSE_FILE is required. Download it manually:
   curl -fsSL -o $COMPOSE_FILE $COMPOSE_URL"
   fi
 
-  info "Downloading $COMPOSE_FILE..."
+  local temp_file headers_file remote_etag current_etag http_code
+  temp_file="$(mktemp "${COMPOSE_FILE}.tmp.XXXXXX")"
+  headers_file="$(mktemp "${COMPOSE_FILE}.headers.XXXXXX")"
+  info "Downloading latest $COMPOSE_FILE..."
+
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$COMPOSE_FILE" "$COMPOSE_URL"
+    current_etag="$(read_compose_etag)"
+    if [ -n "$current_etag" ]; then
+      info "Checking for upstream changes (conditional GET)..."
+      if ! http_code="$(curl_fetch_compose "$temp_file" "$headers_file" "$current_etag")"; then
+        cleanup_temp_files "$temp_file" "$headers_file"
+        die "Failed to download $COMPOSE_FILE from GitHub."
+      fi
+
+      case "$http_code" in
+        304)
+          cleanup_temp_files "$temp_file" "$headers_file"
+          if [ -f "$COMPOSE_FILE" ]; then
+            success "$COMPOSE_FILE is already up to date (HTTP 304)"
+            return 0
+          fi
+          warn "Received HTTP 304 but $COMPOSE_FILE is missing. Retrying without ETag..."
+          ;;
+        200)
+          ;;
+        *)
+          cleanup_temp_files "$temp_file" "$headers_file"
+          die "Failed to download $COMPOSE_FILE from GitHub (HTTP $http_code)."
+          ;;
+      esac
+    fi
+
+    if [ ! -s "$temp_file" ]; then
+      if ! http_code="$(curl_fetch_compose "$temp_file" "$headers_file")"; then
+        cleanup_temp_files "$temp_file" "$headers_file"
+        die "Failed to download $COMPOSE_FILE from GitHub."
+      fi
+      if [ "$http_code" != "200" ]; then
+        cleanup_temp_files "$temp_file" "$headers_file"
+        die "Failed to download $COMPOSE_FILE from GitHub (HTTP $http_code)."
+      fi
+    fi
+
+    remote_etag="$(extract_header_etag "$headers_file")"
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$COMPOSE_FILE" "$COMPOSE_URL"
+    warn "curl not found; falling back to wget without conditional GET."
+    if ! wget -qO "$temp_file" "$COMPOSE_URL"; then
+      cleanup_temp_files "$temp_file" "$headers_file"
+      die "Failed to download $COMPOSE_FILE from GitHub."
+    fi
   else
+    cleanup_temp_files "$temp_file" "$headers_file"
     die "Neither curl nor wget found. Install one and re-run."
   fi
-  success "Downloaded $COMPOSE_FILE"
+  cleanup_temp_files "" "$headers_file"
+  reconcile_compose_file "$temp_file" "${remote_etag:-}"
 }
 
 # ---------------------------------------------------------------------------

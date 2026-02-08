@@ -21,7 +21,7 @@ This project uses the opencode fork at https://github.com/pRizz/opencode, which 
 
 ## Quick Deploy (Docker)
 
-Deploy opencode-cloud with one command. Installs Docker if needed (Linux), downloads the Docker Compose config, starts the service, and prints the login credentials:
+Deploy opencode-cloud with one command. Installs Docker if needed (Linux), downloads or refreshes the Docker Compose config, starts the service, and prints the login credentials:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
@@ -34,6 +34,8 @@ Then open [http://localhost:3000](http://localhost:3000) and enter the Initial O
 > **Remote server:** SSH into the server, run the command, then access via SSH tunnel: `ssh -L 3000:localhost:3000 root@<server-ip>`
 
 > **Interactive mode:** Add `--interactive` to be prompted before each step: `curl -fsSL .../scripts/quick-deploy.sh | bash -s -- --interactive`
+
+> **Compose refresh behavior:** By default, the script fetches the latest upstream `docker-compose.yml`. If your local file differs, it is replaced and a backup is written as `docker-compose.yml.bak.<timestamp>`.
 
 ## Quick install (cargo)
 
@@ -116,7 +118,7 @@ SSH into an Ubuntu 24.04 Droplet and run:
 curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
 ```
 
-This installs Docker, downloads the Compose file, starts the service, and prints the IOTP.
+This installs Docker, by default refreshes the Compose file from upstream (with backup if your local copy differs), starts the service, and prints the IOTP.
 
 Access via SSH tunnel: `ssh -L 3000:localhost:3000 root@<droplet-ip>`, then open `http://localhost:3000`.
 

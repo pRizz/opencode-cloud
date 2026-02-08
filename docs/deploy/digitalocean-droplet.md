@@ -234,7 +234,7 @@ Use this if you don't want `occ` installed on the Droplet.
 
 Docker Compose configures all 6 named volumes automatically.
 
-The quickest way is the one-liner script, which installs Docker, downloads the Compose file, starts the service, and prints the IOTP:
+The quickest way is the one-liner script, which installs Docker, by default refreshes the Compose file from upstream (with backup if your local copy differs), starts the service, and prints the IOTP:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
