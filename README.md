@@ -155,8 +155,8 @@ occ start
 ```
 
 If this is the first startup with no configured managed users, the container logs will print an **Initial One-Time Password (IOTP)**.
-Open the login page, use the first-time setup panel, and enroll a passkey for the default `opencoder` account.
-The IOTP is invalidated after successful passkey enrollment.
+Open the login page, use the first-time setup panel, then continue to passkey setup where you can either enroll a passkey or choose username/password registration.
+The IOTP is invalidated after successful passkey enrollment or successful username/password bootstrap signup.
 Built-in image users (for example `ubuntu`/`opencoder`) do not count as configured users for IOTP bootstrap.
 
 Quick IOTP extraction from logs:
@@ -171,7 +171,7 @@ You can also run the setup wizard:
 occ setup
 ```
 
-The wizard now configures runtime settings (image source, bind/port, mounts), keeps authentication on IOTP + passkey onboarding, and attempts to auto-detect the IOTP from logs after start.
+The wizard now configures runtime settings (image source, bind/port, mounts), keeps authentication on IOTP-first onboarding, and attempts to auto-detect the IOTP from logs after start.
 
 ### From source (install locally)
 
@@ -370,8 +370,10 @@ First boot path:
 - Extract only the IOTP quickly: `occ logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'`
 - `occ setup` attempts to auto-detect and print the IOTP after starting/restarting the service.
 - Enter that IOTP in the web login page first-time setup panel.
-- Enroll a passkey for the default `opencoder` account.
-- The IOTP is deleted after successful passkey enrollment.
+- Continue to passkey setup, then choose one of:
+  - Enroll a passkey for the default `opencoder` account, or
+  - Use the username/password fallback to create your first managed user.
+- The IOTP is deleted after successful passkey enrollment or successful username/password bootstrap signup.
 - To restart first-time onboarding after completion, run `occ reset iotp`.
 - Built-in image users (for example `ubuntu`/`opencoder`) do not disable IOTP bootstrap.
 

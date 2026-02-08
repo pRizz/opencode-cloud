@@ -89,9 +89,11 @@ If you used `occ setup`, it will also try to auto-detect and print the IOTP afte
 Open the web login page through your SSH tunnel and use the first-time setup panel:
 - Enter the IOTP from logs
 - Continue to passkey setup
-- Enroll a passkey for the default `opencoder` account
+- Then either:
+  - Enroll a passkey for the default `opencoder` account, or
+  - Use username/password fallback to create your first managed user
 
-The IOTP is invalidated after successful passkey enrollment.
+The IOTP is invalidated after successful passkey enrollment or successful username/password bootstrap signup.
 
 Admin fallback:
 
@@ -285,7 +287,7 @@ Extract only the IOTP value:
 docker logs opencode-cloud-sandbox 2>&1 | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
 ```
 
-Use the login page first-time setup panel with that IOTP, then enroll a passkey for `opencoder`.
+Use the login page first-time setup panel with that IOTP, then continue to passkey setup where you can either enroll a passkey for `opencoder` or choose username/password registration to create your first managed user.
 
 ### 5) Expose publicly (optional)
 

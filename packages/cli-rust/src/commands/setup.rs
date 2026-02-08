@@ -277,8 +277,7 @@ async fn maybe_print_iotp_info(client: &DockerClient, host: Option<&str>, config
             style(iotp).green().bold()
         );
         println!(
-            "Enter this in the web login first-time setup panel, then enroll a passkey for {}.",
-            style("opencoder").cyan()
+            "Enter this in the web login first-time setup panel, then choose passkey enrollment or username/password bootstrap signup.",
         );
         return;
     }
