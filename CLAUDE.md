@@ -6,6 +6,8 @@ Before creating any git commit, you MUST run `just pre-commit`.
 
 Only proceed with the commit if it passes. If it fails, fix the issues first.
 
+**Exception:** If the commit contains only documentation and markdown changes (`.md` files), you may skip `just pre-commit`.
+
 ## Project Structure
 
 This is a polyglot monorepo with Rust and TypeScript:
