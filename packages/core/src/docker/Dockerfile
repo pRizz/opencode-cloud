@@ -539,7 +539,7 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
     OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
-    && OPENCODE_COMMIT="6ce01c3ed7b23b89010c413b08937fc9d5c6fa5e" \
+    && OPENCODE_COMMIT="9fc1f2cd6084bb1611ee33d7085fa86a5ea6511f" \
     && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
     && rm -rf /tmp/opencode-repo \
     && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
