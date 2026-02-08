@@ -493,14 +493,6 @@ check_status_and_iotp() {
 # Display banners
 # ---------------------------------------------------------------------------
 
-display_iotp_management() {
-  local exec_prefix="docker exec $CONTAINER_NAME"
-  printf '  %sIOTP management:%s\n' "$COLOR_BOLD" "$COLOR_RESET"
-  printf '    Check status:  %s%s /usr/local/bin/opencode-cloud-bootstrap status%s\n' "$COLOR_CYAN" "$exec_prefix" "$COLOR_RESET"
-  printf '    Reset IOTP:    %s%s /usr/local/bin/opencode-cloud-bootstrap reset%s\n' "$COLOR_CYAN" "$exec_prefix" "$COLOR_RESET"
-  printf '\n'
-}
-
 display_useful_commands() {
   printf '  %sUseful commands:%s\n' "$COLOR_BOLD" "$COLOR_RESET"
   printf '    View logs:     docker logs -f %s\n' "$CONTAINER_NAME"
@@ -548,7 +540,6 @@ display_already_configured() {
   printf '\n'
   printf '  Open %s%s%s and sign in with your existing credentials.\n' "$COLOR_CYAN" "$SERVICE_URL" "$COLOR_RESET"
   printf '\n'
-  display_iotp_management
   display_useful_commands
 }
 
@@ -565,7 +556,9 @@ display_setup_complete() {
   printf '\n'
   printf '  Open %s%s%s and sign in with your credentials.\n' "$COLOR_CYAN" "$SERVICE_URL" "$COLOR_RESET"
   printf '\n'
-  display_iotp_management
+  printf '  %sTo generate a new IOTP (re-run first-time setup):%s\n' "$COLOR_BOLD" "$COLOR_RESET"
+  printf '    %sdocker exec %s /usr/local/bin/opencode-cloud-bootstrap reset%s\n' "$COLOR_CYAN" "$CONTAINER_NAME" "$COLOR_RESET"
+  printf '\n'
   display_useful_commands
 }
 
