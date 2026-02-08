@@ -13,9 +13,6 @@ set -euo pipefail
 COMPOSE_URL="https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml"
 COMPOSE_FILE="docker-compose.yml"
 CONTAINER_NAME="opencode-cloud-sandbox"
-# Coupling: must match entrypoint.sh greppable_iotp_prefix (line 104).
-# Do not change this string without updating entrypoint.sh and vice versa.
-IOTP_GREP_PATTERN="INITIAL ONE-TIME PASSWORD (IOTP): "
 IOTP_MAX_WAIT_SECONDS=120
 IOTP_POLL_INTERVAL=3
 SERVICE_URL="http://localhost:3000"
@@ -385,12 +382,16 @@ get_container_id() {
 }
 
 # Coupling: queries opencode-cloud-bootstrap status inside the container.
-# The JSON contract (active, reason fields) is defined in
+# The JSON contract (ok, active, reason, otp fields) is defined in
 # opencode-cloud-bootstrap.sh emit_status(). Do not change that contract
 # without updating this function.
+#
+# --include-secret returns the raw IOTP value in the "otp" field when
+# bootstrap is active. This is safe because the caller already has
+# docker exec access to the container.
 query_bootstrap_status() {
   docker exec "$CONTAINER_NAME" \
-    /usr/local/bin/opencode-cloud-bootstrap status 2>/dev/null || true
+    /usr/local/bin/opencode-cloud-bootstrap status --include-secret 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
@@ -431,9 +432,8 @@ start_services() {
 check_status_and_iotp() {
   header "Checking Setup Status"
 
-  local elapsed=0 status_json="" active="" reason=""
+  local elapsed=0 status_json="" active="" reason="" iotp=""
 
-  # Phase 1: poll bootstrap status via docker exec until a terminal state
   info "Waiting for container to initialize..."
   while [ "$elapsed" -lt "$IOTP_MAX_WAIT_SECONDS" ]; do
     status_json="$(query_bootstrap_status)"
@@ -442,7 +442,15 @@ check_status_and_iotp() {
       reason="$(printf '%s' "$status_json" | jq -r '.reason // empty' 2>/dev/null || true)"
 
       if [ "$active" = "true" ]; then
-        break # IOTP is active — proceed to phase 2
+        # IOTP is active — extract value directly from JSON
+        iotp="$(printf '%s' "$status_json" | jq -r '.otp // empty' 2>/dev/null || true)"
+        if [ -n "$iotp" ]; then
+          printf '\n' >&2
+          display_fresh_setup "$iotp"
+          return 0
+        fi
+        # otp field missing (shouldn't happen with --include-secret, but
+        # keep polling in case of a race during container startup)
       fi
 
       case "$reason" in
@@ -475,37 +483,10 @@ check_status_and_iotp() {
     printf '.' >&2
   done
 
-  if [ "$active" != "true" ]; then
-    printf '\n' >&2
-    warn "Container did not produce bootstrap status within ${IOTP_MAX_WAIT_SECONDS}s."
-    warn "Check container logs: docker logs $CONTAINER_NAME"
-    return 0
-  fi
-
-  # Phase 2: IOTP is active — extract the actual value from container logs
   printf '\n' >&2
-  info "IOTP is active. Extracting from container logs..."
-  local iotp=""
-  while [ "$elapsed" -lt "$IOTP_MAX_WAIT_SECONDS" ]; do
-    iotp="$(docker logs "$CONTAINER_NAME" 2>&1 \
-      | grep -F "$IOTP_GREP_PATTERN" \
-      | tail -n1 \
-      | sed "s/.*${IOTP_GREP_PATTERN}//" || true)"
-
-    if [ -n "$iotp" ]; then
-      display_fresh_setup "$iotp"
-      return 0
-    fi
-
-    sleep "$IOTP_POLL_INTERVAL"
-    elapsed=$((elapsed + IOTP_POLL_INTERVAL))
-    printf '.' >&2
-  done
-
-  printf '\n' >&2
-  warn "Could not extract IOTP from logs within ${IOTP_MAX_WAIT_SECONDS}s."
-  warn "The IOTP should be in the container logs:"
-  warn "  docker logs $CONTAINER_NAME | grep -F \"INITIAL ONE-TIME PASSWORD (IOTP): \""
+  warn "Container did not produce bootstrap status within ${IOTP_MAX_WAIT_SECONDS}s."
+  warn "Check status manually:"
+  warn "  docker exec $CONTAINER_NAME /usr/local/bin/opencode-cloud-bootstrap status --include-secret"
 }
 
 # ---------------------------------------------------------------------------
