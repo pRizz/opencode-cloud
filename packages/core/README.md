@@ -459,6 +459,7 @@ just run start --full-rebuild-sandbox-image --local-opencode-submodule
 
 For new Docker build steps, follow this checklist:
 - Prefer BuildKit cache mounts (`RUN --mount=type=cache`) for package caches (`apt`, `bun`, `cargo`, `pip`, and `pnpm/npm`).
+- For `bun install` in container builds, use a dedicated install-cache mount plus a short retry loop that clears that cache between attempts to recover from occasional corrupted/interrupted cache artifacts.
 - Create and remove temporary workdirs in the same `RUN` layer (for example `/tmp/opencode-repo`).
 - Do not defer cleanup to later layers; deleted files still exist in lower layers.
 - Keep builder-stage artifacts out of runtime layers by copying only final outputs.

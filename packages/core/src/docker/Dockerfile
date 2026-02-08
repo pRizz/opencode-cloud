@@ -528,7 +528,16 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 # - Prefer BuildKit cache mounts for bun/cargo cache paths if this block is
 #   expanded; avoid persisting package caches in committed layers.
 # - Keep explicit cleanup as a defensive fallback even when cache mounts are used.
-RUN OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
+# Reliability note for Bun dependency install:
+# - We use a dedicated Bun install cache mount so BuildKit can reuse downloaded
+#   packages across builds without polluting image layers.
+# - In CI/container builds, Bun's cached install artifacts can occasionally
+#   become inconsistent (for example after interrupted network/download steps),
+#   which causes `bun install --frozen-lockfile` to fail nondeterministically.
+# - The retry loop intentionally clears only this cache dir between attempts so
+#   each retry gets a clean cache state while preserving reproducibility.
+RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
+    OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
     && OPENCODE_COMMIT="0c796c56e7234afc9547b9d341ba1e92eeee3f54" \
     && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
@@ -547,7 +556,22 @@ RUN OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
         git checkout "${OPENCODE_COMMIT}"; \
       fi \
     && cd /tmp/opencode-repo \
-    && bun install --frozen-lockfile \
+    && sudo mkdir -p /home/opencoder/.bun/install/cache \
+    && sudo chown -R opencoder:opencoder /home/opencoder/.bun/install/cache \
+    && export BUN_INSTALL_CACHE_DIR=/home/opencoder/.bun/install/cache \
+    && bun_install_ok=0; \
+      for attempt in 1 2 3; do \
+        if bun install --frozen-lockfile; then \
+          bun_install_ok=1; \
+          break; \
+        fi; \
+        echo "bun install failed (attempt ${attempt}); clearing cache and retrying..." >&2; \
+        sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true; \
+      done; \
+      if [ "${bun_install_ok}" -ne 1 ]; then \
+        echo "bun install failed after 3 attempts." >&2; \
+        exit 1; \
+      fi \
     && cd packages/opencode \
     && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
         # Local mode omits .git from context for performance and safety, so set
@@ -574,7 +598,8 @@ RUN OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && sudo cp target/release/opencode-broker /usr/local/bin/opencode-broker \
     && sudo chmod 4755 /usr/local/bin/opencode-broker \
     && rm -rf /tmp/opencode-repo /tmp/opencode-local \
-    && rm -rf /home/opencoder/.bun/install/cache /home/opencoder/.bun/cache /home/opencoder/.cache/bun
+    && sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true \
+    && sudo rm -rf /home/opencoder/.bun/cache /home/opencoder/.cache/bun
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime
