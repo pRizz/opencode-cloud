@@ -521,19 +521,20 @@ start_services() {
     info "Container '$CONTAINER_NAME' is already running"
     info "  Container ID: $container_id"
     info "  Image:        $image"
-    info "  Restart: $COMPOSE_CMD restart"
-    info "  Stop:    $COMPOSE_CMD down"
+    info "  Updating image and reconciling services..."
+  fi
+
+  if ! confirm "Pull latest image and ensure opencode-cloud is running?"; then
+    info "Skipping service start/update. Run manually: $COMPOSE_CMD pull && $COMPOSE_CMD up -d"
     return 0
   fi
 
-  if ! confirm "Start opencode-cloud?"; then
-    info "Skipping service start. Run manually: $COMPOSE_CMD up -d"
-    return 0
-  fi
-
+  info "Pulling latest image..."
+  $COMPOSE_CMD pull
   $COMPOSE_CMD up -d
   container_id="$(get_container_id)"
-  success "Services started (container: ${container_id:-unknown})"
+  success "Services ready (container: ${container_id:-unknown})"
+  display_useful_commands
 }
 
 # ---------------------------------------------------------------------------

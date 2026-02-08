@@ -15,7 +15,7 @@ No cloud account or `occ` CLI installation is required.
 
 ## Quick Start (One-Liner)
 
-The fastest path — installs Docker if needed, downloads or refreshes the Compose config, starts the service, and prints the IOTP:
+The fastest path — installs Docker if needed, downloads or refreshes the Compose config, pulls the latest image, reconciles services, and prints the IOTP:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/quick-deploy.sh | bash
@@ -26,6 +26,8 @@ curl -fsSL https://raw.githubusercontent.com/pRizz/opencode-cloud/main/scripts/q
 > **Interactive mode:** `curl -fsSL .../scripts/quick-deploy.sh | bash -s -- --interactive`
 
 > By default, if local `docker-compose.yml` differs from upstream, the script replaces it and writes a backup as `docker-compose.yml.bak.<timestamp>`.
+
+> By default, the script runs `docker compose pull` before `docker compose up -d`, so rerunning quick deploy updates to the latest image.
 
 ## Quick Start (Docker Compose)
 
