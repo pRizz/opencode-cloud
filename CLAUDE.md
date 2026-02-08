@@ -66,35 +66,59 @@ The `scripts/set-all-versions.sh` script handles version updates automatically. 
 
 ## Working with Git Worktrees and Submodules
 
-Git worktrees and submodules work together, but support is incomplete and requires care.
+Git worktrees and submodules interact poorly. Submodule metadata is partially shared across worktrees, so careless commands in one worktree can break others.
 
-Submodules are not automatically initialized per worktree. After every `git worktree add`, run this in the new worktree:
+### After `git worktree add`, init the submodule
+
+Submodules are not automatically initialized per worktree. After every `git worktree add`, run this **in the new worktree**:
 
 ```bash
-git submodule sync --recursive
 git submodule update --init --recursive
-git submodule status --recursive
 ```
 
-Submodule metadata under `.git/modules/...` (via the repo's common git dir) is shared across worktrees. Changing a submodule branch or commit in one worktree can affect other worktrees.
+### Never run `git submodule sync` in worktrees
 
-When multiple worktrees exist, treat submodules as read-only and detached at the superproject-pinned commit unless you explicitly intend to update the submodule pointer and understand the impact.
+`git submodule sync` rewrites `submodule.<name>.url` in the **shared** `.git/config`, affecting all worktrees. It also mutates `core.worktree` paths in shared submodule metadata. Only run `sync` if the submodule remote URL has actually changed, and only from the main worktree with no other worktrees active.
 
-Check for drift or dirty submodule state before commits and when switching worktrees:
+### Never run submodule commands concurrently across worktrees
+
+If two worktree sessions run `git submodule update` at the same time, they race on shared metadata under `.git/modules/` and `.git/config`. This causes intermittent "cannot be used without a working tree" errors and stale `core.worktree` paths. Serialize submodule operations across worktrees.
+
+### Submodules must stay detached
+
+The submodule should always be detached at the superproject-pinned commit. If `git submodule status` shows a branch name instead of a detached SHA, something has gone wrong (likely a `sync` or manual `checkout` inside the submodule). Fix with:
+
+```bash
+git submodule update --recursive
+```
+
+### Fixing stale `core.worktree` errors
+
+If you see errors like "cannot be used without a working tree" or submodule commands fail mysteriously, the submodule's `core.worktree` config is pointing to a wrong or deleted worktree path. Fix from the affected worktree:
+
+```bash
+git submodule deinit -f packages/opencode
+git submodule update --init --recursive
+```
+
+### Checking submodule health before commits
 
 ```bash
 git submodule status --recursive
-git submodule foreach --recursive 'git status --short --branch'
 git diff --submodule=log
 ```
 
-Removing a worktree that contains initialized submodules can require force or manual cleanup. If normal removal fails, use `git worktree remove --force <path>` and then `git worktree prune`.
+### Removing worktrees
+
+Worktrees with initialized submodules may resist normal removal. Use `git worktree remove --force <path>` followed by `git worktree prune`.
 
 ### Do / Don't
 
 - Do run `git submodule update --init --recursive` in every new worktree.
-- Do keep submodules detached and pinned unless you are intentionally updating them.
-- Do check `git submodule status` and submodule dirtiness before committing.
+- Do keep submodules detached and pinned unless intentionally updating the pointer.
+- Do check `git submodule status` before committing.
+- Do serialize submodule operations — never run them concurrently across worktrees.
+- Don't run `git submodule sync` unless the remote URL has changed.
+- Don't run `git checkout <branch>` inside the submodule working tree.
 - Don't assume submodules are ready in a fresh worktree.
-- Don't switch submodule branches casually while multiple worktrees are active.
 - Don't ignore failed worktree removal; clean up stale metadata promptly.
