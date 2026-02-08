@@ -223,7 +223,13 @@ occ restart
 
 ## Path 2: Docker-only (Image Direct)
 
-Use this if you don’t want `occ` installed on the Droplet.
+Use this if you don't want `occ` installed on the Droplet.
+
+> **Tip:** You can also use `docker compose up -d` with the project's
+> [`docker-compose.yml`](https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml)
+> instead of manual `docker run` commands. The Docker image also declares
+> `VOLUME` directives for all critical paths, providing anonymous volume
+> fallback if you forget explicit `-v` flags.
 
 ### 1) Install Docker
 

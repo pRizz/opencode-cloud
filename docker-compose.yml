@@ -1,0 +1,38 @@
+# opencode-cloud Docker Compose
+#
+# Quick start:
+#   docker compose up -d
+#
+# This configures all persistent volumes automatically so your data
+# survives container restarts, updates, and recreation.
+#
+# First-time setup:
+#   docker compose logs | grep "INITIAL ONE-TIME PASSWORD"
+#   Open http://localhost:3000 and enter the IOTP to complete setup.
+#
+# Docs: https://github.com/pRizz/opencode-cloud
+
+services:
+  opencode:
+    image: prizz/opencode-cloud-sandbox:latest
+    container_name: opencode-cloud-sandbox
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - OPENCODE_HOST=0.0.0.0
+    volumes:
+      - opencode-data:/home/opencoder/.local/share/opencode
+      - opencode-state:/home/opencoder/.local/state/opencode
+      - opencode-cache:/home/opencoder/.cache/opencode
+      - opencode-workspace:/home/opencoder/workspace
+      - opencode-config:/home/opencoder/.config/opencode
+      - opencode-users:/var/lib/opencode-users
+
+volumes:
+  opencode-data:
+  opencode-state:
+  opencode-cache:
+  opencode-workspace:
+  opencode-config:
+  opencode-users:

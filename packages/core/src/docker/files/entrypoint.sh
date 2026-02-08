@@ -86,6 +86,7 @@ print_welcome_banner() {
     log "  5) Sign in with a passkey (recommended) or username/password fallback."
     log "     2FA setup and management are available from the upper-right session menu."
     log "Docs: https://github.com/pRizz/opencode-cloud#readme"
+    log "Deploy guides: https://github.com/pRizz/opencode-cloud/tree/main/docs/deploy"
     log "----------------------------------------------------------------------"
 }
 
@@ -115,11 +116,18 @@ detect_droplet() {
     curl -fsS --connect-timeout 1 --max-time 1 http://169.254.169.254/metadata/v1/id >/dev/null 2>&1
 }
 
+detect_railway() {
+    [ -n "${RAILWAY_ENVIRONMENT:-}" ] && return 0
+    [ -n "${RAILWAY_SERVICE_NAME:-}" ] && return 0
+    return 1
+}
+
 collect_non_persistent_paths() {
     local -a paths=(
         "/home/opencoder/workspace"
         "/home/opencoder/.local/share/opencode"
         "/home/opencoder/.local/state/opencode"
+        "/home/opencoder/.cache/opencode"
         "/home/opencoder/.config/opencode"
         "/var/lib/opencode-users"
     )
@@ -153,8 +161,21 @@ if [ -n "${non_persistent_paths}" ]; then
         log "Detected DigitalOcean Docker Droplet environment."
         log "By default, Docker Droplets do not configure volumes or persistence."
         log "You will almost certainly lose data if you are not careful."
+    elif detect_railway; then
+        log "Detected Railway environment."
+        log "Railway does not automatically configure persistent storage for Docker containers."
+        log "Attach a Railway Volume to persist data across deploys."
+        log "Mount it to /home/opencoder/.local/share/opencode for session and project data."
+        log "Railway deploy guide: https://github.com/pRizz/opencode-cloud/blob/main/docs/deploy/railway.md"
     fi
-    log "Configure persistence: https://github.com/pRizz/opencode-cloud#readme"
+    log "Configure persistence: https://github.com/pRizz/opencode-cloud/tree/main/docs/deploy"
+    log "For docker run, add volume flags such as:"
+    log "  -v opencode-data:/home/opencoder/.local/share/opencode"
+    log "  -v opencode-workspace:/home/opencoder/workspace"
+    log "  -v opencode-users:/var/lib/opencode-users"
+    log "  -v opencode-config:/home/opencoder/.config/opencode"
+    log "  -v opencode-state:/home/opencoder/.local/state/opencode"
+    log "  -v opencode-cache:/home/opencoder/.cache/opencode"
     log "================================================================="
 fi
 

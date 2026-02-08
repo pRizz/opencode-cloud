@@ -755,6 +755,18 @@ RUN echo "${OPENCODE_CLOUD_VERSION}" > /etc/opencode-cloud-version
 # -----------------------------------------------------------------------------
 WORKDIR /home/opencoder/workspace
 
+# Declare volumes for critical persistent data paths.
+# When the image is run directly (e.g., Railway, docker run) without the occ CLI,
+# Docker creates anonymous volumes for these paths, providing persistence across
+# container restarts (but NOT across container removal/recreation).
+# When managed by occ, explicit named volume mounts override these directives.
+VOLUME ["/home/opencoder/.local/share/opencode"]
+VOLUME ["/home/opencoder/.local/state/opencode"]
+VOLUME ["/home/opencoder/.cache/opencode"]
+VOLUME ["/home/opencoder/workspace"]
+VOLUME ["/home/opencoder/.config/opencode"]
+VOLUME ["/var/lib/opencode-users"]
+
 # Expose opencode web (3000) and Cockpit (9090)
 EXPOSE 3000 9090
 

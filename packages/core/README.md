@@ -53,6 +53,35 @@ Quick deploy provisions a private EC2 instance behind a public ALB with HTTPS.
 Docs: `docs/deploy/aws.md` (includes teardown steps and S3 hosting setup for forks)
 Credentials: `docs/deploy/aws.md#retrieving-credentials`
 
+## Deploy to Railway
+
+<!-- TODO: Replace TEMPLATE_CODE with the actual Railway template code once the template is created. See docs/deploy/railway.md for template creation instructions. -->
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/TEMPLATE_CODE)
+
+One-click deploy provisions a Railway service with automatic HTTPS.
+
+> **Important:** Attach a Railway Volume mounted to `/home/opencoder/.local/share/opencode` to prevent data loss across redeploys.
+
+Docs: `docs/deploy/railway.md`
+
+## Run with Docker / Docker Desktop
+
+The fastest way to run opencode-cloud locally:
+
+```bash
+docker compose up -d
+```
+
+This uses the included `docker-compose.yml` which configures all persistent volumes automatically.
+
+Retrieve the Initial One-Time Password (IOTP) and open `http://localhost:3000`:
+
+```bash
+docker compose logs | grep -F "INITIAL ONE-TIME PASSWORD (IOTP): " | tail -n1 | sed 's/.*INITIAL ONE-TIME PASSWORD (IOTP): //'
+```
+
+Docs: `docs/deploy/docker-desktop.md`
+
 ## Deploy to DigitalOcean (Coming Soon)
 
 DigitalOcean Marketplace one-click deployment is not implemented yet. Support is coming soon.
@@ -112,6 +141,8 @@ docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
 ```bash
 occ start  # Pulls or builds the image as needed
 ```
+
+**Running the image directly** (without the CLI)? Use Docker Compose or configure named volumes for persistence. See `docs/deploy/docker-desktop.md` for Docker Desktop / `docker run`, or `docs/deploy/railway.md` for Railway.
 
 ## Requirements
 
