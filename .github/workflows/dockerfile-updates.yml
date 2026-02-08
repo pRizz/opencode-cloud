@@ -20,9 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Ensure opencode placeholder path exists for Docker context
-        run: mkdir -p packages/opencode
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 

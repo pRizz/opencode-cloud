@@ -60,9 +60,6 @@ jobs:
           # when called via workflow_call, defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
 
-      - name: Ensure opencode placeholder path exists for Docker context
-        run: mkdir -p packages/opencode
-
       # NOTE: We parse the description label from the Dockerfile so the
       # multi-arch manifest annotation stays in sync and GHCR shows a description.
       # If you change the label format or quoting, update the extraction logic.
