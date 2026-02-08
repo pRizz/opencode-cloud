@@ -240,22 +240,7 @@ emit_status() {
     jq -cn --arg created_at "${created_at}" '{ok:true,active:true,created_at:$created_at}'
 }
 
-cmd_init_internal() {
-    if has_non_protected_configured_user; then
-        emit_inactive_and_cleanup
-        return 0
-    fi
-
-    if bootstrap_is_completed; then
-        emit_status "0"
-        return 0
-    fi
-
-    if state_is_active; then
-        emit_status "1"
-        return 0
-    fi
-
+generate_fresh_otp() {
     remove_state_files
 
     local otp salt created_at otp_hash
@@ -274,7 +259,27 @@ cmd_init_internal() {
     printf "%s" "${otp}" > "${SECRET_FILE}"
     chmod 600 "${STATE_FILE}" "${SECRET_FILE}"
 
-    jq -cn --arg created_at "${created_at}" --arg otp "${otp}" '{ok:true,active:true,created_at:$created_at,otp:$otp}'
+    jq -cn --arg created_at "${created_at}" --arg otp "${otp}" \
+        '{ok:true,active:true,created_at:$created_at,otp:$otp}'
+}
+
+cmd_init_internal() {
+    if has_non_protected_configured_user; then
+        emit_inactive_and_cleanup
+        return 0
+    fi
+
+    if bootstrap_is_completed; then
+        emit_status "0"
+        return 0
+    fi
+
+    if state_is_active; then
+        emit_status "1"
+        return 0
+    fi
+
+    generate_fresh_otp
 }
 
 cmd_init() {
@@ -288,9 +293,7 @@ cmd_reset() {
     acquire_lock
 
     rm -f "${COMPLETE_MARKER_FILE}"
-    remove_state_files
-
-    cmd_init_internal
+    generate_fresh_otp
 }
 
 cmd_status() {
