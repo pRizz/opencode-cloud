@@ -18,7 +18,7 @@ http_status="$(
     --silent \
     --show-error \
     --location \
-    --user-agent "opencode-cloud-ci (https://github.com/pRizz/opencode-container)" \
+    --user-agent "opencode-cloud-ci (https://github.com/pRizz/opencode-cloud)" \
     --output "${tmp_response}" \
     --write-out '%{http_code}' \
     "${api_url}"
