@@ -530,7 +530,7 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 # - Keep explicit cleanup as a defensive fallback even when cache mounts are used.
 RUN OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
-    && OPENCODE_COMMIT="1256fe10cd8254f852dd6233318eac2f197d0634" \
+    && OPENCODE_COMMIT="0c796c56e7234afc9547b9d341ba1e92eeee3f54" \
     && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
     && rm -rf /tmp/opencode-repo \
     && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
