@@ -194,8 +194,8 @@ systemctl reload caddy
 ### 5) Proxy headers note (trustProxy)
 
 If you are running behind a reverse proxy and need opencode to trust
-`X-Forwarded-*` headers, you may need to set `trustProxy` in opencode config
-and restart.
+`X-Forwarded-*` headers, verify `auth.trustProxy` in opencode config and restart.
+The current default is `"auto"`; setting `trustProxy: true` explicitly is still a valid override.
 
 This file lives on the host bind-mount. If you ran `occ` as `root`, it is
 typically:
