@@ -363,6 +363,8 @@ occ config show
 
 ## Authentication
 
+Security details: `docs/security/passkey-registration.md` (IOTP bootstrap and passkey enrollment flow)
+
 opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication.
 
 First boot path:
