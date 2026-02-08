@@ -435,6 +435,7 @@ async fn cmd_reset_container(
 
     if args.volumes {
         remove_volumes_with_spinner(&client, host_name.as_deref(), quiet, &mut errors).await;
+        print_browser_cache_hint(quiet);
     }
 
     if args.images {
@@ -653,6 +654,8 @@ async fn cmd_reset_host(
     remove_dir_if_exists(get_config_dir(), "config", quiet, &mut errors);
     remove_dir_if_exists(get_data_dir(), "data", quiet, &mut errors);
 
+    print_browser_cache_hint(quiet);
+
     if errors.is_empty() {
         Ok(())
     } else {
@@ -662,6 +665,29 @@ async fn cmd_reset_host(
         }
         Err(anyhow!(message))
     }
+}
+
+fn print_browser_cache_hint(quiet: bool) {
+    if quiet {
+        return;
+    }
+    println!();
+    println!(
+        "{}",
+        style("Note: If you previously accessed the web UI in a browser,").yellow()
+    );
+    println!(
+        "{}",
+        style("clear site data to avoid stale sessions on older versions:").yellow()
+    );
+    println!(
+        "  {}",
+        style("Browser DevTools > Application > Storage > Clear site data").dim()
+    );
+    println!(
+        "  {}",
+        style("Newer versions clear browser cache automatically on next load.").dim()
+    );
 }
 
 fn uninstall_service_registration(quiet: bool, errors: &mut Vec<String>) {
