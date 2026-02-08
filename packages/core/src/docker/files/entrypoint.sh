@@ -225,6 +225,36 @@ else
         [ -f "$(user_record_path "${username}")" ]
     }
 
+    ensure_jsonc_parser() {
+        if ! command -v jq >/dev/null 2>&1; then
+            log "ERROR: jq is required to parse JSONC configs."
+            return 1
+        fi
+        return 0
+    }
+
+    jsonc_get_auth_enabled() {
+        local file="$1"
+        ensure_jsonc_parser || return 1
+
+        local auth_enabled
+        if ! auth_enabled="$(grep -v '^\s*//' "${file}" | jq -r '.auth.enabled // false')"; then
+            return 1
+        fi
+        printf '%s' "${auth_enabled}"
+    }
+
+    jsonc_set_auth_enabled() {
+        local file="$1"
+        ensure_jsonc_parser || return 1
+
+        local patched
+        if ! patched="$(grep -v '^\s*//' "${file}" | jq '.auth.enabled = true')"; then
+            return 1
+        fi
+        printf '%s\n' "${patched}" > "${file}"
+    }
+
     ensure_auth_config() {
         local config_dir="/home/opencoder/.config/opencode"
         local config_json="${config_dir}/opencode.json"
@@ -232,10 +262,38 @@ else
 
         install -d -m 0755 "${config_dir}"
 
-        if [ -f "${config_json}" ] || [ -f "${config_jsonc}" ]; then
+        # Check if an existing config already has auth enabled
+        local config_file=""
+        for candidate in "${config_json}" "${config_jsonc}" "${config_dir}/config.json"; do
+            if [ -f "${candidate}" ]; then
+                config_file="${candidate}"
+                break
+            fi
+        done
+
+        if [ -n "${config_file}" ]; then
+            # File exists — verify auth is enabled
+            local auth_enabled
+            if ! auth_enabled="$(jsonc_get_auth_enabled "${config_file}")"; then
+                log "ERROR: Failed to parse ${config_file} for auth settings."
+                exit 1
+            fi
+            if [ "${auth_enabled}" = "true" ]; then
+                return  # Already configured correctly
+            fi
+
+            # Auth not enabled — patch the existing config to enable it
+            log "Auth is not enabled in ${config_file}; patching to enable."
+            if ! jsonc_set_auth_enabled "${config_file}"; then
+                log "ERROR: Failed to update ${config_file} to enable auth."
+                exit 1
+            fi
+            chown opencoder:opencoder "${config_file}" 2>/dev/null || true
+            chmod 644 "${config_file}" 2>/dev/null || true
             return
         fi
 
+        # No config file — create default
         if ! cat > "${config_jsonc}" <<'EOF'
 {
   "auth": {
@@ -255,23 +313,24 @@ EOF
 
     check_auth_enabled() {
         local config_dir="/home/opencoder/.config/opencode"
-        local config_file=""
 
-        for candidate in "${config_dir}/opencode.json" "${config_dir}/opencode.jsonc"; do
+        # Check all config files that opencode's global loader merges
+        local candidate auth_enabled
+        for candidate in "${config_dir}/opencode.json" \
+                         "${config_dir}/opencode.jsonc" \
+                         "${config_dir}/config.json"; do
             if [ -f "${candidate}" ]; then
-                config_file="${candidate}"
-                break
+                if ! auth_enabled="$(jsonc_get_auth_enabled "${candidate}")"; then
+                    log "ERROR: Failed to parse ${candidate} for auth settings."
+                    exit 1
+                fi
+                if [ "${auth_enabled}" = "true" ]; then
+                    return 0
+                fi
             fi
         done
 
-        if [ -z "${config_file}" ]; then
-            return 1
-        fi
-
-        local auth_enabled
-        # Strip // line-comments before parsing (JSONC compat)
-        auth_enabled="$(grep -v '^\s*//' "${config_file}" | jq -r '.auth.enabled // false' 2>/dev/null || echo "false")"
-        [ "${auth_enabled}" = "true" ]
+        return 1
     }
 
     warn_security_posture() {
@@ -521,6 +580,10 @@ EOF
     }
 
     load_builtin_home_users
+    if ! ensure_jsonc_parser; then
+        log "ERROR: JSONC parser is required for auth config checks."
+        exit 1
+    fi
     ensure_auth_config
     restore_or_bootstrap_users
     migrate_unmanaged_home_users_to_records
