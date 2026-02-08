@@ -16,6 +16,13 @@ on:
         type: string
         # If not provided: when triggered by tag push, uses the tag automatically;
         # when called via workflow_call, defaults to the commit that triggered the workflow
+    outputs:
+      scout_policy_status:
+        description: 'Docker Scout policy status (pass, fail, or error)'
+        value: ${{ jobs.build-and-push.outputs.scout_policy_status }}
+      scout_policy_exit_code:
+        description: 'Exit code returned by docker scout policy'
+        value: ${{ jobs.build-and-push.outputs.scout_policy_exit_code }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,6 +36,9 @@ jobs:
   build-and-push:
     name: Build and Push Sandbox Docker Image
     runs-on: ubuntu-latest
+    outputs:
+      scout_policy_status: ${{ steps.scout-policy.outputs.status }}
+      scout_policy_exit_code: ${{ steps.scout-policy.outputs.exit_code }}
     permissions:
       contents: read
       packages: write  # Required for GHCR push
@@ -208,6 +218,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: |
             org.opencontainers.image.description=${{ steps.oci-description.outputs.description }}
+          sbom: true
+          provenance: mode=max
           # Scoped cache prevents thrash between test and publish builds.
           # GHA cache v2 improves compatibility with the current cache API.
           cache-from: |
@@ -216,6 +228,67 @@ jobs:
           cache-to: |
             type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache,mode=max
             type=gha,scope=opencode-cloud-sandbox,mode=min,version=2
+
+      - name: Docker Scout Quickview
+        continue-on-error: true
+        uses: docker/scout-action@v1
+        with:
+          command: quickview
+          image: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}
+          summary: true
+          write-comment: false
+
+      - name: Install Docker Scout CLI
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh
+          docker scout version
+
+      - name: Evaluate Docker Scout Policy
+        id: scout-policy
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          org="${IMAGE_NAME_DOCKERHUB%%/*}"
+          if [[ -z "${org}" || "${org}" == "${IMAGE_NAME_DOCKERHUB}" ]]; then
+            echo "Unable to resolve Docker Hub org from IMAGE_NAME_DOCKERHUB=${IMAGE_NAME_DOCKERHUB}" >&2
+            echo "status=error" >> "${GITHUB_OUTPUT}"
+            echo "exit_code=1" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          set +e
+          docker scout policy \
+            "${IMAGE_NAME_DOCKERHUB}:${{ steps.version.outputs.version }}" \
+            --org "${org}" --exit-code
+          scout_exit_code=$?
+          set -e
+
+          case "${scout_exit_code}" in
+            0) scout_status="pass" ;;
+            2) scout_status="fail" ;;
+            *) scout_status="error" ;;
+          esac
+
+          echo "status=${scout_status}" >> "${GITHUB_OUTPUT}"
+          echo "exit_code=${scout_exit_code}" >> "${GITHUB_OUTPUT}"
+
+      - name: Summarize Docker Scout Policy
+        if: always()
+        env:
+          VERSIONED_IMAGE: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}
+          SCOUT_POLICY_STATUS: ${{ steps.scout-policy.outputs.status }}
+          SCOUT_POLICY_EXIT_CODE: ${{ steps.scout-policy.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Docker Scout Policy"
+            echo "- Image: \`${VERSIONED_IMAGE}\`"
+            echo "- Status: \`${SCOUT_POLICY_STATUS:-unknown}\`"
+            echo "- Exit code: \`${SCOUT_POLICY_EXIT_CODE:-unknown}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v5
@@ -226,6 +299,9 @@ jobs:
           readme-filepath: packages/core/src/docker/README.dockerhub.md
 
       - name: Summary
+        env:
+          SCOUT_POLICY_STATUS: ${{ steps.scout-policy.outputs.status }}
+          SCOUT_POLICY_EXIT_CODE: ${{ steps.scout-policy.outputs.exit_code }}
         run: |
           echo "## 🐳 Sandbox Docker Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -242,3 +318,5 @@ jobs:
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Docker Scout policy (non-blocking):** \`${SCOUT_POLICY_STATUS:-unknown}\` (exit \`${SCOUT_POLICY_EXIT_CODE:-unknown}\`)" >> $GITHUB_STEP_SUMMARY

@@ -188,3 +188,24 @@ jobs:
       # not the original commit that triggered the workflow
       ref: ${{ needs.bump-version.outputs.ref }}
     secrets: inherit
+
+  # Final summary with Docker Scout results
+  publish-summary:
+    name: Publish Summary
+    needs: [bump-version, docker-publish]
+    if: always() && needs.bump-version.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Release Summary
+        env:
+          VERSION: ${{ needs.bump-version.outputs.version }}
+          SCOUT_STATUS: ${{ needs.docker-publish.outputs.scout_policy_status }}
+          SCOUT_EXIT_CODE: ${{ needs.docker-publish.outputs.scout_policy_exit_code }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Publish Summary for v${VERSION}"
+            echo ""
+            echo "**Docker Scout policy (non-blocking):** \`${SCOUT_STATUS:-unknown}\` (exit \`${SCOUT_EXIT_CODE:-unknown}\`)"
+          } >> "${GITHUB_STEP_SUMMARY}"
