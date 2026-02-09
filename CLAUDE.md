@@ -31,7 +31,7 @@ just test        # Run all tests
 just e2e         # Run e2e tests (Playwright, boots server in-process)
 just fmt         # Format all code
 just lint        # Lint all code
-just pre-commit  # Format, lint, build, and test
+just pre-commit  # Format, lint, build, test, and e2e
 just clean       # Clean build artifacts
 just run <args>  # Run CLI with arguments (e.g., just run status)
 ```

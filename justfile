@@ -309,7 +309,7 @@ do-marketplace-build:
 
 # Pre-commit checks with conditional Docker stage build for Docker-risk changes.
 # This keeps routine commits fast while still catching Docker context regressions.
-pre-commit: check-opencode-submodule-published fmt lint build test-all-fast
+pre-commit: check-opencode-submodule-published fmt lint build test-all-fast e2e
     @if ./scripts/should-run-docker-check.sh; then \
         echo "Running Docker stage check because Docker-risk files changed..."; \
         just check-docker; \
@@ -318,7 +318,7 @@ pre-commit: check-opencode-submodule-published fmt lint build test-all-fast
     fi
 
 # Pre-commit checks including Docker build (requires Docker)
-pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast build-docker
+pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast e2e build-docker
     @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything
