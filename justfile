@@ -229,7 +229,7 @@ test-doc-slow:
     cargo test --workspace --doc
 
 # Lint everything
-lint: lint-rust lint-node lint-shell lint-opencode lint-opencode-broker
+lint: lint-rust lint-node lint-shell lint-workflows lint-opencode lint-opencode-broker
 
 # Lint Rust code
 lint-rust: check-rust-format check-rust-clippy
@@ -252,6 +252,10 @@ lint-node:
 # Lint shell scripts
 lint-shell:
     shellcheck scripts/*.sh
+
+# Lint GitHub Actions workflows (root repo only; shellcheck disabled — covered by lint-shell)
+lint-workflows:
+    actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
 
 # --- CI wrappers (CI install remains stricter than local by design) ---
 
