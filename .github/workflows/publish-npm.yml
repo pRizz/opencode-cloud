@@ -1,8 +1,9 @@
 name: Publish to npm
 
-# Uses NPM_TOKEN secret for publishing. Caller must pass secrets: inherit.
-# TODO: Switch back to npm provenance (tokenless) once we resolve provenance issues.
-# Provenance requires id-token: write and --provenance on publish commands.
+# We intentionally use npm publish (not bun publish) for releases because npm currently
+# provides the trusted publishing OIDC + provenance path used by this workflow.
+# Bun remains the package manager/build tool in this repo; npm is used only for final
+# registry publication security guarantees.
 
 on:
   workflow_call:
@@ -30,8 +31,7 @@ jobs:
     needs: [build-binaries]
     permissions:
       contents: read
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      id-token: write # Required so npm can verify GitHub OIDC identity and issue provenance attestations.
     steps:
       - uses: actions/checkout@v6
         with:
@@ -47,7 +47,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
@@ -123,7 +122,7 @@ jobs:
       - name: Verify packaged binary permissions
         run: bash scripts/verify-cli-node-pack-perms.sh
 
-      - name: Validate publishable package tarballs
+      - name: Validate publishable package tarballs (npm parity dry-run)
         run: |
           set -euo pipefail
           for pkg in \
@@ -135,37 +134,52 @@ jobs:
             packages/cli-node-linux-arm64-musl \
             packages/core \
             packages/cli-node; do
-            echo "Dry-run packing ${pkg}"
-            bun pm pack --cwd "${pkg}" --dry-run --ignore-scripts >/dev/null
+            echo "Dry-run publishing ${pkg} with npm provenance"
+            npm publish --workspace "${pkg}" --dry-run --access public --provenance >/dev/null
           done
 
       - name: Build Node packages
         run: |
           bun run --cwd packages/cli-node build
 
+      - name: Verify OIDC environment for npm trusted publishing
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "Error: GitHub OIDC token environment is unavailable."
+            echo "Ensure this job has permissions.id-token=write and runs on a GitHub-hosted runner."
+            exit 1
+          fi
+
+          echo "OIDC environment detected for npm trusted publishing."
+
+      # Use npm publish with --provenance so npm can generate attestations from this
+      # workflow's OIDC identity. With trusted publishing, npm uses OIDC for auth.
+      # --provenance preserves explicit attestation intent for this release path.
       - name: Publish @opencode-cloud/cli-node-darwin-arm64
-        run: bun publish --cwd packages/cli-node-darwin-arm64 --access public
+        run: npm publish --workspace packages/cli-node-darwin-arm64 --access public --provenance
 
       - name: Publish @opencode-cloud/cli-node-darwin-x64
-        run: bun publish --cwd packages/cli-node-darwin-x64 --access public
+        run: npm publish --workspace packages/cli-node-darwin-x64 --access public --provenance
 
       - name: Publish @opencode-cloud/cli-node-linux-x64
-        run: bun publish --cwd packages/cli-node-linux-x64 --access public
+        run: npm publish --workspace packages/cli-node-linux-x64 --access public --provenance
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64
-        run: bun publish --cwd packages/cli-node-linux-arm64 --access public
+        run: npm publish --workspace packages/cli-node-linux-arm64 --access public --provenance
 
       - name: Publish @opencode-cloud/cli-node-linux-x64-musl
-        run: bun publish --cwd packages/cli-node-linux-x64-musl --access public
+        run: npm publish --workspace packages/cli-node-linux-x64-musl --access public --provenance
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64-musl
-        run: bun publish --cwd packages/cli-node-linux-arm64-musl --access public
+        run: npm publish --workspace packages/cli-node-linux-arm64-musl --access public --provenance
 
       - name: Publish @opencode-cloud/core
-        run: bun publish --cwd packages/core --access public
+        run: npm publish --workspace packages/core --access public --provenance
 
       - name: Publish opencode-cloud
-        run: bun publish --cwd packages/cli-node --access public
+        run: npm publish --workspace packages/cli-node --access public --provenance
 
       - name: Summary
         run: |
