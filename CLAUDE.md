@@ -8,6 +8,12 @@ Only proceed with the commit if it passes. If it fails, fix the issues first.
 
 **Exception:** If the commit contains only documentation and markdown changes (`.md` files), you may skip `just pre-commit`.
 
+## Bun Lockfile Updates
+
+`bun.lock` file updates are expected in this repository across all `bun.lock` files when changing versions of our own packages (for example `packages/cli-node`, `packages/core`, and related workspace packages). They can also be produced by normal `just pre-commit`/build flows.
+
+When these `bun.lock` changes are tied to intended package/version updates, they are valid and should be committed with the related change. Do not treat them as unexpected noise.
+
 ## Project Structure
 
 This is a polyglot monorepo with Rust and TypeScript:
