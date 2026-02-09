@@ -15,7 +15,7 @@ This is a polyglot monorepo with Rust and TypeScript:
 - `packages/core/` - Rust core library with NAPI-RS bindings
 - `packages/cli-rust/` - Rust CLI binary
 - `packages/cli-node/` - Node.js CLI wrapper
-- `packages/opencode/` - Git submodule checkout of the upstream opencode repository
+- `packages/opencode/` - Git submodule pointing to our fork of the opencode repository. We own this fork and can freely modify, commit, and push changes to it.
 
 ## Key Commands
 
@@ -59,7 +59,7 @@ The `scripts/set-all-versions.sh` script handles version updates automatically. 
 ## Git Workflow
 
 - Always use rebase pulls (e.g., `git pull --rebase`).
-- For pushes in the `packages/opencode/` submodule, default to the upstream `dev` flow unless explicitly requested otherwise:
+- For pushes in the `packages/opencode/` submodule (our own fork), default to the `dev` flow unless explicitly requested otherwise:
   - Rebase pull from `dev` first (for example: `git pull --rebase origin dev`).
   - Then push to the effective `dev` branch/tip for that repository (for example: `git push origin HEAD:dev`).
 - For pushes in the `opencode-cloud` superproject, default to `main` unless explicitly requested otherwise:
