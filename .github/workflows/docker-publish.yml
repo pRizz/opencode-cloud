@@ -130,9 +130,13 @@ jobs:
             OPENCODE_CLOUD_VERSION=${{ steps.version.outputs.version }}
           tags: |
             ${{ env.IMAGE_NAME_GHCR }}:test
-          # Separate cache scope to avoid overwriting the main publish build cache.
-          # GHA cache v2 is the recommended backend going forward.
-          cache-from: type=gha,scope=opencode-cloud-sandbox-test,version=2
+          # Separate GHA scope to avoid overwriting the main publish build cache.
+          # Also pull from the publish scope and registry cache for cross-build reuse
+          # (e.g. reuse base/broker-deps layers from the last publish build).
+          cache-from: |
+            type=gha,scope=opencode-cloud-sandbox-test,version=2
+            type=gha,scope=opencode-cloud-sandbox,version=2
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache
           cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=min,version=2
 
       # Temporary disabled smoke test

@@ -62,10 +62,10 @@ Tools Checked:
     - jesseduffield/lazygit
     - fullstorydev/grpcurl
     - mvdan/sh (shfmt)
+    - BurntSushi/ripgrep
+    - eza-community/eza
 
   Crates.io:
-    - ripgrep
-    - eza
     - cargo-nextest
     - cargo-audit
     - cargo-deny
@@ -362,8 +362,20 @@ main() {
     # Cargo Crates
     # ==========================================================================
 
-    check_cargo_crate "ripgrep" "${apply_updates}"
-    check_cargo_crate "eza" "${apply_updates}"
+    # ripgrep - pattern: ripgrep/releases/download/X.Y.Z/ripgrep-X.Y.Z-
+    # (installed from pre-built GitHub release binary)
+    check_github_tool "ripgrep" "BurntSushi" "ripgrep" \
+        "ripgrep/releases/download/" "/" \
+        "ripgrep\/releases\/download\/VERSION\/ripgrep-VERSION-" "ripgrep\/releases\/download\/VERSION\/ripgrep-VERSION-" \
+        "${apply_updates}"
+
+    # eza - pattern: eza/releases/download/vX.Y.Z/eza_
+    # (installed from pre-built GitHub release binary)
+    check_github_tool "eza" "eza-community" "eza" \
+        "eza/releases/download/" "/" \
+        "eza\/releases\/download\/VERSION\/eza_" "eza\/releases\/download\/VERSION\/eza_" \
+        "${apply_updates}"
+
     check_cargo_crate "cargo-nextest" "${apply_updates}"
     check_cargo_crate "cargo-audit" "${apply_updates}"
     check_cargo_crate "cargo-deny" "${apply_updates}"

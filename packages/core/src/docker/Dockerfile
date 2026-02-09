@@ -289,19 +289,35 @@ RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
     && bun add -g typescript@5.9.2
 
 # -----------------------------------------------------------------------------
-# Modern CLI Tools (Rust-based) - pinned versions (2026-01-22)
+# Modern CLI Tools - pre-built release binaries (2026-01-22)
 # -----------------------------------------------------------------------------
-# ripgrep 15.1.0 - fast regex search
-# eza 0.23.4 - modern ls replacement
-# Cache cargo registry/git indices across builds to skip re-downloading crate metadata.
-# Scoped per architecture to prevent amd64/arm64 cache corruption during multi-platform builds.
-# uid/gid match opencoder (1000); chown fixes subdirectory ownership from prior builds.
+# Download pre-built binaries instead of compiling from source via cargo install.
+# This avoids 3-5 min cargo compilation for tools with pinned versions, replacing
+# it with ~5 second downloads. Also eliminates dependency on cargo cache mounts
+# which are empty on ephemeral CI runners (GitHub Actions).
 ARG TARGETARCH
-RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
-    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
-    sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git \
-    && . /home/opencoder/.cargo/env \
-    && cargo install --locked ripgrep@15.1.0 eza@0.23.4
+
+# ripgrep 15.1.0 - fast regex search
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) RG_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) RG_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-${RG_ARCH}.tar.gz" \
+      | tar -xz --strip-components=1 -C /home/opencoder/.local/bin/ "ripgrep-15.1.0-${RG_ARCH}/rg"; \
+    rg --version
+
+# eza 0.23.4 - modern ls replacement
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) EZA_ARCH="x86_64-unknown-linux-gnu" ;; \
+      arm64) EZA_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/eza-community/eza/releases/download/v0.23.4/eza_${EZA_ARCH}.tar.gz" \
+      | tar -xz --strip-components=0 -C /home/opencoder/.local/bin/; \
+    eza --version
 
 # lazygit v0.58.1 (2026-01-12) - terminal UI for git
 # Disabled temporarily to reduce Docker build time.
@@ -485,34 +501,17 @@ COPY --chown=opencoder:opencoder packages/core/src/docker/files/bashrc.extra /ho
 RUN cat /home/opencoder/.bashrc.extra >> /home/opencoder/.bashrc \
     && rm /home/opencoder/.bashrc.extra
 
-# -----------------------------------------------------------------------------
-# Stage 2: opencode build
-# -----------------------------------------------------------------------------
-FROM base AS opencode-build
+# =============================================================================
+# Stage 2a: opencode-source — Obtain source code
+# =============================================================================
+# Separated into its own stage so downstream stages (JS build, broker build)
+# can COPY only what they need, enabling BuildKit to run them in parallel.
+FROM base AS opencode-source
 
-# -----------------------------------------------------------------------------
-# opencode Setup (Fork + Broker + Proxy)
-# -----------------------------------------------------------------------------
-# Keep this block near the end to preserve cache for earlier layers. We expect
-# opencode fork changes to happen more often than base tooling changes.
-#
-# This block includes:
-# - opencode build (backend binary) + app build (frontend dist)
-# - opencode-broker build
-#
-# NOTE: This stage uses opencode user + sudo for privileged installs.
 USER opencoder
-
-# -----------------------------------------------------------------------------
-# opencode Installation (Fork from pRizz/opencode)
-# -----------------------------------------------------------------------------
-# Source selection:
-# - remote (default): reproducible pinned build from GitHub
-# - local: dev-only override that uses packages/opencode from the build context
 ARG OPENCODE_SOURCE=remote
 ARG OPENCODE_COMMIT
 ARG OPENCODE_LOCAL_REF
-ARG TARGETARCH
 
 # CLI builds use a custom build-context generator that always adds
 # packages/opencode. Repo-root Docker builds rely on checkout + .dockerignore to
@@ -520,65 +519,68 @@ ARG TARGETARCH
 # In local dev mode it contains the full submodule.
 COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 
-# Clone the fork and build opencode from source (as non-root user)
-# Pin to specific commit for reproducibility
+# Clone the fork or copy local source.
 # NOTE: OPENCODE_COMMIT is not tied to releases/tags; it tracks the latest stable
 # commit on the dev branch of https://github.com/pRizz/opencode.
 # Update it by running: ./scripts/update-opencode-commit.sh
-# Build hygiene for this block:
-# - `/tmp/opencode-repo` and `/tmp/opencode-local` are transient and must be
-#   removed in this same RUN layer.
-# - Prefer BuildKit cache mounts for bun/cargo cache paths if this block is
-#   expanded; avoid persisting package caches in committed layers.
-# - Keep explicit cleanup as a defensive fallback even when cache mounts are used.
-# Reliability note for Bun dependency install:
-# - We use a dedicated Bun install cache mount so BuildKit can reuse downloaded
-#   packages across builds without polluting image layers.
-# - In CI/container builds, Bun's cached install artifacts can occasionally
-#   become inconsistent (for example after interrupted network/download steps),
-#   which causes `bun install --frozen-lockfile` to fail nondeterministically.
-# - The retry loop intentionally clears only this cache dir between attempts so
-#   each retry gets a clean cache state while preserving reproducibility.
-# Cargo cache mounts: registry/git for crate metadata, target dir for compiled
-# artifacts (the big win — enables incremental compilation across builds).
-# Target dir lives at /tmp/cargo-target-broker instead of inside the source tree
-# to avoid conflicts with `rm -rf /tmp/opencode-repo` cleanup later in this RUN.
-# All cargo caches scoped per TARGETARCH to prevent multi-platform corruption.
-RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
-    --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
-    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
-    --mount=type=cache,id=cargo-target-broker-${TARGETARCH},target=/tmp/cargo-target-broker,uid=1000,gid=1000,mode=0755 \
-    OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
-    && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
-    && OPENCODE_COMMIT="e3cbc7b4611688309e3e7b0004987679e94d3392" \
-    && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
-    && rm -rf /tmp/opencode-repo \
-    && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
+RUN set -eux; \
+    OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}"; \
+    OPENCODE_COMMIT="e3cbc7b4611688309e3e7b0004987679e94d3392"; \
+    if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi; \
+    rm -rf /tmp/opencode-repo; \
+    if [ "${OPENCODE_SOURCE}" = "local" ]; then \
         if [ ! -f /tmp/opencode-local/package.json ]; then \
             echo "Local opencode source requested but packages/opencode was not included in build context."; \
             exit 1; \
         fi; \
         mkdir -p /tmp/opencode-repo; \
         cp -R /tmp/opencode-local/. /tmp/opencode-repo; \
-      else \
+    else \
         git clone --depth 1 https://github.com/pRizz/opencode.git /tmp/opencode-repo; \
         cd /tmp/opencode-repo; \
         git fetch --depth 1 origin "${OPENCODE_COMMIT}"; \
         git checkout "${OPENCODE_COMMIT}"; \
-      fi \
-    && cd /tmp/opencode-repo \
+    fi; \
+    rm -rf /tmp/opencode-local
+
+# =============================================================================
+# Stage 2b: opencode-js-build — bun install + UI build (runs in parallel with broker)
+# =============================================================================
+FROM base AS opencode-js-build
+
+USER opencoder
+ARG OPENCODE_SOURCE=remote
+
+# Bind-mount the source from the opencode-source stage, then copy it into
+# this layer's writable filesystem in the same RUN as bun install. This avoids
+# issues where Docker COPY --from= between stages can cause bun install to
+# fail with ENOENT during platform-specific package linking.
+# Reliability note for Bun dependency install:
+# - We use a dedicated Bun install cache mount so BuildKit can reuse downloaded
+#   packages across builds without polluting image layers.
+# - In CI/container builds, Bun's cached install artifacts can occasionally
+#   become inconsistent (for example after interrupted network/download steps),
+#   which causes `bun install --frozen-lockfile` to fail nondeterministically.
+#   Common symptoms: integrity check failures for platform-specific tarballs.
+# - The retry loop aggressively clears ALL bun caches AND node_modules between
+#   attempts to ensure each retry starts from a truly clean state.
+RUN --mount=type=bind,from=opencode-source,source=/tmp/opencode-repo,target=/tmp/opencode-source-ro \
+    --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
+    cp -R /tmp/opencode-source-ro /tmp/opencode-repo \
     && sudo mkdir -p /home/opencoder/.bun/install/cache \
     && sudo chown -R opencoder:opencoder /home/opencoder/.bun/install/cache \
-    && sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git /tmp/cargo-target-broker \
     && export BUN_INSTALL_CACHE_DIR=/home/opencoder/.bun/install/cache \
+    && cd /tmp/opencode-repo \
     && bun_install_ok=0; \
       for attempt in 1 2 3; do \
         if bun install --frozen-lockfile; then \
           bun_install_ok=1; \
           break; \
         fi; \
-        echo "bun install failed (attempt ${attempt}); clearing cache and retrying..." >&2; \
+        echo "bun install failed (attempt ${attempt}/3); purging all caches and retrying..." >&2; \
         sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true; \
+        sudo rm -rf /home/opencoder/.bun/cache /home/opencoder/.cache/bun || true; \
+        rm -rf node_modules packages/*/node_modules packages/*/*/node_modules || true; \
       done; \
       if [ "${bun_install_ok}" -ne 1 ]; then \
         echo "bun install failed after 3 attempts." >&2; \
@@ -586,32 +588,128 @@ RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=10
       fi \
     && cd packages/opencode \
     && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
-        # Local mode omits .git from context for performance and safety, so set
-        # channel metadata explicitly instead of relying on git branch detection.
         OPENCODE_CHANNEL=local bun run build-single-ui; \
       else \
         bun run build-single-ui; \
       fi \
-    && cd /tmp/opencode-repo \
-    && sudo mkdir -p /opt/opencode/bin /opt/opencode/ui \
-    && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
-        echo "${OPENCODE_LOCAL_REF}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
-      else \
-        echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
-      fi \
-    && sudo chown opencoder:opencoder /opt/opencode/COMMIT \
-    && sudo cp /tmp/opencode-repo/packages/opencode/dist/opencode-*/bin/opencode /opt/opencode/bin/opencode \
-    && sudo cp -R /tmp/opencode-repo/packages/opencode/dist/opencode-*/ui/. /opt/opencode/ui/ \
-    && sudo chown -R opencoder:opencoder /opt/opencode \
-    && sudo chmod +x /opt/opencode/bin/opencode \
-    && cd /tmp/opencode-repo/packages/opencode-broker \
-    && CARGO_TARGET_DIR=/tmp/cargo-target-broker cargo build --release \
-    && sudo mkdir -p /usr/local/bin \
-    && sudo cp /tmp/cargo-target-broker/release/opencode-broker /usr/local/bin/opencode-broker \
-    && sudo chmod 4755 /usr/local/bin/opencode-broker \
-    && rm -rf /tmp/opencode-repo /tmp/opencode-local \
     && sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true \
     && sudo rm -rf /home/opencoder/.bun/cache /home/opencoder/.cache/bun
+
+# =============================================================================
+# Stage 2c: broker-planner — Prepare cargo-chef dependency recipe
+# =============================================================================
+# cargo-chef separates dependency compilation from application compilation.
+# The recipe captures only the dependency graph (Cargo.toml/Cargo.lock), so the
+# broker-deps layer below only invalidates when dependencies change, not when
+# broker source code changes.
+FROM base AS broker-planner
+
+USER opencoder
+ARG TARGETARCH
+
+# Install cargo-chef from pre-built binary (avoids cargo install compilation time)
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) CHEF_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) CHEF_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/latest/download/cargo-chef-${CHEF_ARCH}.tar.gz" \
+      | tar -xz -C /home/opencoder/.local/bin/; \
+    cargo-chef --version
+
+COPY --from=opencode-source /tmp/opencode-repo/packages/opencode-broker /tmp/opencode-broker
+WORKDIR /tmp/opencode-broker
+RUN . /home/opencoder/.cargo/env \
+    && cargo chef prepare --recipe-path /tmp/recipe.json
+
+# =============================================================================
+# Stage 2d: broker-deps — Build broker dependencies only (cached when deps unchanged)
+# =============================================================================
+FROM base AS broker-deps
+
+USER opencoder
+ARG TARGETARCH
+
+# Install cargo-chef (needed for cargo chef cook)
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) CHEF_ARCH="x86_64-unknown-linux-musl" ;; \
+      arm64) CHEF_ARCH="aarch64-unknown-linux-gnu" ;; \
+      *) echo "Unsupported arch: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/latest/download/cargo-chef-${CHEF_ARCH}.tar.gz" \
+      | tar -xz -C /home/opencoder/.local/bin/
+
+# Copy only the recipe (dependency graph). This layer is cached as long as
+# Cargo.toml/Cargo.lock are unchanged — broker source code changes don't
+# invalidate it.
+COPY --from=broker-planner /tmp/recipe.json /tmp/recipe.json
+
+# Build all dependencies. Cargo cache mounts provide incremental benefit when
+# this layer does invalidate (new deps added).
+# All cargo caches scoped per TARGETARCH to prevent multi-platform corruption.
+WORKDIR /tmp/broker-build
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
+    sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git \
+    && . /home/opencoder/.cargo/env \
+    && cargo chef cook --release --recipe-path /tmp/recipe.json
+
+# =============================================================================
+# Stage 2e: broker-build — Compile broker application (deps already built)
+# =============================================================================
+# This stage runs in parallel with opencode-js-build. Only the broker's own
+# crate is recompiled here; all dependencies come from the broker-deps layer.
+FROM broker-deps AS broker-build
+
+USER opencoder
+ARG TARGETARCH
+
+COPY --from=opencode-source /tmp/opencode-repo/packages/opencode-broker /tmp/broker-build
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.cargo/registry,uid=1000,gid=1000,mode=0755 \
+    --mount=type=cache,id=cargo-git-${TARGETARCH},target=/home/opencoder/.cargo/git,uid=1000,gid=1000,mode=0755 \
+    sudo chown -R opencoder:opencoder /home/opencoder/.cargo/registry /home/opencoder/.cargo/git \
+    && . /home/opencoder/.cargo/env \
+    && cargo build --release
+
+# =============================================================================
+# Stage 2f: opencode-build — Assemble final artifacts
+# =============================================================================
+FROM base AS opencode-build
+
+USER opencoder
+ARG OPENCODE_SOURCE=remote
+ARG OPENCODE_COMMIT
+ARG OPENCODE_LOCAL_REF
+
+# Copy built JS/UI dist from the JS build stage
+COPY --from=opencode-js-build /tmp/opencode-repo/packages/opencode/dist /tmp/opencode-dist
+
+# Copy built broker binary from the broker build stage
+COPY --from=broker-build /tmp/broker-build/target/release/opencode-broker /tmp/opencode-broker-bin
+
+# Assemble artifacts into final locations
+RUN set -eux; \
+    OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}"; \
+    OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}"; \
+    OPENCODE_COMMIT="e3cbc7b4611688309e3e7b0004987679e94d3392"; \
+    if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi; \
+    sudo mkdir -p /opt/opencode/bin /opt/opencode/ui; \
+    if [ "${OPENCODE_SOURCE}" = "local" ]; then \
+        echo "${OPENCODE_LOCAL_REF}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
+    else \
+        echo "${OPENCODE_COMMIT}" | sudo tee /opt/opencode/COMMIT >/dev/null; \
+    fi; \
+    sudo chown opencoder:opencoder /opt/opencode/COMMIT; \
+    sudo cp /tmp/opencode-dist/opencode-*/bin/opencode /opt/opencode/bin/opencode; \
+    sudo cp -R /tmp/opencode-dist/opencode-*/ui/. /opt/opencode/ui/; \
+    sudo chown -R opencoder:opencoder /opt/opencode; \
+    sudo chmod +x /opt/opencode/bin/opencode; \
+    sudo mkdir -p /usr/local/bin; \
+    sudo cp /tmp/opencode-broker-bin /usr/local/bin/opencode-broker; \
+    sudo chmod 4755 /usr/local/bin/opencode-broker; \
+    sudo rm -rf /tmp/opencode-dist /tmp/opencode-broker-bin
 
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime
