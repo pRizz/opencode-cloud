@@ -71,6 +71,7 @@ The `scripts/set-all-versions.sh` script handles version updates automatically. 
 - For pushes in the `opencode-cloud` superproject, default to `main` unless explicitly requested otherwise:
   - Rebase pull from `main` first (for example: `git pull --rebase origin main`).
   - Then push to `main`.
+- After committing and pushing changes in the `packages/opencode/` submodule, run `just update-opencode-commit` in the superproject to update the Dockerfile's `OPENCODE_COMMIT` pin. Commit and push the resulting Dockerfile change to `main`.
 
 ## Working with Git Worktrees and Submodules
 
