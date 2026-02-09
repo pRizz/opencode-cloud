@@ -231,7 +231,7 @@ test-node:
 
 # Run opencode fork tests (Bun workspace under submodule)
 test-opencode-fork-tests: opencode-install-if-needed
-    bun test --cwd packages/opencode/packages/fork-tests
+    OPENCODE_CONFIG_CONTENT='{"auth":{"enabled":false}}' bun test --cwd packages/opencode/packages/fork-tests
 
 # Run Rust doc-tests (slow)
 test-doc-slow:
