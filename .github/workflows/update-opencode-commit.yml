@@ -96,13 +96,7 @@ jobs:
       - name: Run e2e tests
         id: e2e_checks
         if: steps.update.outputs.needs_update == 'true'
-        working-directory: packages/opencode/packages/app
-        run: bun test:e2e:local -- --workers=2
-        env:
-          CI: "true"
-          OPENCODE_DISABLE_MODELS_FETCH: "true"
-          OPENCODE_MODELS_PATH: ${{ github.workspace }}/packages/opencode/test/tool/fixtures/models-api.json
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+        run: just ci-e2e
         timeout-minutes: 30
 
       - name: Verify OCI description label

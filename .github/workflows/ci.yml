@@ -325,6 +325,8 @@ jobs:
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
 
       - name: Configure git identity
         run: |
@@ -345,13 +347,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
 
       - name: Run e2e tests
-        working-directory: packages/opencode/packages/app
-        run: bun test:e2e:local -- --workers=2
-        env:
-          CI: "true"
-          OPENCODE_DISABLE_MODELS_FETCH: "true"
-          OPENCODE_MODELS_PATH: ${{ github.workspace }}/packages/opencode/test/tool/fixtures/models-api.json
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+        run: just ci-e2e
         timeout-minutes: 30
 
       - name: Upload Playwright artifacts

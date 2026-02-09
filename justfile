@@ -282,6 +282,12 @@ ci-node-install:
 ci-node-install-cli-only:
     bun install --filter opencode-cloud --frozen-lockfile --ignore-scripts
 
+ci-e2e *args:
+    bun install --cwd packages/opencode --frozen-lockfile --ignore-scripts
+    @set -- {{args}}; \
+    if [ "${1:-}" = "--" ]; then shift; fi; \
+    CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="${OPENCODE_MODELS_PATH:-{{justfile_directory()}}/packages/opencode/test/tool/fixtures/models-api.json}" PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-{{justfile_directory()}}/.cache/ms-playwright}" bun run --cwd packages/opencode/packages/app test:e2e:local -- --workers=2 "$@"
+
 ci-lint: lint-rust check-opencode-stack
 
 ci-build: build-rust build-core-bindings
