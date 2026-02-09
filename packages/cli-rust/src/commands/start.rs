@@ -640,7 +640,7 @@ pub async fn cmd_start(
         );
     }
 
-    let preflight_spinner = CommandSpinner::new_maybe("Checking Docker environment...", quiet);
+    let preflight_spinner = CommandSpinner::new_maybe("Connecting to Docker...", quiet);
 
     if let Err(e) = client.verify_connection().await {
         preflight_spinner.fail("Docker connection failed");
@@ -649,6 +649,7 @@ pub async fn cmd_start(
     }
 
     // Load config for port and bind_address
+    preflight_spinner.update("Loading configuration...");
     let config = opencode_cloud_core::config::load_config_or_default()?;
     let port = args.port.unwrap_or(config.opencode_web_port);
     let bind_addr = &config.bind_address;
@@ -676,6 +677,8 @@ pub async fn cmd_start(
     } else {
         Some(bind_mounts)
     };
+
+    preflight_spinner.update("Checking container state...");
 
     // Check mutual exclusivity of image flags
     let image_flags = [
@@ -714,6 +717,8 @@ pub async fn cmd_start(
         config.image_source == "prebuilt"
     };
 
+    let checks_spinner = CommandSpinner::new_maybe("Checking version compatibility...", quiet);
+
     // Version compatibility check
     match check_version_compatibility(&client, &config, args, quiet).await? {
         VersionMismatchAction::RebuildFromSource => {
@@ -729,6 +734,7 @@ pub async fn cmd_start(
     }
 
     // Determine whether this is first container start
+    checks_spinner.update("Checking existing container...");
     let is_first_start = !container_exists(&client, CONTAINER_NAME).await?;
 
     // Check for port mismatch on existing container
@@ -755,6 +761,13 @@ pub async fn cmd_start(
     {
         recreate_container = rebuild;
     }
+
+    checks_spinner.update("Checking image state...");
+
+    // First-run image source prompt (if no image and no flag specified)
+    let image_already_exists = image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+
+    checks_spinner.success("Preflight checks complete");
 
     // Handle rebuild: remove existing container so a new one is created from the new image
     if recreate_container {
@@ -788,7 +801,6 @@ pub async fn cmd_start(
     }
 
     // First-run image source prompt (if no image and no flag specified)
-    let image_already_exists = image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
     if !image_already_exists && !has_image_flag && !quiet {
         let (new_use_prebuilt, updated_config) = prompt_image_source_choice(&config)?;
         // Save config with new image_source
@@ -800,10 +812,8 @@ pub async fn cmd_start(
     }
 
     // Acquire image if needed (first run, rebuild, or forced pull)
-    let needs_image = rebuild_image
-        || force_pull
-        || args.pull_sandbox_image
-        || !image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+    let needs_image =
+        rebuild_image || force_pull || args.pull_sandbox_image || !image_already_exists;
 
     if needs_image {
         acquire_image(
