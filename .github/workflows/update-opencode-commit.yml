@@ -122,8 +122,15 @@ jobs:
             exit 0
           fi
 
-          git add packages/core/src/docker/Dockerfile packages/opencode
+          # Keep superproject updates atomic: commit the submodule pointer and
+          # any root bun.lock refresh together when they change in the same run.
+          git add bun.lock packages/core/src/docker/Dockerfile packages/opencode
           git commit -m "chore: update opencode commit"
+
+          # Fail fast before push if the staged submodule gitlink points to a
+          # commit that is not yet fetchable from the submodule remote.
+          ./scripts/check-opencode-submodule-published.sh --from-index
+
           commit_sha="$(git rev-parse HEAD)"
           {
             echo "changed=true"
