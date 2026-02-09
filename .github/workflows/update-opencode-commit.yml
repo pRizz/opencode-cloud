@@ -33,19 +33,129 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update opencode commit
+        id: update
         run: |
           ./scripts/update-opencode-commit.sh
 
       - name: Verify OCI description label
+        id: verify_oci
         run: python3 scripts/extract-oci-description.py packages/core/src/docker/Dockerfile
 
       - name: Commit and push if changed
+        id: commit_push
         run: |
           if git diff --quiet; then
             echo "No changes to commit."
+            {
+              echo "changed=false"
+              echo "pushed=false"
+              echo "commit_sha="
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git add packages/core/src/docker/Dockerfile packages/opencode
           git commit -m "chore: update opencode commit"
+          commit_sha="$(git rev-parse HEAD)"
+          {
+            echo "changed=true"
+            echo "pushed=false"
+            echo "commit_sha=${commit_sha}"
+          } >> "$GITHUB_OUTPUT"
           git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Write summary
+        if: always()
+        env:
+          UPDATE_OUTCOME: ${{ steps.update.outcome }}
+          VERIFY_OCI_OUTCOME: ${{ steps.verify_oci.outcome }}
+          COMMIT_PUSH_OUTCOME: ${{ steps.commit_push.outcome }}
+          SUBMODULE_BRANCH: ${{ steps.update.outputs.submodule_branch }}
+          SUBMODULE_REPO_URL: ${{ steps.update.outputs.submodule_repo_url }}
+          CURRENT_SUBMODULE_COMMIT: ${{ steps.update.outputs.current_submodule_commit }}
+          LATEST_COMMIT: ${{ steps.update.outputs.latest_commit }}
+          CURRENT_PIN_VALUE: ${{ steps.update.outputs.current_pin_value }}
+          UPDATED_PIN_VALUE: ${{ steps.update.outputs.updated_pin_value }}
+          NEEDS_UPDATE: ${{ steps.update.outputs.needs_update }}
+          UPDATED: ${{ steps.update.outputs.updated }}
+          CHANGED: ${{ steps.commit_push.outputs.changed }}
+          PUSHED: ${{ steps.commit_push.outputs.pushed }}
+          COMMIT_SHA: ${{ steps.commit_push.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          fallback() {
+            local value="${1:-}"
+            if [[ -z "${value}" ]]; then
+              echo "n/a"
+            else
+              echo "${value}"
+            fi
+          }
+
+          branch="$(fallback "${SUBMODULE_BRANCH:-}")"
+          repo_url="$(fallback "${SUBMODULE_REPO_URL:-}")"
+          current_submodule="$(fallback "${CURRENT_SUBMODULE_COMMIT:-}")"
+          latest_submodule="$(fallback "${LATEST_COMMIT:-}")"
+          current_pin="$(fallback "${CURRENT_PIN_VALUE:-}")"
+          updated_pin="$(fallback "${UPDATED_PIN_VALUE:-}")"
+          needs_update="$(fallback "${NEEDS_UPDATE:-}")"
+          updated="$(fallback "${UPDATED:-}")"
+          changed="$(fallback "${CHANGED:-}")"
+          pushed="$(fallback "${PUSHED:-}")"
+
+          superproject_repo_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          commit_link="n/a"
+          if [[ "${PUSHED:-}" == "true" && -n "${COMMIT_SHA:-}" ]]; then
+            commit_link="${superproject_repo_url}/commit/${COMMIT_SHA}"
+          fi
+
+          compare_link="n/a"
+          if [[ -n "${SUBMODULE_REPO_URL:-}" && -n "${CURRENT_SUBMODULE_COMMIT:-}" && -n "${LATEST_COMMIT:-}" && "${CURRENT_SUBMODULE_COMMIT}" != "${LATEST_COMMIT}" ]]; then
+            compare_link="${SUBMODULE_REPO_URL}/compare/${CURRENT_SUBMODULE_COMMIT}...${LATEST_COMMIT}"
+          fi
+
+          status_line="ℹ️ No update needed"
+          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
+            status_line="❌ Failed"
+          elif [[ "${PUSHED:-}" == "true" ]]; then
+            status_line="✅ Updated and pushed"
+          fi
+
+          {
+            echo "## ${status_line}"
+            echo ""
+            echo "**Trigger:** \`${GITHUB_EVENT_NAME}\`"
+            echo "**Ref:** \`${GITHUB_REF}\`"
+            echo "**Actor:** \`${GITHUB_ACTOR}\`"
+            echo ""
+            echo "**Submodule branch:** \`${branch}\`"
+            echo "**Submodule repo:** ${repo_url}"
+            echo ""
+            echo "**Submodule commit:** \`${current_submodule} -> ${latest_submodule}\`"
+            echo "**Dockerfile pin:** \`${current_pin} -> ${updated_pin}\`"
+            echo ""
+            echo "**Update flags:**"
+            echo "- needs_update: \`${needs_update}\`"
+            echo "- updated: \`${updated}\`"
+            echo "- changed: \`${changed}\`"
+            echo "- pushed: \`${pushed}\`"
+            echo ""
+            echo "**Links:**"
+            if [[ "${compare_link}" == "n/a" ]]; then
+              echo "- submodule compare: n/a"
+            else
+              echo "- submodule compare: ${compare_link}"
+            fi
+            if [[ "${commit_link}" == "n/a" ]]; then
+              echo "- pushed superproject commit: n/a"
+            else
+              echo "- pushed superproject commit: ${commit_link}"
+            fi
+            echo ""
+            echo "**Step outcomes:**"
+            echo "- update: \`${UPDATE_OUTCOME:-n/a}\`"
+            echo "- verify_oci: \`${VERIFY_OCI_OUTCOME:-n/a}\`"
+            echo "- commit_push: \`${COMMIT_PUSH_OUTCOME:-n/a}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
