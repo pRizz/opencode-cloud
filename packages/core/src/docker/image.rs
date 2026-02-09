@@ -313,11 +313,14 @@ pub async fn build_image(
     // Create build body from context
     let body: Either<Full<Bytes>, _> = Either::Left(Full::new(Bytes::from(context)));
 
+    // Sending the context to Docker and waiting for build initialization can take
+    // several seconds, especially for large local-submodule contexts.
+    progress.update_spinner("build", "Sending build context to Docker");
+
     // Start build with streaming output
     let mut stream = client.inner().build_image(options, None, Some(body));
 
-    // Add main build spinner (context prefix like "Building image" is set by caller)
-    progress.add_spinner("build", "Initializing...");
+    progress.update_spinner("build", "Waiting for Docker build to start");
 
     let mut maybe_image_id = None;
     let mut log_state = BuildLogState::new();
