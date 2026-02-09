@@ -640,10 +640,13 @@ pub async fn cmd_start(
         );
     }
 
-    client.verify_connection().await.map_err(|e| {
+    let preflight_spinner = CommandSpinner::new_maybe("Checking Docker environment...", quiet);
+
+    if let Err(e) = client.verify_connection().await {
+        preflight_spinner.fail("Docker connection failed");
         let msg = format_docker_error(&e);
-        anyhow!("{msg}")
-    })?;
+        return Err(anyhow!("{msg}"));
+    }
 
     // Load config for port and bind_address
     let config = opencode_cloud_core::config::load_config_or_default()?;
@@ -695,6 +698,8 @@ pub async fn cmd_start(
     // If any image flag is used while container is running, prompt to stop
     ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet, host_name.as_deref())
         .await?;
+
+    preflight_spinner.success("Docker environment ready");
 
     let mut rebuild_image = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
     let mut recreate_container = rebuild_image;
@@ -1034,6 +1039,9 @@ async fn build_docker_image(
     } else {
         ProgressReporter::with_context(context)
     };
+    // Pre-create the build spinner so there's no gap between ProgressReporter
+    // creation and the first update_spinner call inside build_image().
+    progress.add_spinner("build", "Initializing...");
     build_image(
         client,
         Some(IMAGE_TAG_DEFAULT),
