@@ -57,6 +57,23 @@ impl CommandSpinner {
         }
     }
 
+    /// Temporarily hide the spinner, run `f`, then redraw.
+    ///
+    /// Use this before showing interactive prompts (`dialoguer`) so the
+    /// spinner's steady-tick redraws don't overwrite the prompt text.
+    /// In quiet mode (no spinner), `f` is called directly.
+    ///
+    /// Note: only works with synchronous closures. For async code that may
+    /// show prompts, finish the spinner before the async call instead.
+    #[allow(dead_code)]
+    pub fn suspend<F: FnOnce() -> R, R>(&self, f: F) -> R {
+        if let Some(ref bar) = self.bar {
+            bar.suspend(f)
+        } else {
+            f()
+        }
+    }
+
     /// Finish the spinner with a success message (green checkmark)
     pub fn success(self, message: &str) {
         if let Some(bar) = self.bar {
@@ -107,5 +124,20 @@ mod tests {
         let spinner = CommandSpinner::new_maybe("test", true);
         // Should not panic
         spinner.fail("failed");
+    }
+
+    #[test]
+    fn suspend_runs_closure_and_returns_result() {
+        let spinner = CommandSpinner::new("test");
+        let result = spinner.suspend(|| 42);
+        assert_eq!(result, 42);
+        spinner.success("done");
+    }
+
+    #[test]
+    fn suspend_quiet_mode_runs_closure_directly() {
+        let spinner = CommandSpinner::new_maybe("test", true);
+        let result = spinner.suspend(|| "hello");
+        assert_eq!(result, "hello");
     }
 }

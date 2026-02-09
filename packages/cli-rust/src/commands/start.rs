@@ -698,11 +698,14 @@ pub async fn cmd_start(
         || args.cached_rebuild_sandbox_image
         || args.full_rebuild_sandbox_image;
 
+    // Finish the spinner before any potentially-interactive code.
+    // ensure_container_stopped_for_image_flag() and the mismatch checks below
+    // may show dialoguer prompts that would be clobbered by spinner redraws.
+    preflight_spinner.success("Docker environment ready");
+
     // If any image flag is used while container is running, prompt to stop
     ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet, host_name.as_deref())
         .await?;
-
-    preflight_spinner.success("Docker environment ready");
 
     let mut rebuild_image = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
     let mut recreate_container = rebuild_image;
@@ -716,8 +719,6 @@ pub async fn cmd_start(
     } else {
         config.image_source == "prebuilt"
     };
-
-    let checks_spinner = CommandSpinner::new_maybe("Checking version compatibility...", quiet);
 
     // Version compatibility check
     match check_version_compatibility(&client, &config, args, quiet).await? {
@@ -734,7 +735,6 @@ pub async fn cmd_start(
     }
 
     // Determine whether this is first container start
-    checks_spinner.update("Checking existing container...");
     let is_first_start = !container_exists(&client, CONTAINER_NAME).await?;
 
     // Check for port mismatch on existing container
@@ -762,12 +762,7 @@ pub async fn cmd_start(
         recreate_container = rebuild;
     }
 
-    checks_spinner.update("Checking image state...");
-
-    // First-run image source prompt (if no image and no flag specified)
     let image_already_exists = image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
-
-    checks_spinner.success("Preflight checks complete");
 
     // Handle rebuild: remove existing container so a new one is created from the new image
     if recreate_container {
