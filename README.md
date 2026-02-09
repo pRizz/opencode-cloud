@@ -17,7 +17,7 @@
 
 A production-ready toolkit for deploying and managing [opencode](https://github.com/anomalyco/opencode) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
-This project uses the opencode fork at https://github.com/pRizz/opencode, which adds additional authentication and security features.
+This project uses the opencode fork at https://github.com/pRizz/opencode, which adds **passkey-first authentication** (WebAuthn/FIDO2), two-factor authentication, and enterprise security features for cloud deployment.
 
 ## Quick Deploy (Docker)
 
@@ -129,6 +129,7 @@ Docs: `docs/deploy/digitalocean-droplet.md`
 ## Features
 
 - **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
+- **Passkey-first authentication** - WebAuthn/FIDO2 passkeys as the primary login method, with username/password and TOTP 2FA as fallback options
 - **Persistent environment** - Your projects, settings, and shell history persist across restarts
 - **Cross-platform CLI** (`opencode-cloud` / `occ`) - Works on Linux and macOS
 - **Service lifecycle commands** - start, stop, restart, status, logs
@@ -426,9 +427,9 @@ occ config show
 
 ## Authentication
 
-Security details: `docs/security/passkey-registration.md` (IOTP bootstrap and passkey enrollment flow)
+opencode-cloud uses **passkey-first authentication** — WebAuthn/FIDO2 passkeys are the primary login method, providing phishing-resistant, passwordless sign-in. Username/password (via PAM) and TOTP two-factor authentication are available as fallback options.
 
-opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication.
+Security details: `docs/security/passkey-registration.md`
 
 First boot path:
 - If no managed users are configured, startup logs print an Initial One-Time Password (IOTP).
@@ -446,9 +447,9 @@ Admin path:
 - You can always create/manage users directly via `occ user add`, `occ user passwd`, and related user commands.
 
 Login UX:
-- Passkey sign-in is the primary option on the login page.
-- Username/password sign-in remains available as fallback.
-- 2FA setup/management is available from the upper-right session menu after login.
+- **Passkey sign-in is front and center** — the login page leads with WebAuthn for fast, phishing-resistant authentication.
+- Username/password sign-in remains available as a fallback.
+- TOTP two-factor authentication can be enabled per-user from the session menu after login.
 
 ### Creating Users
 
