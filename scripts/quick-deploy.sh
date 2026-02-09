@@ -216,6 +216,9 @@ check_platform() {
     amd64|arm64)
       info "Architecture: $arch"
       ;;
+    # armv7 is not supported: the user base is near-zero (only the decade-old
+    # Pi 2 requires it), Node.js 24+ dropped armv7 binaries, and there are no
+    # native CI runners (QEMU adds 2-5x build time for Rust compilation).
     armv7)
       die "ARM 32-bit (armv7) is not supported. The Docker image requires amd64 or arm64."
       ;;
