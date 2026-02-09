@@ -154,7 +154,7 @@ test-opencode-ui: opencode-install-if-needed
 
 # Run opencode upstream unit tests (turbo: opencode + fork-tests + app)
 test-opencode-unit: opencode-install-if-needed
-    OPENCODE_CONFIG_CONTENT='{"auth":{"enabled":false}}' bun turbo test --cwd packages/opencode
+    bun --cwd packages/opencode turbo test
 
 # Optional submodule drift and dirty state check
 check-opencode-submodule-drift:
