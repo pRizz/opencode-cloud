@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write    # Required for creating issues on CI failure
 
 jobs:
   update-opencode-commit:
@@ -32,10 +33,58 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      # Toolchain setup for running CI checks on the updated submodule.
+      # Steps match ci-pre-publish.yml to ensure parity with normal CI.
+      - name: Install Linux system dependencies
+        run: |
+          # Required by opencode-broker (libpam-sys links against -lpam).
+          sudo apt-get update
+          sudo apt-get install -y libpam0g-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Update opencode commit
         id: update
         run: |
           ./scripts/update-opencode-commit.sh
+
+      # Validate the updated submodule before committing.
+      # Auto-fix formatting first, then run the full CI check suite.
+      # If checks fail, the workflow fails and the broken commit is never pushed.
+      - name: Auto-format and run CI checks
+        id: ci_checks
+        if: steps.update.outputs.needs_update == 'true'
+        run: |
+          set -euo pipefail
+
+          # Auto-fix formatting issues introduced by the submodule update
+          just fmt || true
+
+          # If formatting produced changes, stage and commit them
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "style: auto-format after opencode submodule update" || true
+          fi
+
+          # Run the full CI check suite
+          just ci-checks
 
       - name: Verify OCI description label
         id: verify_oci
@@ -69,6 +118,7 @@ jobs:
         if: always()
         env:
           UPDATE_OUTCOME: ${{ steps.update.outcome }}
+          CI_CHECKS_OUTCOME: ${{ steps.ci_checks.outcome }}
           VERIFY_OCI_OUTCOME: ${{ steps.verify_oci.outcome }}
           COMMIT_PUSH_OUTCOME: ${{ steps.commit_push.outcome }}
           SUBMODULE_BRANCH: ${{ steps.update.outputs.submodule_branch }}
@@ -117,7 +167,7 @@ jobs:
           fi
 
           status_line="ℹ️ No update needed"
-          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
+          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${CI_CHECKS_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${CI_CHECKS_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
             status_line="❌ Failed"
           elif [[ "${PUSHED:-}" == "true" ]]; then
             status_line="✅ Updated and pushed"
@@ -156,6 +206,47 @@ jobs:
             echo ""
             echo "**Step outcomes:**"
             echo "- update: \`${UPDATE_OUTCOME:-n/a}\`"
+            echo "- ci_checks: \`${CI_CHECKS_OUTCOME:-n/a}\`"
             echo "- verify_oci: \`${VERIFY_OCI_OUTCOME:-n/a}\`"
             echo "- commit_push: \`${COMMIT_PUSH_OUTCOME:-n/a}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create issue on CI failure
+        if: failure() && steps.ci_checks.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST_COMMIT: ${{ steps.update.outputs.latest_commit }}
+          SUBMODULE_REPO_URL: ${{ steps.update.outputs.submodule_repo_url }}
+          SUBMODULE_BRANCH: ${{ steps.update.outputs.submodule_branch }}
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          commit_short="${LATEST_COMMIT:0:12}"
+          commit_url="${SUBMODULE_REPO_URL:-}/commit/${LATEST_COMMIT:-unknown}"
+          branch="${SUBMODULE_BRANCH:-dev}"
+
+          body="## Automated submodule update failed CI checks
+
+          The [update-opencode-commit workflow](${run_url}) attempted to update the
+          opencode submodule to [\`${commit_short}\`](${commit_url}) from the
+          \`${branch}\` branch, but \`just ci-checks\` failed after auto-formatting.
+
+          ### What to do
+
+          1. Check the [workflow run logs](${run_url}) for the specific failure
+          2. Common causes:
+             - **TypeScript typecheck failure** in a fork-* package — fix in the opencode fork and push to \`dev\`
+             - **Rust clippy/build failure** in opencode-broker — fix in the fork
+             - **Formatting issue** that \`just fmt\` couldn't resolve — manual fix needed
+          3. After fixing, the next scheduled run (every 2 hours) will retry automatically
+
+          ### Context
+
+          - Submodule commit: [\`${commit_short}\`](${commit_url})
+          - Fork branch: \`${branch}\`
+          - Workflow run: [${GITHUB_RUN_ID}](${run_url})"
+
+          gh issue create \
+            --title "CI checks failed for opencode submodule update (${commit_short})" \
+            --label "bug,automated" \
+            --body "${body}"
