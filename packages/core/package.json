@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cloud/core",
-  "version": "21.0.1",
+  "version": "22.0.0",
   "description": "Core NAPI bindings for opencode-cloud (internal package)",
   "main": "index.js",
   "types": "index.d.ts",
