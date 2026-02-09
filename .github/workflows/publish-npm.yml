@@ -136,7 +136,7 @@ jobs:
             packages/core \
             packages/cli-node; do
             echo "Dry-run packing ${pkg}"
-            bun --cwd "${pkg}" pm pack --dry-run --ignore-scripts >/dev/null
+            bun pm pack --cwd "${pkg}" --dry-run --ignore-scripts >/dev/null
           done
 
       - name: Build Node packages
