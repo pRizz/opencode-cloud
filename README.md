@@ -263,7 +263,7 @@ git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 git submodule update --init --recursive packages/opencode
  
-# Bun is required for packages/opencode checks/builds
+# Bun is required for this repo
 bun --version
 
 just setup
@@ -522,7 +522,7 @@ just run start --full-rebuild-sandbox-image --local-opencode-submodule
 ### Dockerfile Optimization Checklist
 
 For new Docker build steps, follow this checklist:
-- Prefer BuildKit cache mounts (`RUN --mount=type=cache`) for package caches (`apt`, `bun`, `cargo`, `pip`, and `pnpm/npm`).
+- Prefer BuildKit cache mounts (`RUN --mount=type=cache`) for package caches (`apt`, `bun`, `cargo`, `pip`, and `npm`).
 - For `bun install` in container builds, use a dedicated install-cache mount plus a short retry loop that clears that cache between attempts to recover from occasional corrupted/interrupted cache artifacts.
 - Create and remove temporary workdirs in the same `RUN` layer (for example `/tmp/opencode-repo`).
 - Do not defer cleanup to later layers; deleted files still exist in lower layers.
@@ -555,7 +555,7 @@ Data (PID files, etc.) is stored at:
 ## Development
 
 ```bash
-# Bun is required for packages/opencode checks/builds
+# Bun is required for this repo
 bun --version
 
 # One-time setup (hooks + deps + submodule bootstrap)

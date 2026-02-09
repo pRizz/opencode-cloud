@@ -34,7 +34,7 @@ for pkg in "${packages[@]}"; do
   extract_dir="${tmp_dir}/${pkg}/extract"
   mkdir -p "${pack_dir}" "${extract_dir}"
 
-  pnpm -C "${pkg_dir}" pack --pack-destination "${pack_dir}" >/dev/null
+  bun --cwd "${pkg_dir}" pm pack --destination "${pack_dir}" --ignore-scripts >/dev/null
 
   tarball="$(find "${pack_dir}" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
   if [[ -z "${tarball}" ]]; then

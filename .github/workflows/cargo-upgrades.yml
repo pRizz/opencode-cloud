@@ -37,14 +37,15 @@ jobs:
           toolchain: "1.89"
           components: rustfmt, clippy
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'pnpm'
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -71,8 +72,8 @@ jobs:
 
           upgrade_output_path="${updates_dir}/cargo-upgrade-output.txt"
           upgrade_output_plain_path="${updates_dir}/cargo-upgrade-output-plain.txt"
-          install_output_path="${updates_dir}/pnpm-install-output.txt"
-          install_output_plain_path="${updates_dir}/pnpm-install-output-plain.txt"
+          install_output_path="${updates_dir}/bun-install-output.txt"
+          install_output_plain_path="${updates_dir}/bun-install-output-plain.txt"
           format_fix_output_path="${updates_dir}/cargo-fmt-fix-output.txt"
           format_fix_output_plain_path="${updates_dir}/cargo-fmt-fix-output-plain.txt"
           clippy_fix_output_path="${updates_dir}/cargo-clippy-fix-output.txt"
@@ -139,7 +140,7 @@ jobs:
           audit_exit=0
 
           if [ "${upgrade_exit}" -eq 0 ]; then
-            pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tee "${install_output_path}"
+            bun install --frozen-lockfile --ignore-scripts 2>&1 | tee "${install_output_path}"
             install_exit=$?
             strip_ansi "${install_output_path}" "${install_output_plain_path}"
 
@@ -413,7 +414,7 @@ jobs:
             sections.push('');
 
             if (installExit !== '0') {
-              sections.push('### pnpm Install Output (tail)');
+              sections.push('### Bun Install Output (tail)');
               sections.push('```');
               sections.push(tail(installOutput, 12000));
               sections.push('```');

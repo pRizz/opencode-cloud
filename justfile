@@ -11,9 +11,9 @@ list:
 setup:
     git config core.hooksPath .githooks
     git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
-    @command -v bun >/dev/null 2>&1 || (echo "Error: bun is required for packages/opencode checks/builds. Install from https://bun.sh and rerun just setup." && exit 1)
+    @command -v bun >/dev/null 2>&1 || (echo "Error: bun is required for this repo. Install from https://bun.sh and rerun just setup." && exit 1)
     bun install --cwd packages/opencode --frozen-lockfile
-    pnpm install
+    bun install
     @echo "✓ Development environment ready!"
 
 # Build everything
@@ -53,7 +53,7 @@ verify-cli-version:
     cargo run -p opencode-cloud -- --version
 
 build-core-bindings:
-    pnpm -C packages/core build
+    bun run --cwd packages/core build
 
 check-opencode-stack: lint-opencode build-opencode lint-opencode-broker
 
@@ -69,7 +69,7 @@ build-node-cli-mac:
     cargo build -p opencode-cloud --bin occ
     @mkdir -p packages/cli-node/bin
     @cp target/debug/occ packages/cli-node/bin/occ
-    pnpm -C packages/cli-node build
+    bun run --cwd packages/cli-node build
     @echo "✓ Node CLI built for Mac (binary in packages/cli-node/bin/)"
 
 # Run Node CLI on Mac. Pass args through (e.g. just run-node-cli-mac --version).
@@ -79,9 +79,9 @@ run-node-cli-mac *args:
 
 # Build Node packages (including NAPI bindings)
 build-node:
-    pnpm install
-    pnpm -C packages/core build
-    pnpm -r --filter="!@opencode-cloud/core" build
+    bun install
+    bun run --cwd packages/core build
+    bun run --cwd packages/cli-node build
 
 # --- opencode Submodule Checks ---
 
@@ -106,8 +106,12 @@ opencode-install-if-needed: opencode-submodule-check
 
 # Typecheck opencode workspace
 # Keep scripts.typecheck defined in each fork-* package so Turbo executes its task.
-lint-opencode: opencode-install-if-needed
+lint-opencode: opencode-install-if-needed check-fork-typecheck-wiring
     bun --cwd packages/opencode turbo typecheck
+
+# Verify every fork-* package exposes scripts.typecheck for Turbo wiring
+check-fork-typecheck-wiring: opencode-submodule-check
+    ./scripts/check-fork-typecheck-wiring.sh
 
 # Build the shared app package
 build-opencode-app: opencode-install-if-needed
@@ -222,8 +226,8 @@ test-rust-fast:
 # Run Node tests
 test-node:
     cargo build -p opencode-cloud
-    pnpm -C packages/cli-node build
-    pnpm -r test
+    bun run --cwd packages/cli-node build
+    bun run --cwd packages/cli-node test
 
 # Run opencode fork tests (Bun workspace under submodule)
 test-opencode-fork-tests: opencode-install-if-needed
@@ -252,7 +256,7 @@ lint-rust-cross: lint-rust lint-rust-linux
 
 # Lint Node code
 lint-node:
-    pnpm -r lint
+    bun --workspaces --if-present run lint
 
 # Lint shell scripts
 lint-shell:
@@ -265,10 +269,10 @@ lint-workflows:
 # --- CI wrappers (CI install remains stricter than local by design) ---
 
 ci-node-install:
-    pnpm install --frozen-lockfile --ignore-scripts
+    bun install --frozen-lockfile --ignore-scripts
 
 ci-node-install-cli-only:
-    pnpm install --filter opencode-cloud --frozen-lockfile --ignore-scripts
+    bun install --filter opencode-cloud --frozen-lockfile --ignore-scripts
 
 ci-lint: lint-rust check-opencode-stack
 
@@ -316,18 +320,18 @@ pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast
 # Format everything
 fmt: fmt-opencode-broker
     cargo fmt --all
-    pnpm -r format
+    bun --workspaces --if-present run format
 
 # Clean all build artifacts
 clean:
     cargo clean
-    pnpm -r clean
+    bun --workspaces --if-present run clean
 
 # Release build
 release:
     cargo build --workspace --release
-    pnpm install
-    pnpm -C packages/core build
+    bun install
+    bun run --cwd packages/core build
 
 # Publish to crates.io (core first, then cli)
 publish-crates: lint test-all-slow
@@ -345,13 +349,13 @@ publish-crates: lint test-all-slow
 # Publish to npm (core first, then cli)
 publish-npm: lint test-all-slow build-node
     @echo "Publishing @opencode-cloud/core to npm..."
-    pnpm --filter @opencode-cloud/core publish --access public
+    bun publish --cwd packages/core --access public
     @echo ""
     @echo "Waiting 5s for npm to index..."
     @sleep 5
     @echo ""
     @echo "Publishing opencode-cloud to npm..."
-    pnpm --filter opencode-cloud publish --access public
+    bun publish --cwd packages/cli-node --access public
     @echo ""
     @echo "✓ npm publish complete!"
 
@@ -381,9 +385,9 @@ publish-crates-dry-run:
 # Dry-run for npm
 publish-npm-dry-run: build-node
     @echo "Dry-run: @opencode-cloud/core (npm)..."
-    pnpm --filter @opencode-cloud/core publish --access public --dry-run
+    bun publish --cwd packages/core --access public --dry-run
     @echo "✓ @opencode-cloud/core ready"
     @echo ""
     @echo "Dry-run: opencode-cloud (npm)..."
-    pnpm --filter opencode-cloud publish --access public --dry-run
+    bun publish --cwd packages/cli-node --access public --dry-run
     @echo "✓ opencode-cloud ready"

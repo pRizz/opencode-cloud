@@ -1,0 +1,31 @@
+name: Setup Bun
+description: Setup Bun with cache and install dependencies
+inputs:
+  install:
+    description: Whether to run dependency installation
+    required: false
+    default: "true"
+  install-command:
+    description: Bun install command to execute when install is true
+    required: false
+    default: bun install --frozen-lockfile --ignore-scripts
+runs:
+  using: composite
+  steps:
+    - name: Cache Bun install cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-install-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-install-
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: package.json
+
+    - name: Install dependencies
+      if: ${{ inputs.install == 'true' }}
+      run: ${{ inputs.install-command }}
+      shell: bash

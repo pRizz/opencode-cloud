@@ -74,7 +74,7 @@ describe.skipIf(!RUST_BINARY_EXISTS)('CLI Parity', () => {
     // Ensure Node CLI wrapper is built
     if (!existsSync(NODE_CLI_PATH)) {
       throw new Error(
-        `Node CLI not built at ${NODE_CLI_PATH}. Run: pnpm -C packages/cli-node build`
+        `Node CLI not built at ${NODE_CLI_PATH}. Run: bun run --cwd packages/cli-node build`
       );
     }
 

@@ -43,18 +43,14 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '24'
-          cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
 
       - name: Download darwin-arm64 binary
         uses: actions/download-artifact@v5
@@ -127,33 +123,49 @@ jobs:
       - name: Verify packaged binary permissions
         run: bash scripts/verify-cli-node-pack-perms.sh
 
+      - name: Validate publishable package tarballs
+        run: |
+          set -euo pipefail
+          for pkg in \
+            packages/cli-node-darwin-arm64 \
+            packages/cli-node-darwin-x64 \
+            packages/cli-node-linux-x64 \
+            packages/cli-node-linux-arm64 \
+            packages/cli-node-linux-x64-musl \
+            packages/cli-node-linux-arm64-musl \
+            packages/core \
+            packages/cli-node; do
+            echo "Dry-run packing ${pkg}"
+            bun --cwd "${pkg}" pm pack --dry-run --ignore-scripts >/dev/null
+          done
+
       - name: Build Node packages
         run: |
-          pnpm -C packages/cli-node build
+          bun run --cwd packages/cli-node build
 
       - name: Publish @opencode-cloud/cli-node-darwin-arm64
-        run: pnpm --filter @opencode-cloud/cli-node-darwin-arm64 publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-darwin-arm64 --access public
 
       - name: Publish @opencode-cloud/cli-node-darwin-x64
-        run: pnpm --filter @opencode-cloud/cli-node-darwin-x64 publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-darwin-x64 --access public
 
       - name: Publish @opencode-cloud/cli-node-linux-x64
-        run: pnpm --filter @opencode-cloud/cli-node-linux-x64 publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-linux-x64 --access public
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64
-        run: pnpm --filter @opencode-cloud/cli-node-linux-arm64 publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-linux-arm64 --access public
 
       - name: Publish @opencode-cloud/cli-node-linux-x64-musl
-        run: pnpm --filter @opencode-cloud/cli-node-linux-x64-musl publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-linux-x64-musl --access public
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64-musl
-        run: pnpm --filter @opencode-cloud/cli-node-linux-arm64-musl publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node-linux-arm64-musl --access public
 
       - name: Publish @opencode-cloud/core
-        run: pnpm --filter @opencode-cloud/core publish --access public --no-git-checks
+        run: bun publish --cwd packages/core --access public
 
       - name: Publish opencode-cloud
-        run: pnpm --filter opencode-cloud publish --access public --no-git-checks
+        run: bun publish --cwd packages/cli-node --access public
 
       - name: Summary
         run: |

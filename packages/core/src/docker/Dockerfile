@@ -9,7 +9,7 @@
 #
 # Build Hygiene Rules:
 # - Prefer `RUN --mount=type=cache` for package caches (`apt`, `bun`, `cargo`,
-#   `pip`, and `pnpm/npm`) when BuildKit is available. New RUN steps that
+#   `pip`, and `npm`) when BuildKit is available. New RUN steps that
 #   download or compile dependencies should reuse existing cache mounts or add
 #   new ones following the same patterns:
 #     - APT:   --mount=type=cache,target=/var/lib/apt/lists
@@ -267,17 +267,6 @@ ENV PATH="/home/opencoder/.cargo/bin:${PATH}"
 # Switch to bash for mise activation (mise outputs bash-specific syntax)
 SHELL ["/bin/bash", "-c"]
 
-# Install pnpm 10.x via corepack (2026-02-03)
-RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-    && npm install -g corepack \
-    && corepack enable \
-    && corepack prepare pnpm@10.28.2 --activate
-
-# Set up pnpm global bin directory
-ENV PNPM_HOME="/home/opencoder/.local/share/pnpm"
-ENV PATH="${PNPM_HOME}:${PATH}"
-RUN mkdir -p "${PNPM_HOME}"
-
 # bun - self-managing installer, pinned to version (2026-02-03)
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.8" \
     && rm -rf /home/opencoder/.bun/install/cache /home/opencoder/.bun/cache /home/opencoder/.cache/bun
@@ -296,9 +285,8 @@ RUN --mount=type=cache,target=/home/opencoder/.cache/pip,uid=1000,gid=1000,mode=
     && pipx ensurepath
 
 # Install global TypeScript compiler
-# NOTE: Avoid cache mount here to prevent pnpm store permission issues
 RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-    && pnpm add -g typescript@5.9.2
+    && bun add -g typescript@5.9.2
 
 # -----------------------------------------------------------------------------
 # Modern CLI Tools (Rust-based) - pinned versions (2026-01-22)
@@ -449,7 +437,7 @@ USER opencoder
 # # -----------------------------------------------------------------------------
 # # JavaScript/TypeScript tools
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-#     && pnpm add -g \
+#     && bun add -g \
 #     prettier \
 #     eslint \
 #     @biomejs/biome
@@ -461,7 +449,7 @@ USER opencoder
 #
 # # Test runners (commonly needed)
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-#     && pnpm add -g jest vitest
+#     && bun add -g jest vitest
 #
 # # Python pytest via pipx
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \

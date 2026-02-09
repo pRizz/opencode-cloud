@@ -8,7 +8,7 @@ Thank you for your interest in contributing to opencode-cloud! This document pro
 
 - **Rust 1.85+** (for Rust 2024 edition)
 - **Node.js 20+**
-- **pnpm 9+**
+- **Bun 1.3.8+**
 - **just** (task runner)
 
 ### Installation
@@ -21,8 +21,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cargo install just
 # or: brew install just
 
-# Install pnpm
-npm install -g pnpm
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
 
 # Clone the repository
 # GitHub (primary)
@@ -35,7 +35,7 @@ cd opencode-cloud
 # Initialize submodule checkout
 git submodule update --init --recursive packages/opencode
 
-# Bun is required for packages/opencode checks/builds
+# Bun is required for this repo
 bun --version
 
 # One-time setup (hooks + deps + submodule bootstrap)
@@ -119,7 +119,7 @@ opencode-cloud/
 │   └── cli-node/       # Node.js CLI wrapper (passthrough)
 ├── Cargo.toml          # Rust workspace root
 ├── package.json        # Node.js workspace root
-├── pnpm-workspace.yaml # pnpm workspace config
+├── bun.lock            # Bun lockfile
 └── justfile            # Task orchestration
 ```
 

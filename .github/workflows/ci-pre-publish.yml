@@ -50,23 +50,36 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'pnpm'
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Install Node dependencies
-        run: just ci-node-install
+      - name: Verify bun.lock hash integrity
+        run: |
+          set -euo pipefail
+          stored="$(bun pm hash-print | tr -d '\r\n')"
+          computed="$(bun pm hash | tr -d '\r\n')"
+          if [ -z "${stored}" ] || [ -z "${computed}" ]; then
+            echo "Failed to compute bun.lock hash."
+            exit 1
+          fi
+          if [ "${stored}" != "0000000000000000-0000000000000000-0000000000000000-0000000000000000" ] && [ "${stored}" != "${computed}" ]; then
+            echo "bun.lock hash mismatch."
+            echo "stored:   ${stored}"
+            echo "computed: ${computed}"
+            exit 1
+          fi
+          git diff --exit-code -- bun.lock
+
+      - name: Audit dependencies
+        run: bun audit --audit-level=high
 
       # Project checks should run via shared just targets.
       - name: Run CI checks
