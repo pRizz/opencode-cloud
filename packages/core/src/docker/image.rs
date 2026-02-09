@@ -274,7 +274,14 @@ pub async fn build_image(
         .get("OPENCODE_SOURCE")
         .is_some_and(|value| value.eq_ignore_ascii_case("local"));
 
-    // Create tar archive containing Dockerfile
+    // Create tar archive containing Dockerfile and (optionally) the local submodule checkout.
+    // This can take several seconds for local submodule builds due to recursive tar+gzip.
+    let context_msg = if include_local_opencode_submodule {
+        "Packaging local opencode checkout"
+    } else {
+        "Preparing build context"
+    };
+    progress.update_spinner("build", context_msg);
     let context = create_build_context(BuildContextOptions {
         include_local_opencode_submodule,
     })
