@@ -144,6 +144,10 @@ build-opencode-broker: opencode-submodule-check
 test-opencode-broker: opencode-submodule-check
     cargo test --manifest-path packages/opencode/packages/opencode-broker/Cargo.toml
 
+# Run e2e tests (boots server in-process, seeds data, runs Playwright)
+e2e: opencode-install-if-needed
+    bun run --cwd packages/opencode/packages/app test:e2e:local
+
 # Optional app unit test gate (not part of default pre-commit)
 test-opencode-ui: opencode-install-if-needed
     bun run --cwd packages/opencode/packages/app test:unit

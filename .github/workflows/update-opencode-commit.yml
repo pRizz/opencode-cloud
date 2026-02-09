@@ -86,6 +86,25 @@ jobs:
           # Run the full CI check suite
           just ci-checks
 
+      - name: Install Playwright browsers
+        if: steps.update.outputs.needs_update == 'true'
+        working-directory: packages/opencode/packages/app
+        run: bunx playwright install --with-deps
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
+      - name: Run e2e tests
+        id: e2e_checks
+        if: steps.update.outputs.needs_update == 'true'
+        working-directory: packages/opencode/packages/app
+        run: bun test:e2e:local -- --workers=2
+        env:
+          CI: "true"
+          OPENCODE_DISABLE_MODELS_FETCH: "true"
+          OPENCODE_MODELS_PATH: ${{ github.workspace }}/packages/opencode/test/tool/fixtures/models-api.json
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+        timeout-minutes: 30
+
       - name: Verify OCI description label
         id: verify_oci
         run: python3 scripts/extract-oci-description.py packages/core/src/docker/Dockerfile
@@ -119,6 +138,7 @@ jobs:
         env:
           UPDATE_OUTCOME: ${{ steps.update.outcome }}
           CI_CHECKS_OUTCOME: ${{ steps.ci_checks.outcome }}
+          E2E_CHECKS_OUTCOME: ${{ steps.e2e_checks.outcome }}
           VERIFY_OCI_OUTCOME: ${{ steps.verify_oci.outcome }}
           COMMIT_PUSH_OUTCOME: ${{ steps.commit_push.outcome }}
           SUBMODULE_BRANCH: ${{ steps.update.outputs.submodule_branch }}
@@ -167,7 +187,7 @@ jobs:
           fi
 
           status_line="ℹ️ No update needed"
-          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${CI_CHECKS_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${CI_CHECKS_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
+          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${CI_CHECKS_OUTCOME:-}" == "failure" || "${E2E_CHECKS_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${CI_CHECKS_OUTCOME:-}" == "cancelled" || "${E2E_CHECKS_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
             status_line="❌ Failed"
           elif [[ "${PUSHED:-}" == "true" ]]; then
             status_line="✅ Updated and pushed"
@@ -207,12 +227,13 @@ jobs:
             echo "**Step outcomes:**"
             echo "- update: \`${UPDATE_OUTCOME:-n/a}\`"
             echo "- ci_checks: \`${CI_CHECKS_OUTCOME:-n/a}\`"
+            echo "- e2e_checks: \`${E2E_CHECKS_OUTCOME:-n/a}\`"
             echo "- verify_oci: \`${VERIFY_OCI_OUTCOME:-n/a}\`"
             echo "- commit_push: \`${COMMIT_PUSH_OUTCOME:-n/a}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create issue on CI failure
-        if: failure() && steps.ci_checks.outcome == 'failure'
+        if: failure() && (steps.ci_checks.outcome == 'failure' || steps.e2e_checks.outcome == 'failure')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LATEST_COMMIT: ${{ steps.update.outputs.latest_commit }}
@@ -225,11 +246,11 @@ jobs:
           commit_url="${SUBMODULE_REPO_URL:-}/commit/${LATEST_COMMIT:-unknown}"
           branch="${SUBMODULE_BRANCH:-dev}"
 
-          body="## Automated submodule update failed CI checks
+          body="## Automated submodule update failed CI/e2e checks
 
           The [update-opencode-commit workflow](${run_url}) attempted to update the
           opencode submodule to [\`${commit_short}\`](${commit_url}) from the
-          \`${branch}\` branch, but \`just ci-checks\` failed after auto-formatting.
+          \`${branch}\` branch, but checks failed after auto-formatting.
 
           ### What to do
 
@@ -238,6 +259,7 @@ jobs:
              - **TypeScript typecheck failure** in a fork-* package — fix in the opencode fork and push to \`dev\`
              - **Rust clippy/build failure** in opencode-broker — fix in the fork
              - **Formatting issue** that \`just fmt\` couldn't resolve — manual fix needed
+             - **E2E test failure** — UI regression in the web app, check Playwright report
           3. After fixing, the next scheduled run (every 2 hours) will retry automatically
 
           ### Context
