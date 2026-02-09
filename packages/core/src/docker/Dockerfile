@@ -550,7 +550,7 @@ RUN --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=10
     --mount=type=cache,id=cargo-target-broker-${TARGETARCH},target=/tmp/cargo-target-broker,uid=1000,gid=1000,mode=0755 \
     OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}" \
     && OPENCODE_LOCAL_REF="${OPENCODE_LOCAL_REF:-local-unknown}" \
-    && OPENCODE_COMMIT="855b861e2210430b15de1bbc7c9cdb0dd623af35" \
+    && OPENCODE_COMMIT="e3cbc7b4611688309e3e7b0004987679e94d3392" \
     && if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi \
     && rm -rf /tmp/opencode-repo \
     && if [ "${OPENCODE_SOURCE}" = "local" ]; then \
