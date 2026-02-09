@@ -152,6 +152,10 @@ e2e: opencode-install-if-needed
 test-opencode-ui: opencode-install-if-needed
     bun run --cwd packages/opencode/packages/app test:unit
 
+# Run opencode upstream unit tests (turbo: opencode + fork-tests + app)
+test-opencode-unit: opencode-install-if-needed
+    OPENCODE_CONFIG_CONTENT='{"auth":{"enabled":false}}' bun turbo test --cwd packages/opencode
+
 # Optional submodule drift and dirty state check
 check-opencode-submodule-drift:
     git submodule status --recursive
@@ -211,10 +215,10 @@ check-docker:
     @echo "✓ Dockerfile check passed"
 
 # Run all tests (fast)
-test-all-fast: test-rust-fast test-node test-opencode-fork-tests test-opencode-broker
+test-all-fast: test-rust-fast test-node test-opencode-fork-tests test-opencode-broker test-opencode-unit
 
 # Run all tests (slow, includes doc-tests)
-test-all-slow: test-rust test-node test-opencode-fork-tests test-opencode-broker
+test-all-slow: test-rust test-node test-opencode-fork-tests test-opencode-broker test-opencode-unit
 
 # Run all tests (fast)
 test: test-all-fast
