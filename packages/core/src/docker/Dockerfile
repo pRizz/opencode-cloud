@@ -306,7 +306,7 @@ RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/home/opencoder/.c
 # lazygit v0.58.1 (2026-01-12) - terminal UI for git
 # Disabled temporarily to reduce Docker build time.
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-#     && go install github.com/jesseduffield/lazygit@v0.58.1
+#     && go install github.com/jesseduffield/lazygit@v0.59.0
 
 # -----------------------------------------------------------------------------
 # Additional Development Tools
@@ -424,7 +424,7 @@ USER opencoder
 # # cargo-audit 0.22.0 - security audit
 # # cargo-deny 0.19.0 - dependency linter
 # RUN . /home/opencoder/.cargo/env \
-#     && cargo install --locked cargo-nextest@0.9.124 cargo-audit@0.22.0 cargo-deny@0.19.0
+#     && cargo install --locked cargo-nextest@0.9.126 cargo-audit@0.22.1 cargo-deny@0.19.0
 #
 # # Install mold fast linker (2026-01-22)
 # USER root
