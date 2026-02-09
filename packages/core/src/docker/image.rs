@@ -411,6 +411,32 @@ impl BuildLogState {
     }
 }
 
+/// Clean up raw BuildKit vertex labels for user-friendly display.
+///
+/// Strips the `[internal]` prefix that BuildKit uses for internal plumbing
+/// vertices and maps known labels to friendlier names.
+fn clean_buildkit_label(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let Some(rest) = trimmed.strip_prefix("[internal] ") else {
+        return trimmed.to_string();
+    };
+    if rest.starts_with("load remote build context") {
+        "Loading remote build context".to_string()
+    } else if let Some(image) = rest.strip_prefix("load metadata for ") {
+        format!("Resolving image {image}")
+    } else if rest.starts_with("load build definition") {
+        "Loading Dockerfile".to_string()
+    } else if rest.starts_with("load build context") {
+        "Loading build context".to_string()
+    } else {
+        let mut chars = rest.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+        }
+    }
+}
+
 fn handle_stream_message(
     info: &bollard::models::BuildInfo,
     progress: &mut ProgressReporter,
@@ -433,7 +459,7 @@ fn handle_stream_message(
             .is_some_and(|name| name.starts_with("[runtime "));
         let is_internal_msg = msg.contains("[internal]");
         if !(has_runtime_vertex && is_internal_msg) {
-            progress.update_spinner("build", stream_msg);
+            progress.update_spinner("build", &clean_buildkit_label(stream_msg));
         }
     }
 
@@ -493,16 +519,17 @@ fn handle_buildkit_status(
         state.last_buildkit_vertex = Some(vertex_name.clone());
     }
 
+    let display_name = clean_buildkit_label(&vertex_name);
     let message = if progress.is_plain_output() {
-        vertex_name
+        display_name
     } else if let Some(log_entry) = latest_logs
         .iter()
         .rev()
         .find(|entry| entry.vertex_id == vertex_id)
     {
-        format!("{vertex_name} · {}", log_entry.message)
+        format!("{display_name} · {}", log_entry.message)
     } else {
-        vertex_name
+        display_name
     };
     progress.update_spinner("build", &message);
 
@@ -1750,5 +1777,69 @@ mod tests {
         let ids = collect_image_ids(&images, "opencode-cloud-sandbox");
         assert!(ids.contains("sha256:opencode"));
         assert!(!ids.contains("sha256:other"));
+    }
+
+    #[test]
+    fn clean_buildkit_label_strips_internal_load_remote_context() {
+        assert_eq!(
+            clean_buildkit_label("[internal] load remote build context"),
+            "Loading remote build context"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_strips_internal_load_metadata() {
+        assert_eq!(
+            clean_buildkit_label("[internal] load metadata for docker.io/library/ubuntu:24.04"),
+            "Resolving image docker.io/library/ubuntu:24.04"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_strips_internal_load_build_definition() {
+        assert_eq!(
+            clean_buildkit_label("[internal] load build definition from Dockerfile"),
+            "Loading Dockerfile"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_strips_internal_load_build_context() {
+        assert_eq!(
+            clean_buildkit_label("[internal] load build context"),
+            "Loading build context"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_capitalizes_unknown_internal() {
+        assert_eq!(
+            clean_buildkit_label("[internal] some unknown thing"),
+            "Some unknown thing"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_preserves_runtime_steps() {
+        assert_eq!(
+            clean_buildkit_label("[runtime 1/15] RUN apt-get update"),
+            "[runtime 1/15] RUN apt-get update"
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_preserves_plain_text() {
+        assert_eq!(
+            clean_buildkit_label("Step 3/10 : COPY . ."),
+            "Step 3/10 : COPY . ."
+        );
+    }
+
+    #[test]
+    fn clean_buildkit_label_trims_whitespace() {
+        assert_eq!(
+            clean_buildkit_label("  [internal] load build context  "),
+            "Loading build context"
+        );
     }
 }
