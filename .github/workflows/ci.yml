@@ -239,6 +239,11 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Configure git identity
+        run: |
+          git config --global user.email "bot@opencode.ai"
+          git config --global user.name "opencode"
+
       # Project checks should run via shared just targets.
       - name: Run CI checks
         run: just ci-checks
