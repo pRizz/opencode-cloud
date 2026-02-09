@@ -105,6 +105,7 @@ opencode-install-if-needed: opencode-submodule-check
     fi
 
 # Typecheck opencode workspace
+# Keep scripts.typecheck defined in each fork-* package so Turbo executes its task.
 lint-opencode: opencode-install-if-needed
     bun --cwd packages/opencode turbo typecheck
 
@@ -202,10 +203,10 @@ check-docker:
     @echo "✓ Dockerfile check passed"
 
 # Run all tests (fast)
-test-all-fast: test-rust-fast test-node test-opencode-broker
+test-all-fast: test-rust-fast test-node test-opencode-fork-tests test-opencode-broker
 
 # Run all tests (slow, includes doc-tests)
-test-all-slow: test-rust test-node test-opencode-broker
+test-all-slow: test-rust test-node test-opencode-fork-tests test-opencode-broker
 
 # Run all tests (fast)
 test: test-all-fast
@@ -223,6 +224,10 @@ test-node:
     cargo build -p opencode-cloud
     pnpm -C packages/cli-node build
     pnpm -r test
+
+# Run opencode fork tests (Bun workspace under submodule)
+test-opencode-fork-tests: opencode-install-if-needed
+    bun test --cwd packages/opencode/packages/fork-tests
 
 # Run Rust doc-tests (slow)
 test-doc-slow:
