@@ -289,11 +289,12 @@ for the default `opencoder` account or use username/password fallback.
 
 #### 6) Expose publicly (optional)
 
-Edit `docker-compose.yml` and change the port binding:
+Set a Compose override so the service binds on all interfaces:
 
-```yaml
-ports:
-  - "3000:3000"  # was "127.0.0.1:3000:3000"
+```bash
+cat > .env <<'EOF'
+OPENCODE_PORT_MAPPING=3000:3000
+EOF
 ```
 
 Then restart:

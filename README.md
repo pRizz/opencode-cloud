@@ -97,6 +97,22 @@ docker compose up -d
 
 This uses the included `docker-compose.yml` which configures all persistent volumes automatically.
 
+Optional `.env` overrides (same directory as `docker-compose.yml`):
+
+```bash
+# Example: expose publicly and pin a reproducible image tag
+cat > .env <<'EOF'
+OPENCODE_PORT_MAPPING=3000:3000
+OPENCODE_IMAGE=prizz/opencode-cloud-sandbox:15.2.0
+EOF
+```
+
+By default, Compose uses `OPENCODE_PULL_POLICY=missing`. To force-refresh to newer image layers:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 Retrieve the Initial One-Time Password (IOTP) and open `http://localhost:3000`:
 
 ```bash

@@ -38,6 +38,10 @@ volumes automatically.
 # Clone or download docker-compose.yml from the repository root
 curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.yml
 
+# Optional: copy defaults and customize Compose knobs
+curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/.env.example
+cp .env.example .env
+
 # Start the service
 docker compose up -d
 ```
@@ -168,12 +172,18 @@ Docker Desktop), Docker creates anonymous volumes automatically. This protects
 against accidental data loss on container restarts, but anonymous volumes are
 deleted when the container is removed.
 
-## Environment Variables
+## Environment Variables (`.env` for Docker Compose)
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `OPENCODE_HOST` | `0.0.0.0` | Must be `0.0.0.0` for Docker Desktop port forwarding to work |
-| `OPENCODE_PORT` | `3000` | Container port for the web UI |
+| `OPENCODE_IMAGE` | `prizz/opencode-cloud-sandbox:latest` | Set a pinned tag (for example `15.2.0`) for reproducible deploys |
+| `OPENCODE_PULL_POLICY` | `missing` | Compose pull behavior. `missing` does not re-pull when image already exists; use `always` to check registry on each `up` |
+| `OPENCODE_PORT_MAPPING` | `127.0.0.1:3000:3000` | Host:container port mapping. Use `3000:3000` to expose publicly |
+| `OPENCODE_HOST` | `0.0.0.0` | Hostname passed to opencode inside the container |
+| `OPENCODE_STOP_GRACE_PERIOD` | `30s` | Grace period before force kill on shutdown |
+| `OPENCODE_LOG_DRIVER` | `json-file` | Docker log driver used for container logs |
+| `OPENCODE_LOG_MAX_SIZE` | `10m` | Maximum size for each rotated log file |
+| `OPENCODE_LOG_MAX_FILE` | `3` | Number of rotated log files to retain |
 
 ## Updating
 
@@ -181,6 +191,7 @@ To update to a newer image version:
 
 ```bash
 # Docker Compose
+# default pull policy is "missing"
 docker compose pull
 docker compose up -d
 
@@ -200,7 +211,14 @@ Named volumes persist across this process. Your data is preserved.
 Another service is using port 3000. Change the host port:
 
 ```bash
-# Docker Compose: edit docker-compose.yml, change "127.0.0.1:3000:3000" to "127.0.0.1:8080:3000"
+# One-off override
+OPENCODE_PORT_MAPPING=127.0.0.1:8080:3000 docker compose up -d
+
+# Persistent override
+cp .env.example .env
+echo "OPENCODE_PORT_MAPPING=127.0.0.1:8080:3000" >> .env
+docker compose up -d
+
 # Docker CLI: use -p 127.0.0.1:8080:3000
 ```
 

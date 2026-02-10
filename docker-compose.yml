@@ -14,13 +14,21 @@
 
 services:
   opencode:
-    image: prizz/opencode-cloud-sandbox:latest
+    image: ${OPENCODE_IMAGE:-prizz/opencode-cloud-sandbox:latest}
+    pull_policy: ${OPENCODE_PULL_POLICY:-missing}
     container_name: opencode-cloud-sandbox
     restart: unless-stopped
+    init: true
+    stop_grace_period: ${OPENCODE_STOP_GRACE_PERIOD:-30s}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${OPENCODE_PORT_MAPPING:-127.0.0.1:3000:3000}"
     environment:
-      - OPENCODE_HOST=0.0.0.0
+      OPENCODE_HOST: ${OPENCODE_HOST:-0.0.0.0}
+    logging:
+      driver: ${OPENCODE_LOG_DRIVER:-json-file}
+      options:
+        max-size: ${OPENCODE_LOG_MAX_SIZE:-10m}
+        max-file: "${OPENCODE_LOG_MAX_FILE:-3}"
     volumes:
       - opencode-data:/home/opencoder/.local/share/opencode
       - opencode-state:/home/opencoder/.local/state/opencode
