@@ -1,8 +1,13 @@
-# opencode-cloud Railway Compose Template
+# opencode-cloud Railway template-base compose
 #
-# Use this file for Railway template import workflows.
-# The canonical docker-compose.yml remains local/quick-deploy focused and
-# includes six volumes that Railway template import does not support.
+# Import this file into Railway only as a base for template workflows.
+# The canonical runtime compose for local/quick-deploy remains
+# docker-compose.yml.
+#
+# Intentional Railway importer compatibility constraints:
+# - single persisted volume only
+# - fixed image string (no env interpolation in "image")
+# - import-focused subset of compose keys; runtime knobs kept where supported
 
 services:
   opencode:

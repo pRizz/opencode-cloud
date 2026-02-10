@@ -21,23 +21,32 @@ Steps:
 > **Important:** After deploying, verify that a Railway Volume is attached.
 > Without a volume, all data is lost on every redeploy.
 
-## Template from Compose File (Manual Upload)
+## Template Base Compose for Railway Import (Manual Upload)
 
 If you are creating a Railway template by importing a Compose file, use
-`docker-compose.railway.yml` from this repository.
+`docker-compose.railway-template-base.yml` from this repository.
 
 Do **not** import the root `docker-compose.yml` for Railway templates. That
 file is local/quick-deploy oriented and declares six volumes.
 
 ```bash
-curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.railway.yml
+curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.railway-template-base.yml
 ```
 
-Railway template import supports one volume per service. The Railway-specific
-compose file keeps a single persisted mount at
-`/home/opencoder/.local/share/opencode` for compatibility.
-It keeps variable-driven runtime/logging knobs where Railway supports them and
-uses a fixed image reference to avoid Railway parser issues.
+This file is intentionally a **template-base import artifact**, not a full
+runtime compose parity file.
+
+Railway template import currently supports one volume per service and does not
+support all compose features uniformly. The template-base file intentionally
+keeps:
+- one persisted mount at `/home/opencoder/.local/share/opencode`
+- a fixed image reference (no env interpolation in `image`)
+- an import-focused subset of compose keys, with runtime knobs kept where
+  Railway supports them
+
+After import, apply any additional Railway-specific runtime configuration in
+Railway settings/template editor.
+
 ## Manual Deployment
 
 ### Prerequisites
@@ -222,6 +231,11 @@ To create or update the Railway one-click deploy template:
 6. Settings > **Public Networking** > enable HTTP
 7. **Create** and **Publish** the template
 8. Copy the template URL and update the deploy button in `README.md`
+
+Maintenance rule:
+- When image references or required Railway env keys change, update both
+  `docker-compose.yml` and `docker-compose.railway-template-base.yml` in the
+  same PR.
 
 The deploy button format:
 

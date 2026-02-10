@@ -84,6 +84,7 @@ Credentials: `docs/deploy/aws.md#retrieving-credentials`
 One-click deploy provisions a Railway service with automatic HTTPS.
 
 > **Important:** Attach a Railway Volume mounted to `/home/opencoder/.local/share/opencode` to prevent data loss across redeploys.
+> For manual template import, use `docker-compose.railway-template-base.yml` as a Railway importer compatibility base (not as the canonical runtime compose).
 
 Docs: `docs/deploy/railway.md`
 
