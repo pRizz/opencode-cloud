@@ -605,6 +605,7 @@ async fn handle_no_command(target_host: Option<&str>, quiet: bool, verbose: u8) 
             no_update_check: false,
             mounts: Vec::new(),
             no_mounts: false,
+            yes: false,
         };
         commands::cmd_start(&start_args, host_name.as_deref(), quiet, verbose).await?;
         let status_args = commands::StatusArgs {};

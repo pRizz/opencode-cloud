@@ -15,6 +15,7 @@ setup:
     bun install --cwd packages/opencode --frozen-lockfile
     bun install
     @echo "✓ Development environment ready!"
+    @echo "Next: just dev"
 
 # Build everything
 build: build-rust build-node build-opencode build-opencode-broker
@@ -37,6 +38,10 @@ warn-opencode-pin-drift:
 # Example: just run --version
 run *args: warn-opencode-pin-drift
     cargo run -p opencode-cloud --bin occ -- {{args}}
+
+# Start occ with local opencode submodule and cached sandbox image rebuild.
+dev: warn-opencode-pin-drift
+    just run start --yes --local-opencode-submodule --cached-rebuild-sandbox-image
 
 # --- Shared check/build base targets (used by local + CI wrappers) ---
 

@@ -85,6 +85,10 @@ pub struct StartArgs {
     /// Skip configured mounts (only use --mount flags if specified)
     #[arg(long)]
     pub no_mounts: bool,
+
+    /// Automatically accept the running-container image-change prompt
+    #[arg(long)]
+    pub yes: bool,
 }
 
 /// Check if container mounts differ from configured mounts
@@ -187,6 +191,7 @@ async fn ensure_container_stopped_for_image_flag(
     client: &DockerClient,
     has_image_flag: bool,
     quiet: bool,
+    yes: bool,
     host_name: Option<&str>,
 ) -> Result<()> {
     if !has_image_flag {
@@ -201,6 +206,24 @@ async fn ensure_container_stopped_for_image_flag(
         return Err(anyhow!(
             "Container is running. Stop it first with: occ stop"
         ));
+    }
+
+    if yes {
+        let _ = stop_service_with_spinner(
+            client,
+            host_name,
+            quiet,
+            true,
+            DEFAULT_STOP_TIMEOUT_SECS,
+            StopSpinnerMessages {
+                action_message: "Stopping container for rebuild...",
+                update_label: "Stopping container",
+                success_base_message: "Container stopped and removed",
+                failure_message: "Failed to stop container",
+            },
+        )
+        .await;
+        return Ok(());
     }
 
     let confirm = dialoguer::Confirm::new()
@@ -704,8 +727,14 @@ pub async fn cmd_start(
     preflight_spinner.success("Docker environment ready");
 
     // If any image flag is used while container is running, prompt to stop
-    ensure_container_stopped_for_image_flag(&client, has_image_flag, quiet, host_name.as_deref())
-        .await?;
+    ensure_container_stopped_for_image_flag(
+        &client,
+        has_image_flag,
+        quiet,
+        args.yes,
+        host_name.as_deref(),
+    )
+    .await?;
 
     let mut rebuild_image = args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image;
     let mut recreate_container = rebuild_image;

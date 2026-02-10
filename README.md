@@ -285,6 +285,7 @@ bun --version
 
 just setup
 just build
+just dev    # Recommended local dev start shortcut
 cargo run -p opencode-cloud -- --version
 ```
 
@@ -525,8 +526,11 @@ occ start --full-rebuild-sandbox-image
 
 **Local submodule dev rebuild (no push required):**
 ```bash
-# Fast rebuild using local packages/opencode checkout (including uncommitted edits)
-just run start --cached-rebuild-sandbox-image --local-opencode-submodule
+# Recommended shortcut for fast rebuild using local packages/opencode checkout (including uncommitted edits)
+just dev
+
+# Equivalent long form:
+just run start --yes --local-opencode-submodule --cached-rebuild-sandbox-image
 
 # Full no-cache rebuild from local packages/opencode checkout
 just run start --full-rebuild-sandbox-image --local-opencode-submodule
@@ -580,6 +584,9 @@ just setup
 
 # Build everything
 just build
+
+# Recommended local dev runtime (local submodule + cached sandbox rebuild)
+just dev
 
 # Compile and run occ (arguments automatically get passed to the binary)
 just run --version

@@ -43,6 +43,9 @@ just setup
 
 # Build everything
 just build
+
+# Recommended local dev runtime (local submodule + cached sandbox rebuild)
+just dev
 ```
 
 ### Running Tests

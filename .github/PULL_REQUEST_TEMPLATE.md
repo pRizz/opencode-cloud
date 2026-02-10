@@ -23,6 +23,7 @@ Describe how you tested your changes:
 - [ ] Unit tests pass (`just test-rust`)
 - [ ] Linting passes (`just lint`)
 - [ ] Manual testing performed
+- [ ] Local runtime validation performed with `just dev`
 
 ## Checklist
 

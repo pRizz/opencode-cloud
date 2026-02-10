@@ -34,6 +34,7 @@ just lint        # Lint all code
 just pre-commit  # Format, lint, build, test, and e2e
 just clean       # Clean build artifacts
 just run <args>  # Run CLI with arguments (e.g., just run status)
+just dev         # Start local runtime (local submodule + cached sandbox rebuild)
 ```
 
 ## UAT Testing
@@ -42,7 +43,7 @@ When performing manual UAT tests with the user, use justfile commands instead of
 
 - Use `just run mount add /path:/container` instead of `occ mount add /path:/container`
 - Use `just run status` instead of `occ status`
-- Use `just run start` instead of `occ start`
+- Use `just dev` instead of `occ start`
 
 This ensures tests run against the locally-built development version.
 
