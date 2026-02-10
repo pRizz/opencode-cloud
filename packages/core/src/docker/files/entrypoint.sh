@@ -579,6 +579,29 @@ EOF
         maybe_initialize_bootstrap_mode
     }
 
+    ensure_opencode_data_dir_writable() {
+        local data_dir="/home/opencoder/.local/share/opencode"
+
+        install -d -m 0755 "${data_dir}"
+
+        if runuser -u opencoder -- test -w "${data_dir}"; then
+            return
+        fi
+
+        log "Detected non-writable opencode data directory; attempting ownership fix: ${data_dir}"
+        if ! chown -R opencoder:opencoder "${data_dir}" 2>/dev/null; then
+            log "WARNING: Failed to change ownership for ${data_dir}; continuing with writability re-check."
+        fi
+
+        if runuser -u opencoder -- test -w "${data_dir}"; then
+            return
+        fi
+
+        log "ERROR: ${data_dir} is not writable by user 'opencoder'."
+        log "If running on Railway, set RAILWAY_RUN_UID=0 and attach a volume mounted at ${data_dir}."
+        exit 1
+    }
+
     load_builtin_home_users
     if ! ensure_jsonc_parser; then
         log "ERROR: JSONC parser is required for auth config checks."
@@ -589,6 +612,7 @@ EOF
     migrate_unmanaged_home_users_to_records
     sync_bootstrap_state
     warn_security_posture
+    ensure_opencode_data_dir_writable
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"
     /usr/local/bin/opencode-broker &

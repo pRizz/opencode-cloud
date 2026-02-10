@@ -21,6 +21,23 @@ Steps:
 > **Important:** After deploying, verify that a Railway Volume is attached.
 > Without a volume, all data is lost on every redeploy.
 
+## Template from Compose File (Manual Upload)
+
+If you are creating a Railway template by importing a Compose file, use
+`docker-compose.railway.yml` from this repository.
+
+Do **not** import the root `docker-compose.yml` for Railway templates. That
+file is local/quick-deploy oriented and declares six volumes.
+
+```bash
+curl -O https://raw.githubusercontent.com/pRizz/opencode-cloud/main/docker-compose.railway.yml
+```
+
+Railway template import supports one volume per service. The Railway-specific
+compose file keeps a single persisted mount at
+`/home/opencoder/.local/share/opencode` for compatibility.
+It keeps variable-driven runtime/logging knobs where Railway supports them and
+uses a fixed image reference to avoid Railway parser issues.
 ## Manual Deployment
 
 ### Prerequisites
@@ -155,13 +172,31 @@ the build logs.
 - Verify the image tag exists on Docker Hub
 - Check Railway deployment logs for errors
 
-### Volume permissions
+### `EACCES` creating `/home/opencoder/.local/share/opencode/bin`
 
-Railway volumes require the container to run as root. The opencode-cloud
-image runs its entrypoint as root (which then drops privileges for the
-application), so this should work without additional configuration. If you
-encounter permission errors, ensure `RAILWAY_RUN_UID=0` is not explicitly
-set to a non-root value.
+**Symptom:** Deploy logs repeatedly show:
+
+```text
+EACCES: permission denied, mkdir '/home/opencoder/.local/share/opencode/bin'
+```
+
+**Cause:** The Railway volume is mounted with root ownership, but the app runs
+as `opencoder`. If the mounted path is not writable by `opencoder`, startup
+fails.
+
+**Immediate workaround (Railway service settings):**
+1. Ensure `RAILWAY_RUN_UID=0` (or remove a conflicting non-root value).
+2. Set the service **Start Command** to:
+
+```bash
+/bin/sh -c 'install -d -m 0755 /home/opencoder/.local/share/opencode && chown -R opencoder:opencoder /home/opencoder/.local/share/opencode && exec /usr/local/bin/entrypoint.sh'
+```
+
+After redeploy, the `EACCES` lines should stop.
+
+**Long-term behavior:** Recent images auto-check this mount on startup and
+attempt to fix ownership before launching opencode. Keep the volume mounted at
+`/home/opencoder/.local/share/opencode`.
 
 ## Limitations
 

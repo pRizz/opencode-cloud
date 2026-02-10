@@ -1,0 +1,25 @@
+# opencode-cloud Railway Compose Template
+#
+# Use this file for Railway template import workflows.
+# The canonical docker-compose.yml remains local/quick-deploy focused and
+# includes six volumes that Railway template import does not support.
+
+services:
+  opencode:
+    image: prizz/opencode-cloud-sandbox:latest
+    pull_policy: ${OPENCODE_PULL_POLICY:-missing}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: ${OPENCODE_STOP_GRACE_PERIOD:-30s}
+    environment:
+      OPENCODE_HOST: ${OPENCODE_HOST:-0.0.0.0}
+    logging:
+      driver: ${OPENCODE_LOG_DRIVER:-json-file}
+      options:
+        max-size: ${OPENCODE_LOG_MAX_SIZE:-10m}
+        max-file: "${OPENCODE_LOG_MAX_FILE:-3}"
+    volumes:
+      - opencode-data:/home/opencoder/.local/share/opencode
+
+volumes:
+  opencode-data:
