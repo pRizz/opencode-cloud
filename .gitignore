@@ -32,6 +32,7 @@ Thumbs.db
 # Build artifacts
 *.log
 Dockerfile.build
+.cache/
 
 # Dev binary fallback (parity tests copy here; do not commit)
 packages/cli-node/bin/occ
