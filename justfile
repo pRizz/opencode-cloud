@@ -153,7 +153,13 @@ test-opencode-ui: opencode-install-if-needed
     bun run --cwd packages/opencode/packages/app test:unit
 
 # Run opencode upstream unit tests (turbo: opencode + fork-tests + app)
+# `--only` intentionally avoids Turbo dependency graph tasks (like `^build`)
+# because CI build coverage for opencode already runs via lint/build targets.
 test-opencode-unit: opencode-install-if-needed
+    bun --cwd packages/opencode turbo test --only
+
+# Debug path: include Turbo dependency build graph (`^build`) during tests.
+test-opencode-unit-with-build: opencode-install-if-needed
     bun --cwd packages/opencode turbo test
 
 # Optional submodule drift and dirty state check
