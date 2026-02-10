@@ -100,14 +100,9 @@ opencode-submodule-check:
         exit 1; \
     fi
 
-# Install opencode dependencies when missing
+# Sync opencode dependencies with lockfile
 opencode-install-if-needed: opencode-submodule-check
-    @if [ ! -d packages/opencode/node_modules ]; then \
-        echo "Installing opencode submodule dependencies..."; \
-        bun install --cwd packages/opencode --frozen-lockfile; \
-    else \
-        echo "opencode submodule dependencies already installed."; \
-    fi
+    bun install --cwd packages/opencode --frozen-lockfile
 
 # Typecheck opencode workspace
 # Keep scripts.typecheck defined in each fork-* package so Turbo executes its task.
