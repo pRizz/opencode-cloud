@@ -1,6 +1,6 @@
 # opencode-cloud
 
-[![GitHub Stars](https://img.shields.io/github/stars/pRizz/opencode-cloud?style=flat)](https://github.com/pRizz/opencode-cloud)
+[![GitHub Stars](https://img.shields.io/github/stars/pRizz/opencode-cloud)](https://github.com/pRizz/opencode-cloud)
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
