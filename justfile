@@ -289,13 +289,18 @@ ci-e2e *args:
     bun install --cwd packages/opencode --frozen-lockfile --ignore-scripts
     @set -- {{args}}; \
     if [ "${1:-}" = "--" ]; then shift; fi; \
+    models_path="${OPENCODE_MODELS_PATH:-{{justfile_directory()}}/packages/opencode/packages/opencode/test/tool/fixtures/models-api.json}"; \
+    if [ ! -f "$models_path" ]; then \
+        echo "Error: OPENCODE_MODELS_PATH file does not exist: $models_path"; \
+        exit 1; \
+    fi; \
     playwright_browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-0}"; \
     if [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]; then \
         PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" ./packages/opencode/packages/app/node_modules/.bin/playwright install --with-deps chromium; \
     else \
         PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" ./packages/opencode/packages/app/node_modules/.bin/playwright install chromium; \
     fi; \
-    CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="${OPENCODE_MODELS_PATH:-{{justfile_directory()}}/packages/opencode/test/tool/fixtures/models-api.json}" PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" bun run --cwd packages/opencode/packages/app test:e2e:local -- "$@"
+    CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="$models_path" PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" bun run --cwd packages/opencode/packages/app test:e2e:local -- "$@"
 
 ci-lint: lint-rust check-opencode-stack
 
