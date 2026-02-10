@@ -282,11 +282,20 @@ ci-node-install:
 ci-node-install-cli-only:
     bun install --filter opencode-cloud --frozen-lockfile --ignore-scripts
 
+# Keep browser install colocated with `ci-e2e` execution and use
+# PLAYWRIGHT_BROWSERS_PATH=0 by default to pin browser binaries to Bun's
+# installed playwright-core version.
 ci-e2e *args:
     bun install --cwd packages/opencode --frozen-lockfile --ignore-scripts
     @set -- {{args}}; \
     if [ "${1:-}" = "--" ]; then shift; fi; \
-    CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="${OPENCODE_MODELS_PATH:-{{justfile_directory()}}/packages/opencode/test/tool/fixtures/models-api.json}" bun run --cwd packages/opencode/packages/app test:e2e:local -- "$@"
+    playwright_browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-0}"; \
+    if [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]; then \
+        PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" ./packages/opencode/packages/app/node_modules/.bin/playwright install --with-deps chromium; \
+    else \
+        PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" ./packages/opencode/packages/app/node_modules/.bin/playwright install chromium; \
+    fi; \
+    CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="${OPENCODE_MODELS_PATH:-{{justfile_directory()}}/packages/opencode/test/tool/fixtures/models-api.json}" PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" bun run --cwd packages/opencode/packages/app test:e2e:local -- "$@"
 
 ci-lint: lint-rust check-opencode-stack
 

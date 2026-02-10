@@ -86,13 +86,6 @@ jobs:
           # Run the full CI check suite
           just ci-checks
 
-      - name: Install Playwright browsers
-        if: steps.update.outputs.needs_update == 'true'
-        working-directory: packages/opencode/packages/app
-        run: bunx playwright install --with-deps
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
-
       - name: Run e2e tests
         id: e2e_checks
         if: steps.update.outputs.needs_update == 'true'

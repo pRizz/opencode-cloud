@@ -333,23 +333,6 @@ jobs:
           git config --global user.email "bot@opencode.ai"
           git config --global user.name "opencode"
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: .cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('packages/opencode/packages/app/package.json') }}
-          restore-keys: ${{ runner.os }}-playwright-
-
-      - name: Install opencode dependencies
-        working-directory: packages/opencode
-        run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Install Playwright browsers
-        working-directory: packages/opencode/packages/app
-        run: ./node_modules/.bin/playwright install --with-deps
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
-
       - name: Install just
         uses: extractions/setup-just@v3
 
