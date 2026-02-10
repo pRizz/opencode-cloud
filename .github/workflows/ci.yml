@@ -346,6 +346,9 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
 
+      - name: Install just
+        uses: extractions/setup-just@v3
+
       - name: Run e2e tests
         run: just ci-e2e
         timeout-minutes: 30
