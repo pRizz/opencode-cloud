@@ -257,7 +257,7 @@ test-doc-slow:
     cargo test --workspace --doc
 
 # Lint everything
-lint: lint-rust lint-node lint-shell lint-workflows lint-opencode lint-opencode-broker
+lint: lint-rust lint-node lint-shell lint-workflows check-readme-badges lint-opencode lint-opencode-broker
 
 # Lint Rust code
 lint-rust: check-rust-format check-rust-clippy
@@ -326,6 +326,14 @@ ci-checks: ci-lint ci-build ci-test ci-verify
 # Check for Dockerfile tool version updates
 check-updates:
     ./scripts/check-dockerfile-updates.sh
+
+# Sync generated README badge blocks from fork-ui badge catalog
+sync-readme-badges: opencode-submodule-check
+    bun scripts/sync-readme-badges.ts
+
+# Validate generated README badge blocks are up to date
+check-readme-badges: opencode-submodule-check
+    bun scripts/sync-readme-badges.ts --check
 
 # --- DigitalOcean Marketplace ---
 

@@ -71,6 +71,21 @@ just lint
 just fmt
 ```
 
+### README Badge Sync
+
+The root README (`README.md`) and submodule README (`packages/opencode/README.md`) have distinct generated badge blocks.
+Both are sourced from `packages/opencode/packages/fork-ui/src/readme-badge-catalog.ts`.
+
+```bash
+# Regenerate both README badge sections
+just sync-readme-badges
+
+# Validate badge sections are in sync (also run by just lint)
+just check-readme-badges
+```
+
+Do not hand-edit badge lines between generated marker comments in either README.
+
 ## Commit Messages
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/):

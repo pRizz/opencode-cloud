@@ -37,6 +37,15 @@ just run <args>  # Run CLI with arguments (e.g., just run status)
 just dev         # Start local runtime (local submodule + cached sandbox rebuild)
 ```
 
+## README Badge Sync
+
+`README.md` (superproject) and `packages/opencode/README.md` (submodule) use distinct generated badge blocks for different audiences.
+The source of truth is `packages/opencode/packages/fork-ui/src/readme-badge-catalog.ts`.
+
+- Run `just sync-readme-badges` after badge catalog changes.
+- `just lint` and `just pre-commit` run `just check-readme-badges` and fail on drift.
+- Do not manually edit badge lines between generated marker comments.
+
 ## UAT Testing
 
 When performing manual UAT tests with the user, use justfile commands instead of the installed `occ` binary:

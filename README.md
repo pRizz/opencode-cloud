@@ -1,5 +1,6 @@
 # opencode-cloud
 
+<!-- BEGIN:opencode-cloud-readme-badges -->
 [![GitHub Stars](https://img.shields.io/github/stars/pRizz/opencode-cloud)](https://github.com/pRizz/opencode-cloud)
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
@@ -12,6 +13,7 @@
 [![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- END:opencode-cloud-readme-badges -->
 
 > [!WARNING]
 > This tool is still a work in progress and is rapidly evolving. Expect frequent updates and breaking changes. Follow updates at https://github.com/pRizz/opencode-cloud (mirror: https://gitea.com/pRizz/opencode-cloud). Stability will be announced at some point. Use with caution.
