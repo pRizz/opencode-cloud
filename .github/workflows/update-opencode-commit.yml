@@ -19,7 +19,59 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for existing automated submodule failure issue
+        id: failure_issue_gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const failureMarker = 'Automated submodule update failed';
+            const openAutomatedIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'automated',
+                per_page: 100,
+              },
+            );
+
+            const matchingIssues = openAutomatedIssues.filter((issue) =>
+              (issue.body || '').includes(failureMarker),
+            );
+
+            matchingIssues.sort((a, b) => b.number - a.number);
+            const existingIssue = matchingIssues[0] || null;
+            const hasOpenFailureIssue = Boolean(existingIssue);
+            const shouldBlock =
+              context.eventName === 'schedule' && hasOpenFailureIssue;
+
+            core.info(
+              `failure_issue_gate: event=${context.eventName}, has_open_failure_issue=${hasOpenFailureIssue}, should_block=${shouldBlock}`,
+            );
+            if (existingIssue) {
+              core.info(
+                `failure_issue_gate: using #${existingIssue.number} ${existingIssue.html_url}`,
+              );
+            }
+
+            core.setOutput('has_open_failure_issue', String(hasOpenFailureIssue));
+            core.setOutput(
+              'existing_failure_issue_number',
+              existingIssue ? String(existingIssue.number) : '',
+            );
+            core.setOutput(
+              'existing_failure_issue_url',
+              existingIssue ? existingIssue.html_url : '',
+            );
+            core.setOutput(
+              'existing_failure_issue_title',
+              existingIssue ? existingIssue.title : '',
+            );
+            core.setOutput('should_block', String(shouldBlock));
+
       - name: Initialize opencode submodule
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: |
           # .gitmodules tracks opencode with an SSH URL. Actions runners
           # typically lack SSH deploy keys, so rewrite to HTTPS inline.
@@ -29,6 +81,7 @@ jobs:
           git submodule status --recursive
 
       - name: Configure Git
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -36,32 +89,39 @@ jobs:
       # Toolchain setup for running CI checks on the updated submodule.
       # Steps match ci-pre-publish.yml to ensure parity with normal CI.
       - name: Install Linux system dependencies
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: |
           # Required by opencode-broker (libpam-sys links against -lpam).
           sudo apt-get update
           sudo apt-get install -y libpam0g-dev
 
       - name: Install Rust
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
       - name: Install just
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         uses: extractions/setup-just@v3
 
       - name: Setup Node.js
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         uses: actions/setup-node@v5
         with:
           node-version: '20'
 
       - name: Setup Bun
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         uses: ./.github/actions/setup-bun
 
       - name: Rust cache
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         uses: Swatinem/rust-cache@v2
 
       - name: Update opencode commit
         id: update
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: |
           ./scripts/update-opencode-commit.sh
 
@@ -70,7 +130,7 @@ jobs:
       # If checks fail, the workflow fails and the broken commit is never pushed.
       - name: Auto-format and run CI checks
         id: ci_checks
-        if: steps.update.outputs.needs_update == 'true'
+        if: steps.failure_issue_gate.outputs.should_block != 'true' && steps.update.outputs.needs_update == 'true'
         run: |
           set -euo pipefail
 
@@ -88,16 +148,18 @@ jobs:
 
       - name: Run e2e tests
         id: e2e_checks
-        if: steps.update.outputs.needs_update == 'true'
+        if: steps.failure_issue_gate.outputs.should_block != 'true' && steps.update.outputs.needs_update == 'true'
         run: just ci-e2e
         timeout-minutes: 30
 
       - name: Verify OCI description label
         id: verify_oci
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: python3 scripts/extract-oci-description.py packages/core/src/docker/Dockerfile
 
       - name: Commit and push if changed
         id: commit_push
+        if: steps.failure_issue_gate.outputs.should_block != 'true'
         run: |
           if git diff --quiet; then
             echo "No changes to commit."
@@ -127,9 +189,25 @@ jobs:
           git push
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
+      - name: Notice skipped update due to existing open failure issue
+        if: steps.failure_issue_gate.outputs.should_block == 'true'
+        env:
+          EXISTING_FAILURE_ISSUE_NUMBER: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_number }}
+          EXISTING_FAILURE_ISSUE_URL: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_url }}
+          EXISTING_FAILURE_ISSUE_TITLE: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_title }}
+        run: |
+          set -euo pipefail
+          echo "::notice title=Update skipped::Scheduled run skipped because an open failure issue already exists (#${EXISTING_FAILURE_ISSUE_NUMBER}): ${EXISTING_FAILURE_ISSUE_TITLE} (${EXISTING_FAILURE_ISSUE_URL})"
+
       - name: Write summary
         if: always()
         env:
+          FAILURE_ISSUE_GATE_OUTCOME: ${{ steps.failure_issue_gate.outcome }}
+          HAS_OPEN_FAILURE_ISSUE: ${{ steps.failure_issue_gate.outputs.has_open_failure_issue }}
+          EXISTING_FAILURE_ISSUE_NUMBER: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_number }}
+          EXISTING_FAILURE_ISSUE_URL: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_url }}
+          EXISTING_FAILURE_ISSUE_TITLE: ${{ steps.failure_issue_gate.outputs.existing_failure_issue_title }}
+          SHOULD_BLOCK: ${{ steps.failure_issue_gate.outputs.should_block }}
           UPDATE_OUTCOME: ${{ steps.update.outcome }}
           CI_CHECKS_OUTCOME: ${{ steps.ci_checks.outcome }}
           E2E_CHECKS_OUTCOME: ${{ steps.e2e_checks.outcome }}
@@ -168,6 +246,11 @@ jobs:
           updated="$(fallback "${UPDATED:-}")"
           changed="$(fallback "${CHANGED:-}")"
           pushed="$(fallback "${PUSHED:-}")"
+          has_open_failure_issue="$(fallback "${HAS_OPEN_FAILURE_ISSUE:-}")"
+          should_block="$(fallback "${SHOULD_BLOCK:-}")"
+          existing_failure_issue_number="$(fallback "${EXISTING_FAILURE_ISSUE_NUMBER:-}")"
+          existing_failure_issue_url="$(fallback "${EXISTING_FAILURE_ISSUE_URL:-}")"
+          existing_failure_issue_title="$(fallback "${EXISTING_FAILURE_ISSUE_TITLE:-}")"
 
           superproject_repo_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
           commit_link="n/a"
@@ -181,7 +264,9 @@ jobs:
           fi
 
           status_line="ℹ️ No update needed"
-          if [[ "${UPDATE_OUTCOME:-}" == "failure" || "${CI_CHECKS_OUTCOME:-}" == "failure" || "${E2E_CHECKS_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${CI_CHECKS_OUTCOME:-}" == "cancelled" || "${E2E_CHECKS_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
+          if [[ "${SHOULD_BLOCK:-}" == "true" ]]; then
+            status_line="⏭️ Skipped due to open failure issue"
+          elif [[ "${UPDATE_OUTCOME:-}" == "failure" || "${CI_CHECKS_OUTCOME:-}" == "failure" || "${E2E_CHECKS_OUTCOME:-}" == "failure" || "${VERIFY_OCI_OUTCOME:-}" == "failure" || "${COMMIT_PUSH_OUTCOME:-}" == "failure" || "${UPDATE_OUTCOME:-}" == "cancelled" || "${CI_CHECKS_OUTCOME:-}" == "cancelled" || "${E2E_CHECKS_OUTCOME:-}" == "cancelled" || "${VERIFY_OCI_OUTCOME:-}" == "cancelled" || "${COMMIT_PUSH_OUTCOME:-}" == "cancelled" ]]; then
             status_line="❌ Failed"
           elif [[ "${PUSHED:-}" == "true" ]]; then
             status_line="✅ Updated and pushed"
@@ -201,6 +286,8 @@ jobs:
             echo "**Dockerfile pin:** \`${current_pin} -> ${updated_pin}\`"
             echo ""
             echo "**Update flags:**"
+            echo "- has_open_failure_issue: \`${has_open_failure_issue}\`"
+            echo "- should_block: \`${should_block}\`"
             echo "- needs_update: \`${needs_update}\`"
             echo "- updated: \`${updated}\`"
             echo "- changed: \`${changed}\`"
@@ -217,8 +304,16 @@ jobs:
             else
               echo "- pushed superproject commit: ${commit_link}"
             fi
+            if [[ "${existing_failure_issue_url}" == "n/a" ]]; then
+              echo "- open failure issue: n/a"
+            elif [[ "${existing_failure_issue_number}" == "n/a" ]]; then
+              echo "- open failure issue: [${existing_failure_issue_title}](${existing_failure_issue_url})"
+            else
+              echo "- open failure issue: [#${existing_failure_issue_number} ${existing_failure_issue_title}](${existing_failure_issue_url})"
+            fi
             echo ""
             echo "**Step outcomes:**"
+            echo "- failure_issue_gate: \`${FAILURE_ISSUE_GATE_OUTCOME:-n/a}\`"
             echo "- update: \`${UPDATE_OUTCOME:-n/a}\`"
             echo "- ci_checks: \`${CI_CHECKS_OUTCOME:-n/a}\`"
             echo "- e2e_checks: \`${E2E_CHECKS_OUTCOME:-n/a}\`"
@@ -227,7 +322,7 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create issue on CI failure
-        if: failure() && (steps.ci_checks.outcome == 'failure' || steps.e2e_checks.outcome == 'failure')
+        if: failure() && (steps.ci_checks.outcome == 'failure' || steps.e2e_checks.outcome == 'failure') && steps.failure_issue_gate.outputs.has_open_failure_issue != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LATEST_COMMIT: ${{ steps.update.outputs.latest_commit }}
