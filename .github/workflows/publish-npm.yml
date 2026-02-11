@@ -1,9 +1,9 @@
 name: Publish to npm
 
-# We intentionally use npm publish (not bun publish) for releases because npm currently
-# provides the trusted publishing OIDC + provenance path used by this workflow.
+# We intentionally use npm publish (not bun publish) for releases because npm handles
+# workspace-aware publishing and registry auth reliably.
 # Bun remains the package manager/build tool in this repo; npm is used only for final
-# registry publication security guarantees.
+# registry publication.
 
 on:
   workflow_call:
@@ -31,7 +31,6 @@ jobs:
     needs: [build-binaries]
     permissions:
       contents: read
-      id-token: write # Required so npm can verify GitHub OIDC identity and issue provenance attestations.
     steps:
       - uses: actions/checkout@v6
         with:
@@ -135,52 +134,53 @@ jobs:
             packages/cli-node-linux-arm64-musl \
             packages/core \
             packages/cli-node; do
-            echo "Dry-run publishing ${pkg} with npm provenance"
-            npm publish --workspace "${pkg}" --dry-run --access public --provenance >/dev/null
+            echo "Dry-run publishing ${pkg}"
+            npm publish --workspace "${pkg}" --dry-run --access public >/dev/null
           done
 
       - name: Build Node packages
         run: |
           bun run --cwd packages/cli-node build
 
-      - name: Verify OIDC environment for npm trusted publishing
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
-            echo "Error: GitHub OIDC token environment is unavailable."
-            echo "Ensure this job has permissions.id-token=write and runs on a GitHub-hosted runner."
-            exit 1
-          fi
-
-          echo "OIDC environment detected for npm trusted publishing."
-
-      # Use npm publish with --provenance so npm can generate attestations from this
-      # workflow's OIDC identity. With trusted publishing, npm uses OIDC for auth.
-      # --provenance preserves explicit attestation intent for this release path.
       - name: Publish @opencode-cloud/cli-node-darwin-arm64
-        run: npm publish --workspace packages/cli-node-darwin-arm64 --access public --provenance
+        run: npm publish --workspace packages/cli-node-darwin-arm64 --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/cli-node-darwin-x64
-        run: npm publish --workspace packages/cli-node-darwin-x64 --access public --provenance
+        run: npm publish --workspace packages/cli-node-darwin-x64 --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/cli-node-linux-x64
-        run: npm publish --workspace packages/cli-node-linux-x64 --access public --provenance
+        run: npm publish --workspace packages/cli-node-linux-x64 --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64
-        run: npm publish --workspace packages/cli-node-linux-arm64 --access public --provenance
+        run: npm publish --workspace packages/cli-node-linux-arm64 --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/cli-node-linux-x64-musl
-        run: npm publish --workspace packages/cli-node-linux-x64-musl --access public --provenance
+        run: npm publish --workspace packages/cli-node-linux-x64-musl --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/cli-node-linux-arm64-musl
-        run: npm publish --workspace packages/cli-node-linux-arm64-musl --access public --provenance
+        run: npm publish --workspace packages/cli-node-linux-arm64-musl --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @opencode-cloud/core
-        run: npm publish --workspace packages/core --access public --provenance
+        run: npm publish --workspace packages/core --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish opencode-cloud
-        run: npm publish --workspace packages/cli-node --access public --provenance
+        run: npm publish --workspace packages/cli-node --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |

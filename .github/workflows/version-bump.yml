@@ -21,7 +21,6 @@ concurrency:
 permissions:
   contents: write    # Required for pushing commits and tags
   packages: write    # Required for GHCR push (docker-publish)
-  id-token: write    # Required for npm provenance (publish-npm)
 
 jobs:
   bump-version:
