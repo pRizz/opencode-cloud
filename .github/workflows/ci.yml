@@ -20,6 +20,7 @@ jobs:
   format:
     name: Format Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
@@ -35,6 +36,7 @@ jobs:
   bun-ecosystem:
     name: Bun Ecosystem Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
@@ -64,6 +66,7 @@ jobs:
   marketplace-validate:
     name: Marketplace Packer Validate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
@@ -89,6 +92,7 @@ jobs:
   compose-validate:
     name: Compose File Validate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
 
@@ -98,20 +102,34 @@ jobs:
   docker-context-guard:
     name: Docker Context Guard
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Use docker/build-push-action with GHA + registry cache so unchanged
+      # layers are reused across CI runs (~3 min → ~30s on cache hit).
+      # Previously this ran a bare `docker build` with no caching at all.
       - name: Build Docker target stage
-        run: |
-          DOCKER_BUILDKIT=1 docker build \
-            --file packages/core/src/docker/Dockerfile \
-            --target opencode-build \
-            --tag opencode-cloud-sandbox:ci-check \
-            .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/core/src/docker/Dockerfile
+          target: opencode-build
+          push: false
+          load: false
+          cache-from: |
+            type=gha,scope=opencode-cloud-sandbox-context-guard,version=2
+            type=gha,scope=opencode-cloud-sandbox-amd64,version=2
+            type=registry,ref=ghcr.io/prizz/opencode-cloud-sandbox:buildcache-amd64
+          cache-to: type=gha,scope=opencode-cloud-sandbox-context-guard,mode=min,version=2
 
   cargo-package-verify:
     name: Cargo Package Verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
 
@@ -197,6 +215,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -266,6 +285,7 @@ jobs:
   cli-parity:
     name: CLI Parity Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [build]
     steps:
       - uses: actions/checkout@v6
@@ -309,6 +329,7 @@ jobs:
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [build]
     steps:
       - uses: actions/checkout@v6
