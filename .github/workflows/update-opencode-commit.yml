@@ -235,6 +235,11 @@ jobs:
           SUBMODULE_BRANCH: ${{ steps.update.outputs.submodule_branch }}
         run: |
           set -euo pipefail
+
+          # Ensure required labels exist (--force is a no-op if label already exists)
+          gh label create "bug" --description "Something isn't working" --color "d73a4a" --force || true
+          gh label create "automated" --description "Created by automation" --color "0e8a16" --force || true
+
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           commit_short="${LATEST_COMMIT:0:12}"
           commit_url="${SUBMODULE_REPO_URL:-}/commit/${LATEST_COMMIT:-unknown}"
