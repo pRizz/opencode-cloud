@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "post-merge: syncing submodule..."
+git -C "$REPO_ROOT" submodule update --init --recursive
+
+echo "post-merge: installing dependencies..."
+bun install --cwd "$REPO_ROOT"
