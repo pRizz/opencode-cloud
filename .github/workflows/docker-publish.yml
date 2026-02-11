@@ -36,7 +36,7 @@ jobs:
   build-and-push:
     name: Build and Push Sandbox Docker Image
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     outputs:
       scout_policy_status: ${{ steps.scout-policy.outputs.status }}
       scout_policy_exit_code: ${{ steps.scout-policy.outputs.exit_code }}
