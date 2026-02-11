@@ -82,7 +82,7 @@ print_welcome_banner() {
     log "Welcome to opencode-cloud-sandbox"
     log "You are running opencode-cloud v${version}"
     log "WARNING: opencode-cloud is still a work in progress and is rapidly evolving."
-    log "Expect frequent updates and breaking changes. Use with caution."
+    log "Expect bugs, frequent updates, and breaking changes. Use with caution."
     log "For questions, problems, and feature requests, file an issue:"
     log "  https://github.com/pRizz/opencode-cloud/issues"
     log "opencode-cloud runs opencode in a Docker sandbox; use occ/opencode-cloud CLI to manage users, mounts, and updates."

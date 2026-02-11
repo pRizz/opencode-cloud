@@ -321,7 +321,7 @@ pub fn run() -> Result<()> {
     }
 
     eprintln!(
-        "{} This tool is still a work in progress and is rapidly evolving. Expect frequent updates and breaking changes. Follow updates at https://github.com/pRizz/opencode-cloud. Stability will be announced at some point. Use with caution.",
+        "{} This tool is still a work in progress and is rapidly evolving. Expect bugs, frequent updates, and breaking changes. Follow updates on GitHub (https://github.com/pRizz/opencode-cloud) and X (Twitter) (https://x.com/pryszkie). Stability will be announced at some point. Use with caution.",
         style("Warning:").yellow().bold()
     );
     eprintln!();
