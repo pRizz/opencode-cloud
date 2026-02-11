@@ -578,6 +578,7 @@ FROM base AS opencode-js-build
 
 USER opencoder
 ARG OPENCODE_SOURCE=remote
+ARG TARGETARCH
 
 # Bind-mount the source from the opencode-source stage, then copy it into
 # this layer's writable filesystem in the same RUN as bun install. This avoids
@@ -592,8 +593,12 @@ ARG OPENCODE_SOURCE=remote
 #   Common symptoms: integrity check failures for platform-specific tarballs.
 # - The retry loop aggressively clears ALL bun caches AND node_modules between
 #   attempts to ensure each retry starts from a truly clean state.
+# - On successful installs, keep the BuildKit cache mount populated so future
+#   builds can reuse downloaded tarballs.
 RUN --mount=type=bind,from=opencode-source,source=/tmp/opencode-repo,target=/tmp/opencode-source-ro \
-    --mount=type=cache,target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755 \
+    # Keep cache warm, isolate by architecture, and serialize writers to reduce
+    # cross-arch contamination and concurrent cache corruption.
+    --mount=type=cache,id=bun-install-${TARGETARCH},target=/home/opencoder/.bun/install/cache,uid=1000,gid=1000,mode=0755,sharing=locked \
     cp -R /tmp/opencode-source-ro /tmp/opencode-repo \
     && sudo mkdir -p /home/opencoder/.bun/install/cache \
     && sudo chown -R opencoder:opencoder /home/opencoder/.bun/install/cache \
@@ -619,9 +624,7 @@ RUN --mount=type=bind,from=opencode-source,source=/tmp/opencode-repo,target=/tmp
         OPENCODE_CHANNEL=local bun run build-single-ui; \
       else \
         bun run build-single-ui; \
-      fi \
-    && sudo find /home/opencoder/.bun/install/cache -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true \
-    && sudo rm -rf /home/opencoder/.bun/cache /home/opencoder/.cache/bun
+      fi
 
 # =============================================================================
 # Stage 2c: broker-planner — Prepare cargo-chef dependency recipe
@@ -646,7 +649,11 @@ RUN set -eux; \
       | tar -xz -C /home/opencoder/.local/bin/; \
     cargo-chef --version
 
-COPY --from=opencode-source /tmp/opencode-repo/packages/opencode-broker /tmp/opencode-broker
+# Intentionally copy only Cargo manifests here so cargo-chef dependency planning
+# is invalidated by dependency graph changes, not by broker source edits.
+RUN mkdir -p /tmp/opencode-broker
+COPY --from=opencode-source /tmp/opencode-repo/packages/opencode-broker/Cargo.toml /tmp/opencode-broker/Cargo.toml
+COPY --from=opencode-source /tmp/opencode-repo/packages/opencode-broker/Cargo.lock /tmp/opencode-broker/Cargo.lock
 WORKDIR /tmp/opencode-broker
 RUN . /home/opencoder/.cargo/env \
     && cargo chef prepare --recipe-path /tmp/recipe.json
