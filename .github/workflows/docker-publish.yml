@@ -1,5 +1,22 @@
 name: Docker Publish
 
+# -----------------------------------------------------------------------------
+# Performance optimization: Native multi-platform builds
+# -----------------------------------------------------------------------------
+# Previously, this workflow built both amd64 and arm64 in a single job using
+# QEMU emulation. arm64 compilation under QEMU was extremely slow:
+#   - Rust broker compile: 15.7 min (vs ~30s native)
+#   - bun install + UI build: 9.3 min (vs ~54s native)
+#   - Registry cache export: 6.8 min
+#   - Total: ~37 min for the "Build and push" step alone
+#
+# Now we split into parallel native builds:
+#   - amd64 builds natively on ubuntu-latest
+#   - arm64 builds natively on ubuntu-24.04-arm (GitHub-hosted ARM runner)
+#   - A merge job assembles the multi-arch manifest
+# This reduces wall-clock time from ~43 min to ~11-13 min.
+# -----------------------------------------------------------------------------
+
 on:
   push:
     tags:
@@ -19,10 +36,10 @@ on:
     outputs:
       scout_policy_status:
         description: 'Docker Scout policy status (pass, fail, or error)'
-        value: ${{ jobs.build-and-push.outputs.scout_policy_status }}
+        value: ${{ jobs.merge-and-publish.outputs.scout_policy_status }}
       scout_policy_exit_code:
         description: 'Exit code returned by docker scout policy'
-        value: ${{ jobs.build-and-push.outputs.scout_policy_exit_code }}
+        value: ${{ jobs.merge-and-publish.outputs.scout_policy_exit_code }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,16 +50,19 @@ env:
   IMAGE_NAME_DOCKERHUB: ${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox
 
 jobs:
-  build-and-push:
-    name: Build and Push Sandbox Docker Image
+  # ---------------------------------------------------------------------------
+  # Job 1: Build & test amd64 image (gate for all subsequent jobs)
+  # ---------------------------------------------------------------------------
+  build-test:
+    name: Build Test Image (amd64)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     outputs:
-      scout_policy_status: ${{ steps.scout-policy.outputs.status }}
-      scout_policy_exit_code: ${{ steps.scout-policy.outputs.exit_code }}
+      version: ${{ steps.version.outputs.version }}
+      oci_description: ${{ steps.oci-description.outputs.description }}
     permissions:
       contents: read
-      packages: write  # Required for GHCR push
+      packages: read
 
     steps:
       - name: Disk + Docker usage
@@ -95,9 +115,6 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Building version: ${VERSION}"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -105,20 +122,6 @@ jobs:
         run: |
           # The Dockerfile is embedded in the Rust source
           cp packages/core/src/docker/Dockerfile .
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.IMAGE_NAME_GHCR }}
-            ${{ env.IMAGE_NAME_DOCKERHUB }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
-            type=raw,value=latest
-
-      # Build and test BEFORE authenticating to registries
-      # If smoke test fails, we don't waste time on login steps
 
       - name: Build test image (amd64 only)
         uses: docker/build-push-action@v6
@@ -134,12 +137,12 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME_GHCR }}:test
           # Separate GHA scope to avoid overwriting the main publish build cache.
-          # Also pull from the publish scope and registry cache for cross-build reuse
+          # Also pull from the amd64 publish scope and registry cache for cross-build reuse
           # (e.g. reuse base/broker-deps layers from the last publish build).
           cache-from: |
             type=gha,scope=opencode-cloud-sandbox-test,version=2
-            type=gha,scope=opencode-cloud-sandbox,version=2
-            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache
+            type=gha,scope=opencode-cloud-sandbox-amd64,version=2
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache-amd64
           cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=min,version=2
 
       # Temporary disabled smoke test
@@ -198,7 +201,67 @@ jobs:
       #     docker rm smoke-test || true
       #     exit 1
 
-      # Only authenticate after smoke test passes
+  # ---------------------------------------------------------------------------
+  # Jobs 2+3: Build each platform natively and push by digest
+  # ---------------------------------------------------------------------------
+  # Each platform builds on its native runner (no QEMU emulation), pushes
+  # a single-platform image by digest (no tag), and uploads the digest as
+  # an artifact. The merge job assembles the multi-arch manifest from digests.
+  #
+  # This "push-by-digest" pattern is documented at:
+  # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
+  build-platform:
+    name: Build ${{ matrix.platform }}
+    needs: [build-test]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Free disk space
+        run: |
+          set -euo pipefail
+          echo "Before:"
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
+          docker system prune -af || true
+          echo "After:"
+          df -h
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Dockerfile from embedded location
+        run: |
+          cp packages/core/src/docker/Dockerfile .
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_NAME_GHCR }}
+            ${{ env.IMAGE_NAME_DOCKERHUB }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -213,37 +276,140 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      # Push a single-platform image by digest (no tag). The digest is used
+      # by the merge job to assemble the final multi-arch manifest.
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         env:
           BUILDKIT_PROGRESS: plain
         with:
           context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           build-args: |
-            OPENCODE_CLOUD_VERSION=${{ steps.version.outputs.version }}
-          tags: ${{ steps.meta.outputs.tags }}
+            OPENCODE_CLOUD_VERSION=${{ needs.build-test.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: |
-            org.opencontainers.image.description=${{ steps.oci-description.outputs.description }}
+            org.opencontainers.image.description=${{ needs.build-test.outputs.oci_description }}
           sbom: true
           provenance: mode=max
-          # Scoped cache prevents thrash between test and publish builds.
-          # GHA cache v2 improves compatibility with the current cache API.
+          # push-by-digest pushes the image without tags; the merge job
+          # attaches the version + latest tags to the multi-arch manifest.
+          outputs: type=image,"name=${{ env.IMAGE_NAME_GHCR }},${{ env.IMAGE_NAME_DOCKERHUB }}",push-by-digest=true,name-canonical=true,push=true
+          # Per-architecture cache scopes prevent cross-platform cache thrashing.
+          # mode=min for registry cache: only cache final-stage layers to avoid
+          # the costly 6+ minute full-layer export that mode=max incurs.
+          # GHA cache provides intermediate layer caching within GitHub's infra.
           cache-from: |
-            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache
-            type=gha,scope=opencode-cloud-sandbox,version=2
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache-${{ matrix.arch }}
+            type=gha,scope=opencode-cloud-sandbox-${{ matrix.arch }},version=2
           cache-to: |
-            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache,mode=max
-            type=gha,scope=opencode-cloud-sandbox,mode=min,version=2
+            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache-${{ matrix.arch }},mode=min
+            type=gha,scope=opencode-cloud-sandbox-${{ matrix.arch }},mode=min,version=2
+
+      # Export the image digest so the merge job can reference it.
+      - name: Export digest
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Merge per-platform images into multi-arch manifest + post-publish
+  # ---------------------------------------------------------------------------
+  # Downloads digests from both platform builds, creates a multi-arch manifest
+  # tagged with version + latest on both GHCR and Docker Hub, then runs
+  # Docker Scout analysis and updates the Docker Hub description.
+  merge-and-publish:
+    name: Merge Manifest & Publish
+    needs: [build-test, build-platform]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      scout_policy_status: ${{ steps.scout-policy.outputs.status }}
+      scout_policy_exit_code: ${{ steps.scout-policy.outputs.exit_code }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.IMAGE_NAME_GHCR }}
+            ${{ env.IMAGE_NAME_DOCKERHUB }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.build-test.outputs.version }}
+            type=raw,value=latest
+
+      # Merge per-platform digests into a single multi-arch manifest and
+      # tag it on both registries. The annotation ensures GHCR shows the
+      # image description.
+      - name: Create multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          echo "Digests to merge:"
+          ls -la
+
+          # Build the source image list from digest filenames
+          SOURCES=$(printf '${{ env.IMAGE_NAME_GHCR }}@sha256:%s ' *)
+
+          # Create and push multi-arch manifest to all tags on all registries.
+          # docker/metadata-action outputs one tag per line; convert to -t flags.
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}') \
+            --annotation 'index:org.opencontainers.image.description=${{ needs.build-test.outputs.oci_description }}' \
+            ${SOURCES}
+
+      - name: Inspect manifest
+        run: |
+          docker buildx imagetools inspect "${{ env.IMAGE_NAME_GHCR }}:${{ needs.build-test.outputs.version }}"
 
       - name: Docker Scout Quickview
         continue-on-error: true
         uses: docker/scout-action@v1
         with:
           command: quickview
-          image: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}
+          image: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}
           summary: true
           write-comment: false
 
@@ -270,7 +436,7 @@ jobs:
 
           set +e
           docker scout policy \
-            "${IMAGE_NAME_DOCKERHUB}:${{ steps.version.outputs.version }}" \
+            "${IMAGE_NAME_DOCKERHUB}:${{ needs.build-test.outputs.version }}" \
             --org "${org}" --exit-code
           scout_exit_code=$?
           set -e
@@ -287,7 +453,7 @@ jobs:
       - name: Summarize Docker Scout Policy
         if: always()
         env:
-          VERSIONED_IMAGE: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}
+          VERSIONED_IMAGE: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}
           SCOUT_POLICY_STATUS: ${{ steps.scout-policy.outputs.status }}
           SCOUT_POLICY_EXIT_CODE: ${{ steps.scout-policy.outputs.exit_code }}
         run: |
@@ -314,16 +480,16 @@ jobs:
         run: |
           echo "## 🐳 Sandbox Docker Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.build-test.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**GHCR (GitHub Container Registry):**" >> $GITHUB_STEP_SUMMARY
           echo "- https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ needs.build-test.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_GHCR }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Docker Hub:**" >> $GITHUB_STEP_SUMMARY
           echo "- https://hub.docker.com/r/${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
