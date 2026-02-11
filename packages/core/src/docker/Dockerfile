@@ -82,6 +82,15 @@ ENV TZ=UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
+# Runtime user identity (override at build time if host volume mapping needs it).
+# These are preferred IDs, not strict requirements:
+# - If OPENCODER_GID is already occupied, we create `opencoder` with the next free GID.
+# - If OPENCODER_UID is already occupied, we create `opencoder` with the next free UID.
+# This avoids collisions with base-image users (for example Ubuntu's default uid/gid 1000)
+# while still allowing operators to request specific IDs when available.
+ARG OPENCODER_UID=1000
+ARG OPENCODER_GID=1000
+
 # -----------------------------------------------------------------------------
 # System Dependencies
 # -----------------------------------------------------------------------------
@@ -182,10 +191,29 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 # -----------------------------------------------------------------------------
 # Create Non-Root User
 # -----------------------------------------------------------------------------
-# Create 'opencode' user with passwordless sudo
-RUN useradd -m -s /bin/bash -G sudo opencoder \
+# Create 'opencoder' user with passwordless sudo
+RUN set -eux; \
+    # Create group first. Prefer requested GID; fall back if already in use. \
+    if ! getent group opencoder >/dev/null; then \
+        if getent group "${OPENCODER_GID}" >/dev/null; then \
+            groupadd opencoder; \
+        else \
+            groupadd --gid "${OPENCODER_GID}" opencoder; \
+        fi; \
+    fi; \
+    # Create user next. Prefer requested UID; fall back if already in use. \
+    if ! id -u opencoder >/dev/null 2>&1; then \
+        if getent passwd "${OPENCODER_UID}" >/dev/null; then \
+            useradd -m -s /bin/bash --gid opencoder -G sudo opencoder; \
+        else \
+            useradd -m -s /bin/bash --uid "${OPENCODER_UID}" --gid opencoder -G sudo opencoder; \
+        fi; \
+    fi; \
+    # Always pin the primary group to `opencoder` in case the user pre-existed. \
+    usermod --gid opencoder opencoder \
     && echo "opencoder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/opencoder \
     && chmod 0440 /etc/sudoers.d/opencoder \
+    && chmod 0750 /home/opencoder \
     # Snapshot built-in home users from the image so runtime auth logic can
     # ignore defaults (e.g. ubuntu) when deciding if onboarding should run.
     && install -d -m 0755 /etc/opencode-cloud \
@@ -726,18 +754,14 @@ ENV PATH="/opt/opencode/bin:${PATH}"
 # This allows opencode to authenticate users via PAM (same users as Cockpit)
 # NOTE: Requires root privileges to write to /etc/pam.d/
 USER root
-COPY packages/core/src/docker/files/pam/opencode /etc/pam.d/opencode
-RUN chmod 644 /etc/pam.d/opencode
-
-# Verify PAM config file exists
-RUN ls -la /etc/pam.d/opencode && cat /etc/pam.d/opencode
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/pam/opencode /etc/pam.d/opencode
 
 # -----------------------------------------------------------------------------
 # opencode-broker systemd Service
 # -----------------------------------------------------------------------------
 # Create opencode-broker service for PAM authentication
 # NOTE: Requires root privileges to write to /etc/systemd/system/
-COPY packages/core/src/docker/files/opencode-broker.service /etc/systemd/system/opencode-broker.service
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode-broker.service /etc/systemd/system/opencode-broker.service
 
 # Enable opencode-broker service
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
@@ -748,7 +772,7 @@ RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
 # -----------------------------------------------------------------------------
 # Create opencode as a systemd service for Cockpit integration
 # NOTE: Requires root privileges to write to /etc/systemd/system/
-COPY packages/core/src/docker/files/opencode.service /etc/systemd/system/opencode.service
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode.service /etc/systemd/system/opencode.service
 
 # Enable opencode service to start at boot (manual symlink since systemctl doesn't work during build)
 RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
@@ -758,13 +782,8 @@ RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
 # opencode Configuration
 # -----------------------------------------------------------------------------
 # Create opencode.jsonc config file with PAM authentication enabled
-RUN mkdir -p /home/opencoder/.config/opencode
-COPY --chown=opencoder:opencoder packages/core/src/docker/files/opencode.jsonc /home/opencoder/.config/opencode/opencode.jsonc
-RUN chown -R opencoder:opencoder /home/opencoder/.config/opencode \
-    && chmod 644 /home/opencoder/.config/opencode/opencode.jsonc
-
-# Verify config file exists
-RUN ls -la /home/opencoder/.config/opencode/opencode.jsonc && cat /home/opencoder/.config/opencode/opencode.jsonc
+RUN install -d -o opencoder -g opencoder -m 0750 /home/opencoder/.config/opencode
+COPY --chown=opencoder:opencoder --chmod=0640 packages/core/src/docker/files/opencode.jsonc /home/opencoder/.config/opencode/opencode.jsonc
 
 # -----------------------------------------------------------------------------
 # Entrypoint Script (Hybrid Init Support)
@@ -772,19 +791,16 @@ RUN ls -la /home/opencoder/.config/opencode/opencode.jsonc && cat /home/opencode
 # Supports both tini (default, works everywhere) and systemd (for Cockpit on Linux)
 # Set USE_SYSTEMD=1 environment variable to use systemd init
 # Note: Entrypoint runs as root to support both modes; tini mode drops to opencode user
-COPY packages/core/src/docker/files/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY --chown=root:root --chmod=0755 packages/core/src/docker/files/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Bootstrap helper for first-user onboarding (invoked by entrypoint and auth route via sudo)
-COPY packages/core/src/docker/files/opencode-cloud-bootstrap.sh /usr/local/bin/opencode-cloud-bootstrap
-RUN chmod 700 /usr/local/bin/opencode-cloud-bootstrap
+COPY --chown=root:root --chmod=0700 packages/core/src/docker/files/opencode-cloud-bootstrap.sh /usr/local/bin/opencode-cloud-bootstrap
 
 # Note: Don't set USER here - entrypoint needs root to use runuser
 # The tini mode drops privileges to opencode user via runuser
 
 # Healthcheck script asset
-COPY packages/core/src/docker/files/healthcheck.sh /usr/local/bin/healthcheck.sh
-RUN chmod +x /usr/local/bin/healthcheck.sh
+COPY --chown=root:root --chmod=0755 packages/core/src/docker/files/healthcheck.sh /usr/local/bin/healthcheck.sh
 
 # -----------------------------------------------------------------------------
 # Health Check
@@ -800,8 +816,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
 COPY --from=opencode-build /opt/opencode /opt/opencode
 COPY --from=opencode-build /usr/local/bin/opencode-broker /usr/local/bin/opencode-broker
 
-RUN chown -R opencoder:opencoder /opt/opencode \
+RUN chown -R root:root /opt/opencode \
+    && chmod -R go-w /opt/opencode \
     && chmod +x /opt/opencode/bin/opencode \
+    && chown root:root /usr/local/bin/opencode-broker \
     && chmod 4755 /usr/local/bin/opencode-broker
 
 # Verify broker binary exists and is executable
