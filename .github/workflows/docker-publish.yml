@@ -36,6 +36,7 @@ jobs:
   build-and-push:
     name: Build and Push Sandbox Docker Image
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     outputs:
       scout_policy_status: ${{ steps.scout-policy.outputs.status }}
       scout_policy_exit_code: ${{ steps.scout-policy.outputs.exit_code }}
@@ -121,6 +122,8 @@ jobs:
 
       - name: Build test image (amd64 only)
         uses: docker/build-push-action@v6
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           push: false
@@ -212,6 +215,8 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           push: true
