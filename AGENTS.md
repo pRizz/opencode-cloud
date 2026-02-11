@@ -23,6 +23,16 @@ This is a polyglot monorepo with Rust and TypeScript:
 - `packages/cli-node/` - Node.js CLI wrapper
 - `packages/opencode/` - Git submodule pointing to our fork of the opencode repository. We own this fork and can freely modify, commit, and push changes to it.
 
+## Fork Isolation (Upstream Modification Policy)
+
+The `packages/opencode/` submodule is a fork that syncs from upstream every 2 hours. To minimize merge conflicts:
+
+- **Prefer putting new code in `fork-*` packages** (`fork-auth`, `fork-config`, `fork-ui`, `fork-security`, `fork-terminal`, `fork-cli`, `fork-provider`, `fork-tests`). These are ours and never conflict with upstream.
+- **Minimize modifications to non-fork packages** (`app`, `opencode`, `sdk`, `ui`, `util`). When changes to upstream code are needed, keep the diff as small as possible — typically just an import and a single function call that delegates to a `fork-*` package.
+- **Do not refactor upstream code.** Even if upstream code has bugs or poor patterns, fix only what directly blocks our users. Leave broader cleanups to upstream — they will fix their own bugs over time. Every line we change in upstream files is a potential merge conflict.
+- **Tolerate imperfect upstream code.** If an upstream bug doesn't affect our users, leave it alone. If it does affect our users, fix it with the smallest possible diff (inline changes > new imports > new files).
+- Use thin re-export shims in upstream packages that delegate to `fork-*` implementations when hooks are needed.
+
 ## Key Commands
 
 ```bash
