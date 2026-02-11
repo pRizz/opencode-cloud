@@ -11,7 +11,7 @@
     },
     "packages/cli-node": {
       "name": "opencode-cloud",
-      "version": "23.0.0",
+      "version": "23.0.1",
       "bin": {
         "opencode-cloud": "./dist/index.js",
         "occ": "./dist/index.js",
@@ -32,31 +32,31 @@
     },
     "packages/cli-node-darwin-arm64": {
       "name": "@opencode-cloud/cli-node-darwin-arm64",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/cli-node-darwin-x64": {
       "name": "@opencode-cloud/cli-node-darwin-x64",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/cli-node-linux-arm64": {
       "name": "@opencode-cloud/cli-node-linux-arm64",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/cli-node-linux-arm64-musl": {
       "name": "@opencode-cloud/cli-node-linux-arm64-musl",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/cli-node-linux-x64": {
       "name": "@opencode-cloud/cli-node-linux-x64",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/cli-node-linux-x64-musl": {
       "name": "@opencode-cloud/cli-node-linux-x64-musl",
-      "version": "23.0.0",
+      "version": "23.0.1",
     },
     "packages/core": {
       "name": "@opencode-cloud/core",
-      "version": "23.0.0",
+      "version": "23.0.1",
       "dependencies": {
         "@napi-rs/cli": "^3.0.0-alpha.69",
       },
