@@ -104,6 +104,11 @@ opencode-submodule-check:
 opencode-install-if-needed: opencode-submodule-check
     bun install --cwd packages/opencode --frozen-lockfile
 
+# Regenerate opencode OpenAPI + SDK artifacts.
+# Run this whenever fork-auth/opencode routes or schemas change so generated clients stay in sync.
+sync-opencode-sdk: opencode-install-if-needed
+    bun run --cwd packages/opencode script/generate.ts
+
 # Typecheck opencode workspace
 # Keep scripts.typecheck defined in each fork-* package so Turbo executes its task.
 lint-opencode: opencode-install-if-needed check-fork-typecheck-wiring
@@ -347,7 +352,7 @@ do-marketplace-build:
 
 # Pre-commit checks with conditional Docker stage build for Docker-risk changes.
 # This keeps routine commits fast while still catching Docker context regressions.
-pre-commit: check-opencode-submodule-published fmt lint build test-all-fast e2e
+pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast e2e
     @if ./scripts/should-run-docker-check.sh; then \
         echo "Running Docker stage check because Docker-risk files changed..."; \
         just check-docker; \
@@ -356,7 +361,7 @@ pre-commit: check-opencode-submodule-published fmt lint build test-all-fast e2e
     fi
 
 # Pre-commit checks including Docker build (requires Docker)
-pre-commit-full: check-opencode-submodule-published fmt lint build test-all-fast e2e build-docker
+pre-commit-full: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast e2e build-docker
     @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything

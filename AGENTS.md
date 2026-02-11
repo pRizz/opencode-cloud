@@ -8,6 +8,10 @@ Only proceed with the commit if it passes. If it fails, fix the issues first.
 
 **Exception:** If the commit contains only documentation and markdown changes (`.md` files), you may skip `just pre-commit`.
 
+`just pre-commit` now runs the opencode generation flow (`packages/opencode/script/generate.ts`), which also runs formatting/linting steps in the submodule. It is expected that this can modify files you did not directly edit.
+
+When this happens, review those extra diffs before committing and confirm they are mechanical generation/format/lint changes (no unintended behavior changes).
+
 ## Bun Lockfile Updates
 
 `bun.lock` file updates are expected in this repository across all `bun.lock` files when changing versions of our own packages (for example `packages/cli-node`, `packages/core`, and related workspace packages). They can also be produced by normal `just pre-commit`/build flows.
