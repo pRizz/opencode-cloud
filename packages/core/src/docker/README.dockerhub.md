@@ -7,7 +7,7 @@ https://github.com/pRizz/opencode-cloud (mirror: https://gitea.com/pRizz/opencod
 
 ## What is included
 
-- Ubuntu 25.10 (questing)
+- Ubuntu 26.04 LTS (resolute)
 - Non-root user with passwordless sudo
 - mise-managed runtimes (Node.js 25, Python 3.14, Go 1.25)
 - Rust toolchain via rustup
