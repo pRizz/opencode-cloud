@@ -83,6 +83,7 @@ The `scripts/set-all-versions.sh` script handles version updates automatically. 
   - Rebase pull from `main` first (for example: `git pull --rebase origin main`).
   - Then push to `main`.
 - After committing and pushing changes in the `packages/opencode/` submodule, run `just update-opencode-commit` in the superproject to update the Dockerfile's `OPENCODE_COMMIT` pin. Commit and push the resulting Dockerfile change to `main`.
+- After pulling the superproject, run `git submodule update --init --recursive` to sync the submodule working tree, then run `just update-opencode-commit`. If the Dockerfile changed, commit and push the update to keep the submodule pointer and Dockerfile `OPENCODE_COMMIT` pin in sync.
 - **Resolving `OPENCODE_COMMIT` merge conflicts:** If a rebase or merge produces a conflict in the Dockerfile's `OPENCODE_COMMIT` line, do not manually pick a SHA. Instead, accept either side to clear the conflict markers, then run `just update-opencode-commit` to set the correct value from the current submodule state.
 
 ## Working with Git Worktrees and Submodules
