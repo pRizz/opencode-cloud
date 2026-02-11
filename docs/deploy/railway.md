@@ -100,6 +100,11 @@ Railway auto-generates an HTTPS URL for the service. Find it in the service's
 **Settings** > **Networking** section. Custom domains can also be configured
 there.
 
+Startup logs include container-local access hints (`Local URL`, `Bind URL`).
+When `RAILWAY_PUBLIC_DOMAIN` is present, logs may also include
+`External URL (Railway)`. If you configure a custom domain or reverse proxy,
+use that URL even when container-local URLs differ.
+
 ### 5) Complete first-time setup
 
 After the first deploy, retrieve the Initial One-Time Password (IOTP) from

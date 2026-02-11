@@ -52,12 +52,31 @@ build_service_url() {
     printf "http://%s:%s" "$(format_url_host "${host}")" "${port}"
 }
 
+railway_external_url() {
+    local domain
+    domain="${RAILWAY_PUBLIC_DOMAIN:-}"
+    domain="$(printf "%s" "${domain}" | tr -d '\r\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    domain="${domain#http://}"
+    domain="${domain#https://}"
+
+    while [ "${domain}" != "${domain%/}" ]; do
+        domain="${domain%/}"
+    done
+
+    if [ -z "${domain}" ]; then
+        return 1
+    fi
+
+    printf "https://%s" "${domain}"
+}
+
 print_welcome_banner() {
-    local version local_host local_url bind_url
+    local version local_host local_url bind_url external_url
     version="$(read_opencode_cloud_version)"
     local_host="$(display_local_host "${OPENCODE_HOST}")"
     local_url="$(build_service_url "${local_host}" "${OPENCODE_PORT}")"
     bind_url="$(build_service_url "${OPENCODE_HOST}" "${OPENCODE_PORT}")"
+    external_url="$(railway_external_url || true)"
 
     log "----------------------------------------------------------------------"
     log "Welcome to opencode-cloud-sandbox"
@@ -72,6 +91,11 @@ print_welcome_banner() {
     log "  1) Access the web UI:"
     log "     Local URL: ${local_url}"
     log "     Bind URL:  ${bind_url}"
+    if [ -n "${external_url}" ]; then
+        log "     External URL (Railway): ${external_url}"
+    fi
+    log "     Reverse-proxy/custom-domain URL is also valid when configured."
+    log "     Container startup cannot reliably detect proxy/ingress URL unless platform exposes it."
     log "  2) First-time setup:"
     log "     If no users are configured, this container prints an Initial One-Time Password (IOTP)"
     log "     in the logs below. Enter it on the login page, then enroll a passkey"
