@@ -51,44 +51,21 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: Build & test amd64 image (gate for all subsequent jobs)
+  # Job 1: Extract version and metadata for downstream jobs
   # ---------------------------------------------------------------------------
-  build-test:
-    name: Build Test Image (amd64)
+  prepare:
+    name: Prepare metadata
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
       oci_description: ${{ steps.oci-description.outputs.description }}
     permissions:
       contents: read
-      packages: read
 
     steps:
-      - name: Disk + Docker usage
-        run: |
-          df -h
-          df -i
-          docker system df || true
-
-      - name: Free disk space
-        run: |
-          set -euo pipefail
-          echo "Before:"
-          df -h
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
-          sudo rm -rf /usr/local/share/boost || true
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
-          docker system prune -af || true
-          echo "After:"
-          df -h
-
       - uses: actions/checkout@v6
         with:
-          # If ref is not provided: when triggered by tag push, checkout uses the tag automatically;
-          # when called via workflow_call, defaults to the commit that triggered the workflow
           ref: ${{ inputs.ref }}
 
       # NOTE: We parse the description label from the Dockerfile so the
@@ -115,92 +92,6 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Building version: ${VERSION}"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract Dockerfile from embedded location
-        run: |
-          # The Dockerfile is embedded in the Rust source
-          cp packages/core/src/docker/Dockerfile .
-
-      - name: Build test image (amd64 only)
-        uses: docker/build-push-action@v6
-        env:
-          BUILDKIT_PROGRESS: plain
-        with:
-          context: .
-          push: false
-          load: true
-          platforms: linux/amd64
-          build-args: |
-            OPENCODE_CLOUD_VERSION=${{ steps.version.outputs.version }}
-          tags: |
-            ${{ env.IMAGE_NAME_GHCR }}:test
-          # Separate GHA scope to avoid overwriting the main publish build cache.
-          # Also pull from the amd64 publish scope and registry cache for cross-build reuse
-          # (e.g. reuse base/broker-deps layers from the last publish build).
-          cache-from: |
-            type=gha,scope=opencode-cloud-sandbox-test,version=2
-            type=gha,scope=opencode-cloud-sandbox-amd64,version=2
-            type=registry,ref=${{ env.IMAGE_NAME_GHCR }}:buildcache-amd64
-          cache-to: type=gha,scope=opencode-cloud-sandbox-test,mode=min,version=2
-
-      # Temporary disabled smoke test
-      # - name: Smoke test - verify container starts and becomes healthy
-      #   run: |
-      #     echo "Starting container for smoke test..."
-      #     # Note: systemd in containers requires:
-      #     # - --privileged OR specific capabilities
-      #     # - --cgroupns=host for cgroups v2 (GitHub Actions runners)
-      #     # - rw cgroup mount for systemd to manage cgroups
-      #     docker run -d \
-      #       --name smoke-test \
-      #       --privileged \
-      #       --cgroupns=host \
-      #       --tmpfs /run \
-      #       --tmpfs /tmp \
-      #       -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-      #       -p 3000:3000 \
-      #       -e USE_SYSTEMD=1 \
-      #       ${{ env.IMAGE_NAME_GHCR }}:test
-
-      #     echo "Container started, checking status..."
-      #     docker ps -a --filter name=smoke-test
-
-      #     echo "Waiting for container to become healthy (max 90 seconds)..."
-      #     for i in {1..90}; do
-      #       # Check if container is still running
-      #       if ! docker ps --filter name=smoke-test --filter status=running -q | grep -q .; then
-      #         echo "✗ Container exited unexpectedly"
-      #         echo "Container status:"
-      #         docker ps -a --filter name=smoke-test
-      #         echo "Container logs:"
-      #         docker logs smoke-test 2>&1 || echo "(no logs)"
-      #         docker rm smoke-test || true
-      #         exit 1
-      #       fi
-
-      #       if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
-      #         echo "✓ Container is healthy after ${i} seconds"
-      #         docker logs smoke-test --tail 20
-      #         docker stop smoke-test
-      #         docker rm smoke-test
-      #         exit 0
-      #       fi
-      #       sleep 1
-      #     done
-
-      #     echo "✗ Container failed to become healthy within 90 seconds"
-      #     echo "Container status:"
-      #     docker ps -a --filter name=smoke-test
-      #     echo "Container logs:"
-      #     docker logs smoke-test 2>&1 || echo "(no logs)"
-      #     echo "Checking systemd status inside container:"
-      #     docker exec smoke-test systemctl status || echo "(systemctl failed)"
-      #     docker stop smoke-test || true
-      #     docker rm smoke-test || true
-      #     exit 1
-
   # ---------------------------------------------------------------------------
   # Jobs 2+3: Build each platform natively and push by digest
   # ---------------------------------------------------------------------------
@@ -212,7 +103,7 @@ jobs:
   # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
   build-platform:
     name: Build ${{ matrix.platform }}
-    needs: [build-test]
+    needs: [prepare]
     strategy:
       fail-fast: true
       matrix:
@@ -287,10 +178,10 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           build-args: |
-            OPENCODE_CLOUD_VERSION=${{ needs.build-test.outputs.version }}
+            OPENCODE_CLOUD_VERSION=${{ needs.prepare.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: |
-            org.opencontainers.image.description=${{ needs.build-test.outputs.oci_description }}
+            org.opencontainers.image.description=${{ needs.prepare.outputs.oci_description }}
           sbom: true
           provenance: mode=max
           # push-by-digest pushes the image without tags; the merge job
@@ -331,7 +222,7 @@ jobs:
   # Docker Scout analysis and updates the Docker Hub description.
   merge-and-publish:
     name: Merge Manifest & Publish
-    needs: [build-test, build-platform]
+    needs: [prepare, build-platform]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -377,7 +268,7 @@ jobs:
             ${{ env.IMAGE_NAME_GHCR }}
             ${{ env.IMAGE_NAME_DOCKERHUB }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.build-test.outputs.version }}
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.version }}
             type=raw,value=latest
 
       # Merge per-platform digests into a single multi-arch manifest and
@@ -397,19 +288,19 @@ jobs:
           # docker/metadata-action outputs one tag per line; convert to -t flags.
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}') \
-            --annotation 'index:org.opencontainers.image.description=${{ needs.build-test.outputs.oci_description }}' \
+            --annotation 'index:org.opencontainers.image.description=${{ needs.prepare.outputs.oci_description }}' \
             ${SOURCES}
 
       - name: Inspect manifest
         run: |
-          docker buildx imagetools inspect "${{ env.IMAGE_NAME_GHCR }}:${{ needs.build-test.outputs.version }}"
+          docker buildx imagetools inspect "${{ env.IMAGE_NAME_GHCR }}:${{ needs.prepare.outputs.version }}"
 
       - name: Docker Scout Quickview
         continue-on-error: true
         uses: docker/scout-action@v1
         with:
           command: quickview
-          image: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}
+          image: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.prepare.outputs.version }}
           summary: true
           write-comment: false
 
@@ -436,7 +327,7 @@ jobs:
 
           set +e
           docker scout policy \
-            "${IMAGE_NAME_DOCKERHUB}:${{ needs.build-test.outputs.version }}" \
+            "${IMAGE_NAME_DOCKERHUB}:${{ needs.prepare.outputs.version }}" \
             --org "${org}" --exit-code
           scout_exit_code=$?
           set -e
@@ -453,7 +344,7 @@ jobs:
       - name: Summarize Docker Scout Policy
         if: always()
         env:
-          VERSIONED_IMAGE: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}
+          VERSIONED_IMAGE: ${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.prepare.outputs.version }}
           SCOUT_POLICY_STATUS: ${{ steps.scout-policy.outputs.status }}
           SCOUT_POLICY_EXIT_CODE: ${{ steps.scout-policy.outputs.exit_code }}
         run: |
@@ -480,16 +371,16 @@ jobs:
         run: |
           echo "## 🐳 Sandbox Docker Images Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ needs.build-test.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**GHCR (GitHub Container Registry):**" >> $GITHUB_STEP_SUMMARY
           echo "- https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ needs.build-test.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ needs.prepare.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_GHCR }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Docker Hub:**" >> $GITHUB_STEP_SUMMARY
           echo "- https://hub.docker.com/r/${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.build-test.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.prepare.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
