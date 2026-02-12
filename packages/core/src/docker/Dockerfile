@@ -299,7 +299,7 @@ ENV PATH="/home/opencoder/.cargo/bin:${PATH}"
 SHELL ["/bin/bash", "-c"]
 
 # bun - self-managing installer, pinned to version (2026-02-03)
-RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.8" \
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.9" \
     && rm -rf /home/opencoder/.bun/install/cache /home/opencoder/.bun/cache /home/opencoder/.cache/bun
 
 ENV PATH="/home/opencoder/.bun/bin:${PATH}"
@@ -556,7 +556,7 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 # Update it by running: ./scripts/update-opencode-commit.sh
 RUN set -eux; \
     OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}"; \
-    OPENCODE_COMMIT="903cc25d0f2912e6f36e87a4f475d1104428aafc"; \
+    OPENCODE_COMMIT="1d5767ea8f41461479870a670fed29396bf852a4"; \
     if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi; \
     rm -rf /tmp/opencode-repo; \
     if [ "${OPENCODE_SOURCE}" = "local" ]; then \

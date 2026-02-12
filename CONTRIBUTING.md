@@ -8,7 +8,7 @@ Thank you for your interest in contributing to opencode-cloud! This document pro
 
 - **Rust 1.85+** (for Rust 2024 edition)
 - **Node.js 20+**
-- **Bun 1.3.8+**
+- **Bun 1.3.9+**
 - **just** (task runner)
 
 ### Installation
