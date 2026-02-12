@@ -258,10 +258,10 @@ ENV PATH="/home/opencoder/.local/bin:${PATH}"
 RUN curl https://mise.run | sh \
     && echo 'eval "$(/home/opencoder/.local/bin/mise activate bash)"' >> /home/opencoder/.bashrc
 
-# Install language runtimes via mise (2026-02-03)
+# Install language runtimes via mise (2026-02-11)
 # - node@25: pinned to major version
 # - python@3.13: pinned to major version (3.13 has precompiled binaries available)
-# - go@1.25: pinned to minor version
+# - go@1.26: pinned to minor version
 #
 # MISE_PYTHON_COMPILE=0: Disable Python compilation from source.
 # If no precompiled binary exists, mise will fail fast instead of hanging
@@ -272,10 +272,10 @@ RUN timeout 600 sh -c '\
     export MISE_PYTHON_COMPILE=0 && \
     /home/opencoder/.local/bin/mise install node@25 && \
     /home/opencoder/.local/bin/mise install python@3.13 && \
-    /home/opencoder/.local/bin/mise install go@1.25 && \
+    /home/opencoder/.local/bin/mise install go@1.26 && \
     /home/opencoder/.local/bin/mise use --global node@25 && \
     /home/opencoder/.local/bin/mise use --global python@3.13 && \
-    /home/opencoder/.local/bin/mise use --global go@1.25'
+    /home/opencoder/.local/bin/mise use --global go@1.26'
 
 # Set up mise shims in PATH for non-interactive shells
 ENV PATH="/home/opencoder/.local/share/mise/shims:${PATH}"
