@@ -77,6 +77,7 @@ docker volume create opencode-cache
 docker volume create opencode-workspace
 docker volume create opencode-config
 docker volume create opencode-users
+docker volume create opencode-ssh
 ```
 
 ### 2) Run the container
@@ -92,6 +93,7 @@ docker run -d --name opencode-cloud-sandbox \
   -v opencode-workspace:/home/opencoder/workspace \
   -v opencode-config:/home/opencoder/.config/opencode \
   -v opencode-users:/var/lib/opencode-users \
+  -v opencode-ssh:/home/opencoder/.ssh \
   prizz/opencode-cloud-sandbox:latest
 ```
 
@@ -149,6 +151,7 @@ The container uses these paths for persistent data:
 | `/home/opencoder/workspace` | `opencode-workspace` | Project files |
 | `/home/opencoder/.config/opencode` | `opencode-config` | Configuration |
 | `/var/lib/opencode-users` | `opencode-users` | User accounts |
+| `/home/opencoder/.ssh` | `opencode-ssh` | SSH keys |
 
 ### What Survives What
 
@@ -164,9 +167,12 @@ The container uses these paths for persistent data:
 **Recommendation:** Always use named volumes (via Docker Compose or `-v` flags)
 for data you want to keep.
 
+For backup instructions, host path details, and design rationale, see
+[Persistence and Data Storage](../persistence.md).
+
 ### Anonymous Volume Fallback
 
-The Docker image declares `VOLUME` directives for all six persistent paths.
+The Docker image declares `VOLUME` directives for all seven persistent paths.
 If you run the container without explicit `-v` flags (e.g., clicking "Run" in
 Docker Desktop), Docker creates anonymous volumes automatically. This protects
 against accidental data loss on container restarts, but anonymous volumes are

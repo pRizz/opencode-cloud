@@ -202,7 +202,7 @@ The current default is `"auto"`; setting `trustProxy: true` explicitly is still 
 This file lives on the host bind-mount. If you ran `occ` as `root`, it is
 typically:
 
-- `/root/.config/opencode/opencode.jsonc`
+- `/root/.config/opencode-cloud/opencode/opencode.jsonc`
 
 Example config:
 
@@ -232,7 +232,7 @@ Use this if you don't want `occ` installed on the Droplet.
 
 ### Path 2A: Docker Compose (Recommended)
 
-Docker Compose configures all 6 named volumes automatically.
+Docker Compose configures all 7 named volumes automatically.
 
 The quickest way is the one-liner script, which installs Docker, by default refreshes the Compose file from upstream (with backup if your local copy differs), pulls the latest image, reconciles services, and prints the IOTP:
 
@@ -331,6 +331,7 @@ docker volume create opencode-cache
 docker volume create opencode-workspace
 docker volume create opencode-config
 docker volume create opencode-users
+docker volume create opencode-ssh
 ```
 
 #### 3) Run the container (SSH tunnel default: bind host port to localhost)
@@ -345,6 +346,7 @@ docker run -d --name opencode-cloud-sandbox \
   -v opencode-workspace:/home/opencoder/workspace \
   -v opencode-config:/home/opencoder/.config/opencode \
   -v opencode-users:/var/lib/opencode-users \
+  -v opencode-ssh:/home/opencoder/.ssh \
   prizz/opencode-cloud-sandbox:15.2.0
 ```
 

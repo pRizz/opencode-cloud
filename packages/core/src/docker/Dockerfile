@@ -795,6 +795,10 @@ RUN mkdir -p /etc/systemd/system/multi-user.target.wants \
 RUN install -d -o opencoder -g opencoder -m 0750 /home/opencoder/.config/opencode
 COPY --chown=opencoder:opencoder --chmod=0640 packages/core/src/docker/files/opencode.jsonc /home/opencoder/.config/opencode/opencode.jsonc
 
+# Default opencode config template (survives volume mounts over ~/.config/opencode)
+RUN install -d -m 0755 /etc/opencode-cloud
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode.jsonc /etc/opencode-cloud/opencode.jsonc.default
+
 # -----------------------------------------------------------------------------
 # Entrypoint Script (Hybrid Init Support)
 # -----------------------------------------------------------------------------
@@ -880,6 +884,7 @@ VOLUME ["/home/opencoder/.cache/opencode"]
 VOLUME ["/home/opencoder/workspace"]
 VOLUME ["/home/opencoder/.config/opencode"]
 VOLUME ["/var/lib/opencode-users"]
+VOLUME ["/home/opencoder/.ssh"]
 
 # Expose opencode web (3000) and Cockpit (9090)
 EXPOSE 3000 9090

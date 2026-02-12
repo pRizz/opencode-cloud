@@ -7,7 +7,8 @@
 use super::container::CONTAINER_NAME;
 use super::dockerfile::IMAGE_TAG_DEFAULT;
 use super::volume::{
-    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE, VOLUME_USERS,
+    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_SSH, VOLUME_STATE,
+    VOLUME_USERS,
 };
 use std::env;
 
@@ -34,11 +35,12 @@ pub struct DockerResourceNames {
     pub volume_projects: String,
     pub volume_config: String,
     pub volume_users: String,
+    pub volume_ssh: String,
     pub image_state_file: String,
 }
 
 impl DockerResourceNames {
-    pub fn volume_names(&self) -> [&str; 6] {
+    pub fn volume_names(&self) -> [&str; 7] {
         [
             &self.volume_session,
             &self.volume_state,
@@ -46,6 +48,7 @@ impl DockerResourceNames {
             &self.volume_projects,
             &self.volume_config,
             &self.volume_users,
+            &self.volume_ssh,
         ]
     }
 }
@@ -73,6 +76,7 @@ pub fn resource_names_for_instance(instance_id: Option<&str>) -> DockerResourceN
             volume_projects: format!("{VOLUME_PROJECTS}{suffix}"),
             volume_config: format!("{VOLUME_CONFIG}{suffix}"),
             volume_users: format!("{VOLUME_USERS}{suffix}"),
+            volume_ssh: format!("{VOLUME_SSH}{suffix}"),
             image_state_file: format!("image-state-{instance_id}.json"),
         }
     } else {
@@ -89,6 +93,7 @@ pub fn resource_names_for_instance(instance_id: Option<&str>) -> DockerResourceN
             volume_projects: VOLUME_PROJECTS.to_string(),
             volume_config: VOLUME_CONFIG.to_string(),
             volume_users: VOLUME_USERS.to_string(),
+            volume_ssh: VOLUME_SSH.to_string(),
             image_state_file: "image-state.json".to_string(),
         }
     }
@@ -159,6 +164,7 @@ mod tests {
         assert_eq!(names.image_tag, "instance-foo");
         assert_eq!(names.previous_image_tag, "instance-foo-previous");
         assert_eq!(names.volume_users, "opencode-users-foo");
+        assert_eq!(names.volume_ssh, "opencode-ssh-foo");
         assert_eq!(names.image_state_file, "image-state-foo.json");
         assert_eq!(names.instance_id.as_deref(), Some("foo"));
     }

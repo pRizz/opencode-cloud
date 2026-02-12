@@ -3,7 +3,7 @@
 //! Defines the structure and defaults for the config.json file.
 
 use crate::docker::volume::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_SSH, MOUNT_STATE,
 };
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
@@ -183,8 +183,15 @@ pub fn default_mounts() -> Vec<String> {
     let data_dir = home_dir.join(".local").join("share").join("opencode");
     let state_dir = home_dir.join(".local").join("state").join("opencode");
     let cache_dir = home_dir.join(".cache").join("opencode");
-    let config_dir = home_dir.join(".config").join("opencode");
-    let workspace_dir = data_dir.join("workspace");
+    let config_dir = home_dir
+        .join(".config")
+        .join("opencode-cloud")
+        .join("opencode");
+    let workspace_dir = home_dir.join("opencode");
+
+    // opencode-cloud-owned paths under ~/.local/share/opencode-cloud/
+    let occ_data_dir = home_dir.join(".local").join("share").join("opencode-cloud");
+    let ssh_dir = occ_data_dir.join("ssh");
 
     vec![
         format!("{}:{MOUNT_SESSION}", data_dir.display()),
@@ -192,6 +199,7 @@ pub fn default_mounts() -> Vec<String> {
         format!("{}:{MOUNT_CACHE}", cache_dir.display()),
         format!("{}:{MOUNT_PROJECTS}", workspace_dir.display()),
         format!("{}:{MOUNT_CONFIG}", config_dir.display()),
+        format!("{}:{MOUNT_SSH}", ssh_dir.display()),
     ]
 }
 

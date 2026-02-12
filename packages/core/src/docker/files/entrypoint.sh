@@ -154,6 +154,7 @@ collect_non_persistent_paths() {
         "/home/opencoder/.cache/opencode"
         "/home/opencoder/.config/opencode"
         "/var/lib/opencode-users"
+        "/home/opencoder/.ssh"
     )
     local -a non_persistent=()
     local fs_type
@@ -200,6 +201,7 @@ if [ -n "${non_persistent_paths}" ]; then
     log "  -v opencode-config:/home/opencoder/.config/opencode"
     log "  -v opencode-state:/home/opencoder/.local/state/opencode"
     log "  -v opencode-cache:/home/opencoder/.cache/opencode"
+    log "  -v opencode-ssh:/home/opencoder/.ssh"
     log "================================================================="
 fi
 
@@ -317,17 +319,30 @@ else
             return
         fi
 
-        # No config file — create default
-        if ! cat > "${config_jsonc}" <<'EOF'
+        # No config file — seed from baked-in template
+        local template="/etc/opencode-cloud/opencode.jsonc.default"
+        if [ -f "${template}" ]; then
+            if ! cp "${template}" "${config_jsonc}"; then
+                log "WARNING: Failed to copy config template to ${config_jsonc}; auth may be disabled."
+                return
+            fi
+        else
+            # Fallback if template is missing (shouldn't happen in normal builds)
+            log "WARNING: Config template not found at ${template}; creating minimal config."
+            if ! cat > "${config_jsonc}" <<'EOF'
 {
+  "workspace": {
+    "root": "/home/opencoder/workspace"
+  },
   "auth": {
     "enabled": true
   }
 }
 EOF
-        then
-            log "WARNING: Failed to create ${config_jsonc}; auth may be disabled."
-            return
+            then
+                log "WARNING: Failed to create ${config_jsonc}; auth may be disabled."
+                return
+            fi
         fi
 
         chown opencoder:opencoder "${config_jsonc}" 2>/dev/null || true
@@ -637,6 +652,13 @@ EOF
     sync_bootstrap_state
     warn_security_posture
     ensure_opencode_data_dir_writable
+
+    ensure_ssh_dir_writable() {
+        local ssh_dir="/home/opencoder/.ssh"
+        install -d -m 0700 "${ssh_dir}"
+        chown opencoder:opencoder "${ssh_dir}" 2>/dev/null || true
+    }
+    ensure_ssh_dir_writable
 
     log "Starting opencode on ${OPENCODE_HOST}:${OPENCODE_PORT}"
     /usr/local/bin/opencode-broker &

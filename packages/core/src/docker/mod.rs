@@ -73,9 +73,10 @@ pub use users::{
 
 // Volume management
 pub use volume::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, MOUNT_USERS,
-    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_NAMES, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_STATE,
-    VOLUME_USERS, ensure_volumes_exist, remove_all_volumes, remove_volume, volume_exists,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_SSH, MOUNT_STATE, MOUNT_USERS,
+    VOLUME_CACHE, VOLUME_CONFIG, VOLUME_NAMES, VOLUME_PROJECTS, VOLUME_SESSION, VOLUME_SSH,
+    VOLUME_STATE, VOLUME_USERS, ensure_volumes_exist, remove_all_volumes, remove_volume,
+    volume_exists,
 };
 
 /// Determine whether the Docker host supports systemd-in-container.

@@ -29,8 +29,9 @@ use opencode_cloud_core::Config;
 use opencode_cloud_core::bollard::service::MountTypeEnum;
 use opencode_cloud_core::config;
 use opencode_cloud_core::docker::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, OPENCODE_WEB_PORT,
-    ParsedMount, active_resource_names, get_cli_version, get_image_version, load_state,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_SSH, MOUNT_STATE,
+    OPENCODE_WEB_PORT, ParsedMount, active_resource_names, get_cli_version, get_image_version,
+    load_state,
 };
 use opencode_cloud_core::platform::{get_service_manager, is_service_registration_supported};
 use std::collections::HashMap;
@@ -780,6 +781,7 @@ fn mount_purpose(target: &str) -> Option<&'static str> {
         MOUNT_CACHE => Some("opencode cache"),
         MOUNT_PROJECTS => Some("workspace files"),
         MOUNT_CONFIG => Some("opencode config"),
+        MOUNT_SSH => Some("SSH keys"),
         _ => None,
     }
 }

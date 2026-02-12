@@ -142,7 +142,9 @@ fn display_mounts_info(step: usize, total: usize, mounts: &[String]) -> Result<(
         return Ok(());
     }
 
-    println!("Persist opencode data, state, cache, workspace, and config using these mounts:");
+    println!(
+        "Persist opencode data, state, cache, workspace, config, and SSH keys using these mounts:"
+    );
     println!();
     for mount in mounts {
         println!("  {}", style(mount).cyan());

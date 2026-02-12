@@ -1,4 +1,7 @@
 {
+  "workspace": {
+    "root": "/home/opencoder/workspace"
+  },
   "auth": {
     "enabled": true
   }

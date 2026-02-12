@@ -7,7 +7,7 @@ use super::dockerfile::IMAGE_NAME_GHCR;
 use super::mount::ParsedMount;
 use super::profile::{INSTANCE_LABEL_KEY, active_resource_names, remap_container_name};
 use super::volume::{
-    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_STATE, MOUNT_USERS,
+    MOUNT_CACHE, MOUNT_CONFIG, MOUNT_PROJECTS, MOUNT_SESSION, MOUNT_SSH, MOUNT_STATE, MOUNT_USERS,
 };
 use super::{DockerClient, DockerError};
 use bollard::models::ContainerCreateBody;
@@ -137,6 +137,7 @@ pub async fn create_container(
     add_volume_mount(MOUNT_PROJECTS, &names.volume_projects);
     add_volume_mount(MOUNT_CONFIG, &names.volume_config);
     add_volume_mount(MOUNT_USERS, &names.volume_users);
+    add_volume_mount(MOUNT_SSH, &names.volume_ssh);
 
     // Add user-defined bind mounts from config/CLI
     if let Some(ref user_mounts) = bind_mounts {

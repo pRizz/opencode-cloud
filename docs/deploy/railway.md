@@ -131,6 +131,7 @@ The container uses these paths for persistent data:
 |------|---------|----------|
 | `/home/opencoder/.local/share/opencode` | Session data, project storage, application state | **Critical** |
 | `/home/opencoder/workspace` | Project files (working directory) | High |
+| `/home/opencoder/.ssh` | SSH keys | High |
 | `/var/lib/opencode-users` | User account records (password hashes, lock status) | High |
 | `/home/opencoder/.config/opencode` | opencode configuration | Medium |
 | `/home/opencoder/.local/state/opencode` | Application state | Medium |
@@ -141,7 +142,10 @@ With Railway's single-volume limitation, mounting
 in the other paths will be reset on each redeploy unless additional
 persistence is configured.
 
-The Docker image declares `VOLUME` directives for all six paths, which
+For the full volume reference, backup instructions, and design rationale, see
+[Persistence and Data Storage](../persistence.md).
+
+The Docker image declares `VOLUME` directives for all seven paths, which
 provides anonymous volume persistence across container **restarts**. However,
 anonymous volumes do **not** survive container **recreation** (which is what
 Railway does on each redeploy). That is why the explicit Railway Volume is
