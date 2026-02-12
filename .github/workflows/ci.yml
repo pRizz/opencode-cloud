@@ -139,31 +139,18 @@ jobs:
       - name: Package opencode-cloud-core
         run: cargo package -p opencode-cloud-core --allow-dirty
 
-      - name: Determine core version and publication status
-        id: core-publication
-        run: |
-          set -euo pipefail
-
-          core_version="$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("packages/core/Cargo.toml").read_text())["package"]["version"])')"
-          echo "core_version=${core_version}" >> "$GITHUB_OUTPUT"
-
-          if ./scripts/check-crate-version-published.sh opencode-cloud-core "${core_version}"; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-          else
-            check_exit=$?
-            if [ "${check_exit}" -eq 1 ]; then
-              echo "published=false" >> "$GITHUB_OUTPUT"
-            else
-              exit "${check_exit}"
-            fi
-          fi
-
-      - name: Package opencode-cloud (PR no-verify archive)
-        if: github.event_name == 'pull_request'
+      # Package the CLI without running cargo's built-in verify, then verify
+      # manually with [patch.crates-io] pointing at the local core crate.
+      #
+      # Why: cargo package --verify resolves opencode-cloud-core from crates.io,
+      # not from the workspace. When core has new exports that aren't published
+      # yet (same version, different content), the verify fails with unresolved
+      # imports. By patching crates.io to use the local core, we verify the CLI
+      # package against the actual workspace code — which is what matters.
+      - name: Package opencode-cloud (no-verify archive)
         run: cargo package -p opencode-cloud --allow-dirty --no-verify
 
-      - name: Verify packaged opencode-cloud against local core (PR)
-        if: github.event_name == 'pull_request'
+      - name: Verify packaged opencode-cloud against local core
         run: |
           set -euo pipefail
 
@@ -192,22 +179,6 @@ jobs:
           EOF
 
           cargo check --manifest-path "${manifest_path}" --config "${config_file}"
-
-      - name: Package opencode-cloud (main push, published core)
-        if: github.event_name == 'push' && steps.core-publication.outputs.published == 'true'
-        run: cargo package -p opencode-cloud --allow-dirty
-
-      - name: Skip opencode-cloud package verify (main push, core unpublished)
-        if: github.event_name == 'push' && steps.core-publication.outputs.published != 'true'
-        run: |
-          echo "Skipping opencode-cloud packaging verify on main push."
-          echo "Reason: opencode-cloud-core ${{ steps.core-publication.outputs.core_version }} is not yet published on crates.io."
-          {
-            echo "## Cargo Package Verify"
-            echo ""
-            echo "Skipped \`cargo package -p opencode-cloud\` on push to main."
-            echo "Reason: dependency \`opencode-cloud-core ${{ steps.core-publication.outputs.core_version }}\` is not yet published on crates.io."
-          } >> "$GITHUB_STEP_SUMMARY"
 
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
