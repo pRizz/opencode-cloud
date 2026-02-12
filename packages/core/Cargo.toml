@@ -1,6 +1,6 @@
 [package]
 name = "opencode-cloud-core"
-version = "25.1.2"
+version = "25.1.3"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
