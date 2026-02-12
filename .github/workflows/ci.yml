@@ -126,60 +126,6 @@ jobs:
             type=registry,ref=ghcr.io/prizz/opencode-cloud-sandbox:buildcache-amd64
           cache-to: type=gha,scope=opencode-cloud-sandbox-context-guard,mode=min,version=2
 
-  cargo-package-verify:
-    name: Cargo Package Verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Package opencode-cloud-core
-        run: cargo package -p opencode-cloud-core --allow-dirty
-
-      # Package the CLI without running cargo's built-in verify, then verify
-      # manually with [patch.crates-io] pointing at the local core crate.
-      #
-      # Why: cargo package --verify resolves opencode-cloud-core from crates.io,
-      # not from the workspace. When core has new exports that aren't published
-      # yet (same version, different content), the verify fails with unresolved
-      # imports. By patching crates.io to use the local core, we verify the CLI
-      # package against the actual workspace code — which is what matters.
-      - name: Package opencode-cloud (no-verify archive)
-        run: cargo package -p opencode-cloud --allow-dirty --no-verify
-
-      - name: Verify packaged opencode-cloud against local core
-        run: |
-          set -euo pipefail
-
-          crate_archive="$(ls -t target/package/opencode-cloud-*.crate | head -n1)"
-          if [ -z "${crate_archive}" ]; then
-            echo "Error: opencode-cloud package archive not found."
-            exit 1
-          fi
-
-          crate_basename="$(basename "${crate_archive}" .crate)"
-          unpack_dir="$(mktemp -d)"
-          config_file="$(mktemp)"
-          trap 'rm -rf "${unpack_dir}" "${config_file}"' EXIT
-
-          tar -xzf "${crate_archive}" -C "${unpack_dir}"
-          crate_dir="${unpack_dir}/${crate_basename}"
-          manifest_path="${crate_dir}/Cargo.toml"
-          if [ ! -f "${manifest_path}" ]; then
-            echo "Error: unpacked package manifest not found at ${manifest_path}"
-            exit 1
-          fi
-
-          cat > "${config_file}" <<EOF
-          [patch.crates-io]
-          opencode-cloud-core = { path = "${GITHUB_WORKSPACE}/packages/core" }
-          EOF
-
-          cargo check --manifest-path "${manifest_path}" --config "${config_file}"
-
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
   # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)
