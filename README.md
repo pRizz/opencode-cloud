@@ -20,7 +20,7 @@
 
 A production-ready toolkit for deploying and managing our [opencode fork](https://github.com/pRizz/opencode) (forked from [anomalyco/opencode](https://github.com/anomalyco/opencode)) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
-This fork adds **passkey-first authentication** (WebAuthn/FIDO2), two-factor authentication, and enterprise security features for cloud deployment.
+This fork adds **passkey-first authentication** (WebAuthn/FIDO2), TOTP authentication, and enterprise security features for cloud deployment.
 
 ## Quick Deploy (Docker)
 
@@ -149,7 +149,7 @@ Docs: `docs/deploy/digitalocean-droplet.md`
 ## Features
 
 - **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
-- **Passkey-first authentication** - WebAuthn/FIDO2 passkeys as the primary login method, with username/password and TOTP 2FA as fallback options
+- **Passkey-first authentication** - WebAuthn/FIDO2 passkeys as the primary login method, with username/password and TOTP authentication as fallback options
 - **Persistent environment** - Your projects, settings, and shell history persist across restarts
 - **Cross-platform CLI** (`opencode-cloud` / `occ`) - Works on Linux and macOS
 - **Service lifecycle commands** - start, stop, restart, status, logs
@@ -448,7 +448,7 @@ occ config show
 
 ## Authentication
 
-opencode-cloud uses **passkey-first authentication** — WebAuthn/FIDO2 passkeys are the primary login method, providing phishing-resistant, passwordless sign-in. Username/password (via PAM) and TOTP two-factor authentication are available as fallback options.
+opencode-cloud uses **passkey-first authentication** — WebAuthn/FIDO2 passkeys are the primary login method, providing phishing-resistant, passwordless sign-in. Username/password (via PAM) and TOTP authentication are available as fallback options.
 
 Security details: `docs/security/passkey-registration.md`
 
@@ -470,7 +470,7 @@ Admin path:
 Login UX:
 - **Passkey sign-in is front and center** — the login page leads with WebAuthn for fast, phishing-resistant authentication.
 - Username/password sign-in remains available as a fallback.
-- TOTP two-factor authentication can be enabled per-user from the session menu after login.
+- TOTP authentication can be enabled per-user from the session menu after login.
 
 ### Creating Users
 
