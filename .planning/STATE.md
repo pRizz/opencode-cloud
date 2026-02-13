@@ -250,7 +250,7 @@ Recent decisions affecting current work:
 - Phase 34 added: Disable Cockpit user-facing surface (hide UI/CLI/docs, keep code)
 - Phase 35 added: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
 - Phase 35 completed: update cli self-update flow and docs
-- Phase 36 added: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades
+- Phase 36 added: Investigate and persist the TOTP setup file (~/.google_authenticator) across container upgrades
 - Phase 37 added: extract the "/usr/local/bin/opencode-cloud-setup.sh" content from infra/aws/cloudformation/opencode-cloud-quick.yaml into a script or multiple scrips in the opencode-cloud repo and use those instead of having the content in infra/aws/cloudformation/opencode-cloud-quick.yaml; we should do the same for infra/aws/cloud-init/opencode-cloud-quick.yaml; we should do this to improve provisioning reusability for other cloud providers
 - Phase 37 completed: extracted shared provisioning scripts and bootstrapped AWS templates
 

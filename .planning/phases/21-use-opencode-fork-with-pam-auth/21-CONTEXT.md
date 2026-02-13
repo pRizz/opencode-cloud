@@ -162,7 +162,7 @@ Target state:
 - **File**: `packages/opencode-broker/service/opencode.pam`
 - **Install location**: `/etc/pam.d/opencode`
 - **Contents**: Standard UNIX auth (`pam_unix.so`) for auth and account
-- **Optional**: 2FA support via `pam_google_authenticator.so` (deferred for now)
+- **Optional**: TOTP support via `pam_google_authenticator.so` (deferred for now)
 
 ### opencode Configuration
 - **Config file**: `~/.config/opencode/opencode.json` or similar

@@ -147,7 +147,7 @@ None. All code follows expected patterns:
 **PAM configuration (lines 465-479):**
 - ✓ Creates /etc/pam.d/opencode
 - ✓ Contains pam_unix.so for auth and account
-- ✓ Includes commented 2FA option
+- ✓ Includes commented TOTP option
 - ✓ Sets 644 permissions
 - ✓ Verifies file creation
 
