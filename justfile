@@ -212,9 +212,10 @@ build-docker-no-cache:
     @rm -f Dockerfile.build
     @echo "✓ Docker image built (no cache): opencode-cloud-sandbox:dev"
 
-# Verify Docker build stages (builds opencode-build stage only, faster than full build)
+# Verify Dockerfile runtime config assets and COPY paths.
+# Uses runtime-config-check stage to avoid rebuilding full opencode artifacts.
 check-docker:
-    @echo "Checking Dockerfile syntax and build stages..."
+    @echo "Checking Dockerfile runtime config stage..."
     @builder="opencode-cloud-precommit"; \
         cp packages/core/src/docker/Dockerfile Dockerfile.build; \
         cleanup() { \
