@@ -132,6 +132,6 @@ Workflow extracts version from git tag (strips `release/v` prefix).
 
 Use Docker API to read labels from local image:
 ```rust
-let inspect = docker.inspect_image("opencode-cloud:latest").await?;
+let inspect = docker.inspect_image("prizz/opencode-cloud-sandbox:latest").await?;
 let version = inspect.config.labels.get("org.opencode-cloud.version");
 ```

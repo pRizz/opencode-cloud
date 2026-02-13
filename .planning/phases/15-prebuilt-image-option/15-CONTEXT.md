@@ -53,7 +53,7 @@ Give users the choice between pulling a prebuilt Docker image (fast, ~2 min) or 
 - If user declines update: warn once per terminal session, then silent. Include instruction for how to update later.
 - For dev builds (no prebuilt available): default to latest prebuilt image version
 - Always warn when using mismatched versions (e.g., "Using prebuilt v1.0.12 (CLI is v1.0.13-dev)")
-- `occ status` shows image source: "Image: v1.0.12 (prebuilt from ghcr.io)" or "Image: v1.0.12 (built from source)"
+- `occ status` shows image source: "Image: v1.0.12 (prebuilt from docker.io)" or "Image: v1.0.12 (built from source)"
 - Store and display which registry the image was pulled from
 
 ### Claude's Discretion

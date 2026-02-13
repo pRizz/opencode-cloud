@@ -187,7 +187,7 @@ pub async fn create_container_with_volumes(
     };
 
     let config = Config {
-        image: Some("ghcr.io/prizz/opencode-cloud:latest"),
+        image: Some("prizz/opencode-cloud-sandbox:latest"),
         host_config: Some(host_config),
         ..Default::default()
     };

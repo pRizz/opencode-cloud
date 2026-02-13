@@ -134,7 +134,7 @@ Currently shows:
 
 **Enhancement needed:** Show image provenance:
 ```
-Image:       v1.0.12 (prebuilt from ghcr.io)
+Image:       v1.0.12 (prebuilt from docker.io)
 ```
 or
 ```

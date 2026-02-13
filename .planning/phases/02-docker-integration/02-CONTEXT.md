@@ -135,9 +135,9 @@ CLI can build/pull custom opencode image and manage container lifecycle. This ph
 
 **Registry & Naming:**
 - Host on: Both GHCR and Docker Hub
-- Image name: `ghcr.io/prizz/opencode-cloud`
-- Registry priority: Both equal, user's choice
-- Fallback: Automatic failover (GHCR → Docker Hub)
+- Image name: `prizz/opencode-cloud-sandbox` (Docker Hub primary), mirror `ghcr.io/prizz/opencode-cloud-sandbox`
+- Registry priority: Docker Hub primary
+- Fallback: Automatic failover (Docker Hub → GHCR)
 
 **Tagging Strategy:**
 - Tags: Semver + major + minor + latest + git SHA
