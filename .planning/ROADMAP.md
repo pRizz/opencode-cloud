@@ -275,11 +275,11 @@ Plans:
 **Goal**: Automated CI/CD for Docker images with version tracking and mismatch detection in CLI
 **Depends on**: Phase 11 (Remote Host Management)
 **Requirements**: None (enhancement)
-**Note**: Combines version tracking with CI/CD automation. GitHub Actions build and push versioned Docker images to GHCR. CLI detects when local image version differs from CLI version and prompts to pull/rebuild. Includes version bump workflows for releases.
+**Note**: Combines version tracking with CI/CD automation. GitHub Actions build and push versioned Docker images to Docker Hub (primary) with GHCR as fallback mirror. CLI detects when local image version differs from CLI version and prompts to pull/rebuild. Includes version bump workflows for releases.
 **Success Criteria** (what must be TRUE):
-  1. GitHub Action workflow builds and pushes Docker images to GHCR on release
+  1. GitHub Action workflow builds and pushes Docker images to Docker Hub on release (and updates GHCR mirror)
   2. Multi-arch images (amd64, arm64) built via buildx
-  3. Images tagged with version (e.g., `ghcr.io/prizz/opencode-cloud:1.0.8`) and `:latest`
+  3. Images tagged with version (e.g., `prizz/opencode-cloud-sandbox:1.0.8`) and `:latest` (with matching GHCR mirror tags)
   4. Docker images include version label (`org.opencode-cloud.version`)
   5. On `occ start`, CLI detects if image version differs from CLI version
   6. User is prompted to pull new image when version mismatch detected
@@ -289,7 +289,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [x] 14-01-PLAN.md — GitHub Actions Docker build workflow (buildx multi-arch, GHCR push, version labels)
+- [x] 14-01-PLAN.md — GitHub Actions Docker build workflow (buildx multi-arch, Docker Hub primary + GHCR mirror push, version labels)
 - [x] 14-02-PLAN.md — Version detection in CLI (image version check, mismatch prompt, status display)
 - [x] 14-03-PLAN.md — Version bump workflow (workflow_dispatch, semver calculation, tag creation)
 

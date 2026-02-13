@@ -171,7 +171,7 @@ Recent decisions affecting current work:
 - [11-03]: Host resolution order: explicit --host > default_host from hosts.json > local Docker
 - [11-03]: format_host_message helper ensures consistent [hostname] prefix formatting
 - [11-03]: User subcommands accept DockerClient reference instead of creating own
-- [14-01]: GHCR as primary Docker registry: ghcr.io/prizz/opencode-cloud
+- [14-01]: Docker Hub as primary Docker registry with GHCR fallback mirror: prizz/opencode-cloud-sandbox
 - [14-01]: Version label: org.opencode-cloud.version in Dockerfile
 - [14-01]: Multi-arch via QEMU: Simpler than ARM runners, acceptable for slow image builds
 - [14-01]: VERSION file at /etc/opencode-cloud-version for runtime access
@@ -180,7 +180,7 @@ Recent decisions affecting current work:
 - [14-02]: Prompt offers rebuild (not pull): Pull option deferred to Phase 15 (Prebuilt Image)
 - [14-03]: Two-tag strategy: Both v* and release/v* for backward compatibility
 - [14-03]: GitHub Actions bot for commits: Clear audit trail, avoids CI loops
-- [15-01]: Image source defaults to "prebuilt": Most users want fast setup; pull from GHCR is faster than local build
+- [15-01]: Image source defaults to "prebuilt": Most users want fast setup; pulling prebuilt (Docker Hub primary, GHCR fallback) is faster than local build
 - [15-01]: Update check defaults to "always": Security patches should be discovered automatically
 - [15-01]: State file location in data directory: Image state is operational/ephemeral (which image is current)
 - [15-01]: ISO8601 timestamps via chrono::Utc: Standardized format, timezone-aware, sortable
