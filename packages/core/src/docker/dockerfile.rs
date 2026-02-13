@@ -23,8 +23,8 @@ pub const DOCKERFILE: &str = include_str!("Dockerfile");
 // - Tag: Version identifier (e.g., latest, v1.0.0). Defaults to "latest" if omitted.
 //
 // Examples:
-//   ghcr.io/prizz/opencode-cloud-sandbox:latest  - GitHub Container Registry
 //   prizz/opencode-cloud-sandbox:latest          - Docker Hub (registry omitted)
+//   ghcr.io/prizz/opencode-cloud-sandbox:latest  - GitHub Container Registry
 //   gcr.io/my-project/myapp:v1.0                 - Google Container Registry
 //
 // We publish to both Docker Hub (primary runtime tag) and GHCR (fallback pull source)

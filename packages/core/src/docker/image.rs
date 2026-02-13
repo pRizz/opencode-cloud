@@ -63,10 +63,10 @@ fn profile_scoped_image_ids(images: &[bollard::models::ImageSummary]) -> Option<
     let names = active_resource_names();
     let instance_id = names.instance_id.as_deref()?;
     let expected_tags = [
-        format!("{IMAGE_NAME_GHCR}:{}", names.image_tag),
         format!("{IMAGE_NAME_DOCKERHUB}:{}", names.image_tag),
-        format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag),
+        format!("{IMAGE_NAME_GHCR}:{}", names.image_tag),
         format!("{IMAGE_NAME_DOCKERHUB}:{}", names.previous_image_tag),
+        format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag),
     ];
 
     // In isolated mode, avoid broad "contains name fragment" matching and only remove
