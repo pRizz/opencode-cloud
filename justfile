@@ -215,9 +215,12 @@ build-docker-no-cache:
 # Verify Docker build stages (builds opencode-build stage only, faster than full build)
 check-docker:
     @echo "Checking Dockerfile syntax and build stages..."
-    @cp packages/core/src/docker/Dockerfile Dockerfile.build
     @builder="opencode-cloud-precommit-$$"; \
-        cleanup() { docker buildx rm "$builder" >/dev/null 2>&1 || true; }; \
+        cp packages/core/src/docker/Dockerfile Dockerfile.build; \
+        cleanup() { \
+            rm -f Dockerfile.build; \
+            docker buildx rm "$builder" >/dev/null 2>&1 || true; \
+        }; \
         trap cleanup EXIT; \
         docker buildx create --name "$builder" --driver docker-container >/dev/null; \
         docker buildx inspect "$builder" --bootstrap >/dev/null; \
@@ -226,7 +229,6 @@ check-docker:
             -f Dockerfile.build \
             --target runtime-config-check \
             .
-    @rm -f Dockerfile.build
     @echo "✓ Dockerfile check passed"
 
 # Run all tests (fast)
