@@ -757,7 +757,7 @@ fn append_buildkit_logs(
 
 /// Pull the opencode image from registry with automatic fallback
 ///
-/// Tries GHCR first, falls back to Docker Hub on failure.
+/// Tries Docker Hub first, falls back to GHCR on failure.
 /// Returns the full image:tag string on success.
 pub async fn pull_image(
     client: &DockerClient,
@@ -776,17 +776,17 @@ pub async fn pull_image(
 
     let primary_tag_name = format!("{IMAGE_NAME_PRIMARY}:{resolved_tag}");
 
-    // Try GHCR first
+    // Try Docker Hub first
     debug!(
-        "Attempting to pull from GHCR: {}:{}",
-        IMAGE_NAME_GHCR, registry_pull_tag
+        "Attempting to pull from Docker Hub: {}:{}",
+        IMAGE_NAME_DOCKERHUB, registry_pull_tag
     );
-    let ghcr_err =
-        match pull_from_registry(client, IMAGE_NAME_GHCR, registry_pull_tag, progress).await {
+    let dockerhub_err =
+        match pull_from_registry(client, IMAGE_NAME_DOCKERHUB, registry_pull_tag, progress).await {
             Ok(()) => {
                 retag_local_image(
                     client,
-                    &format!("{IMAGE_NAME_GHCR}:{registry_pull_tag}"),
+                    &format!("{IMAGE_NAME_DOCKERHUB}:{registry_pull_tag}"),
                     IMAGE_NAME_PRIMARY,
                     if isolated_default_tag {
                         &resolved_tag
@@ -801,21 +801,21 @@ pub async fn pull_image(
         };
 
     warn!(
-        "GHCR pull failed: {}. Trying Docker Hub fallback...",
-        ghcr_err
+        "Docker Hub pull failed: {}. Trying GHCR fallback...",
+        dockerhub_err
     );
 
-    // Try Docker Hub as fallback
+    // Try GHCR as fallback
     debug!(
-        "Attempting to pull from Docker Hub: {}:{}",
-        IMAGE_NAME_DOCKERHUB, registry_pull_tag
+        "Attempting to pull from GHCR: {}:{}",
+        IMAGE_NAME_GHCR, registry_pull_tag
     );
-    match pull_from_registry(client, IMAGE_NAME_DOCKERHUB, registry_pull_tag, progress).await {
+    match pull_from_registry(client, IMAGE_NAME_GHCR, registry_pull_tag, progress).await {
         Ok(()) => {
             if isolated_default_tag {
                 retag_local_image(
                     client,
-                    &format!("{IMAGE_NAME_DOCKERHUB}:{registry_pull_tag}"),
+                    &format!("{IMAGE_NAME_GHCR}:{registry_pull_tag}"),
                     IMAGE_NAME_PRIMARY,
                     &resolved_tag,
                 )
@@ -823,8 +823,8 @@ pub async fn pull_image(
             }
             Ok(primary_tag_name)
         }
-        Err(dockerhub_err) => Err(DockerError::Pull(format!(
-            "Failed to pull from both registries. GHCR: {ghcr_err}. Docker Hub: {dockerhub_err}"
+        Err(ghcr_err) => Err(DockerError::Pull(format!(
+            "Failed to pull from both registries. Docker Hub: {dockerhub_err}. GHCR: {ghcr_err}"
         ))),
     }
 }
