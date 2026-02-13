@@ -178,7 +178,7 @@ The image is published to both registries (Docker Hub is the primary distributio
 | Registry | Image |
 |----------|-------|
 | Docker Hub | [`prizz/opencode-cloud-sandbox`](https://hub.docker.com/r/prizz/opencode-cloud-sandbox) |
-| GitHub Container Registry | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
+| GitHub Container Registry (fallback mirror) | [`ghcr.io/prizz/opencode-cloud-sandbox`](https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox) |
 
 Pull commands:
 
@@ -187,7 +187,7 @@ Docker Hub:
 docker pull prizz/opencode-cloud-sandbox:latest
 ```
 
-GitHub Container Registry:
+GitHub Container Registry (fallback mirror):
 ```bash
 docker pull ghcr.io/prizz/opencode-cloud-sandbox:latest
 ```
