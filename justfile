@@ -216,10 +216,10 @@ build-docker-no-cache:
 check-docker:
     @echo "Checking Dockerfile syntax and build stages..."
     @cp packages/core/src/docker/Dockerfile Dockerfile.build
-    @builder=opencode-cloud-precommit; \
-        if ! docker buildx inspect "$builder" >/dev/null 2>&1; then \
-            docker buildx create --name "$builder" --driver docker-container >/dev/null; \
-        fi; \
+    @builder="opencode-cloud-precommit-$$"; \
+        cleanup() { docker buildx rm "$builder" >/dev/null 2>&1 || true; }; \
+        trap cleanup EXIT; \
+        docker buildx create --name "$builder" --driver docker-container >/dev/null; \
         docker buildx inspect "$builder" --bootstrap >/dev/null; \
         docker buildx build \
             --builder "$builder" \
