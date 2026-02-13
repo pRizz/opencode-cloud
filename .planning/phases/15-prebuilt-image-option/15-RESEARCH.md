@@ -78,7 +78,7 @@ pub async fn pull_image(client, tag, progress) -> Result<String>
 **Pull retry behavior:**
 - Manual retry loop (3 attempts max)
 - Exponential backoff: 1s, 2s, 4s
-- GHCR first, Docker Hub fallback
+- Docker Hub first, GHCR fallback
 
 **Key insight:** `pull_image()` already handles both registries and returns the full image name with registry prefix. This can be used to track provenance.
 

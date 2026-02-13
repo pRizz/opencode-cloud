@@ -23,7 +23,7 @@ score: 10/10 must-haves verified
 | 3 | Dockerfile content is accessible programmatically | VERIFIED | `dockerfile.rs` has `DOCKERFILE` constant via `include_str!("Dockerfile")` |
 | 4 | User sees real-time progress when pulling Docker image | VERIFIED | `image.rs:do_pull()` calls `progress.update_layer()` and `progress.update_spinner()` |
 | 5 | User sees real-time progress when building Docker image | VERIFIED | `image.rs:build_image()` calls `progress.add_spinner()` and `progress.update_spinner()` |
-| 6 | Pull automatically falls back from GHCR to Docker Hub on failure | VERIFIED | `image.rs:pull_image()` tries `IMAGE_NAME_GHCR`, then `IMAGE_NAME_DOCKERHUB` on error |
+| 6 | Pull automatically falls back from Docker Hub to GHCR on failure | VERIFIED | `image.rs:pull_image()` tries `IMAGE_NAME_DOCKERHUB`, then `IMAGE_NAME_GHCR` on error |
 | 7 | Three named Docker volumes exist for persistence (session, projects, config) | VERIFIED | `volume.rs` has `VOLUME_SESSION`, `VOLUME_PROJECTS`, `VOLUME_CONFIG` constants |
 | 8 | Container mounts all three volumes at correct paths | VERIFIED | `container.rs:create_container()` creates mounts with all three volumes |
 | 9 | Container can be started, stopped, and removed programmatically | VERIFIED | `container.rs` exports `start_container`, `stop_container`, `remove_container` |
@@ -122,7 +122,7 @@ All must-haves verified. Phase 2 goal achieved:
 
 2. **Image Operations (02-02):** Complete
    - Image build from embedded Dockerfile with streaming progress
-   - Image pull with GHCR to Docker Hub fallback
+   - Image pull with Docker Hub to GHCR fallback
    - Per-layer progress bars for downloads
 
 3. **Volume and Container Lifecycle (02-03):** Complete
