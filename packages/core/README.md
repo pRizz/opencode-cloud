@@ -17,7 +17,7 @@
 
 A production-ready toolkit for deploying and managing our [opencode fork](https://github.com/pRizz/opencode) (forked from [anomalyco/opencode](https://github.com/anomalyco/opencode)) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
-This fork adds **passkey-first authentication** (WebAuthn/FIDO2), two-factor authentication, and enterprise security features for cloud deployment.
+This fork adds **passkey-first authentication** (WebAuthn/FIDO2), TOTP authentication, and enterprise security features for cloud deployment.
 
 ## Quick Deploy (Docker)
 
