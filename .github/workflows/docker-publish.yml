@@ -373,15 +373,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**GHCR (GitHub Container Registry):**" >> $GITHUB_STEP_SUMMARY
-          echo "- https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ needs.prepare.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.IMAGE_NAME_GHCR }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Docker Hub:**" >> $GITHUB_STEP_SUMMARY
+          echo "**Docker Hub (primary):**" >> $GITHUB_STEP_SUMMARY
           echo "- https://hub.docker.com/r/${{ vars.DOCKERHUB_USERNAME }}/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:${{ needs.prepare.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.IMAGE_NAME_DOCKERHUB }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**GHCR mirror (fallback):**" >> $GITHUB_STEP_SUMMARY
+          echo "- https://github.com/pRizz/opencode-cloud/pkgs/container/opencode-cloud-sandbox" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_GHCR }}:${{ needs.prepare.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.IMAGE_NAME_GHCR }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

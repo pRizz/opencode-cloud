@@ -20,7 +20,7 @@ concurrency:
 
 permissions:
   contents: write    # Required for pushing commits and tags
-  packages: write    # Required for GHCR push (docker-publish)
+  packages: write    # Required for GHCR mirror push (docker-publish)
 
 jobs:
   bump-version:
@@ -127,10 +127,10 @@ jobs:
             # Via cargo (recommended)
             cargo install opencode-cloud
 
-            # Via Docker (sandbox image)
-            docker pull ghcr.io/prizz/opencode-cloud-sandbox:${{ steps.new.outputs.version }}
-            # Or from Docker Hub:
+            # Via Docker (sandbox image, Docker Hub primary)
             docker pull prizz/opencode-cloud-sandbox:${{ steps.new.outputs.version }}
+            # Fallback mirror:
+            docker pull ghcr.io/prizz/opencode-cloud-sandbox:${{ steps.new.outputs.version }}
             ```
           draft: false
           prerelease: false
