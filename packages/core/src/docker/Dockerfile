@@ -750,6 +750,34 @@ RUN set -eux; \
     sudo rm -rf /tmp/opencode-dist /tmp/opencode-broker-bin
 
 # -----------------------------------------------------------------------------
+# Stage 3: Runtime Config Check
+# -----------------------------------------------------------------------------
+# Lightweight validation stage for local pre-commit Docker checks.
+# Verifies runtime config assets and COPY paths without rebuilding heavy Rust
+# and JS artifacts in later stages.
+FROM base AS runtime-config-check
+
+USER root
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/pam/opencode /etc/pam.d/opencode
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode-broker.service /etc/systemd/system/opencode-broker.service
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode.service /etc/systemd/system/opencode.service
+RUN install -d -o opencoder -g opencoder -m 0750 /home/opencoder/.config/opencode
+COPY --chown=opencoder:opencoder --chmod=0640 packages/core/src/docker/files/opencode.jsonc /home/opencoder/.config/opencode/opencode.jsonc
+RUN install -d -m 0755 /etc/opencode-cloud
+COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode.jsonc /etc/opencode-cloud/opencode.jsonc.default
+COPY --chown=root:root --chmod=0755 packages/core/src/docker/files/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=root:root --chmod=0700 packages/core/src/docker/files/opencode-cloud-bootstrap.sh /usr/local/bin/opencode-cloud-bootstrap
+COPY --chown=root:root --chmod=0755 packages/core/src/docker/files/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN test -f /etc/pam.d/opencode \
+    && test -f /etc/systemd/system/opencode-broker.service \
+    && test -f /etc/systemd/system/opencode.service \
+    && test -f /home/opencoder/.config/opencode/opencode.jsonc \
+    && test -f /etc/opencode-cloud/opencode.jsonc.default \
+    && test -x /usr/local/bin/entrypoint.sh \
+    && test -x /usr/local/bin/opencode-cloud-bootstrap \
+    && test -x /usr/local/bin/healthcheck.sh
+
+# -----------------------------------------------------------------------------
 # Stage 3: Runtime
 # -----------------------------------------------------------------------------
 FROM base AS runtime

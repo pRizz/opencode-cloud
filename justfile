@@ -216,13 +216,17 @@ build-docker-no-cache:
 check-docker:
     @echo "Checking Dockerfile syntax and build stages..."
     @cp packages/core/src/docker/Dockerfile Dockerfile.build
-    DOCKER_BUILDKIT=1 docker build \
-        -f Dockerfile.build \
-        --target opencode-build \
-        -t opencode-cloud-sandbox:check \
-        .
+    @builder=opencode-cloud-precommit; \
+        if ! docker buildx inspect "$builder" >/dev/null 2>&1; then \
+            docker buildx create --name "$builder" --driver docker-container >/dev/null; \
+        fi; \
+        docker buildx inspect "$builder" --bootstrap >/dev/null; \
+        docker buildx build \
+            --builder "$builder" \
+            -f Dockerfile.build \
+            --target runtime-config-check \
+            .
     @rm -f Dockerfile.build
-    @docker rmi opencode-cloud-sandbox:check 2>/dev/null || true
     @echo "✓ Dockerfile check passed"
 
 # Run all tests (fast)
