@@ -217,9 +217,7 @@ build-docker-no-cache:
 check-docker:
     @echo "Checking Dockerfile runtime config stage..."
     @builder="opencode-cloud-precommit"; \
-        cp packages/core/src/docker/Dockerfile Dockerfile.build; \
         cleanup() { \
-            rm -f Dockerfile.build; \
             docker buildx rm -f "$builder" >/dev/null 2>&1 || true; \
         }; \
         trap cleanup EXIT; \
@@ -228,7 +226,7 @@ check-docker:
         docker buildx inspect "$builder" --bootstrap >/dev/null; \
         docker buildx build \
             --builder "$builder" \
-            -f Dockerfile.build \
+            -f packages/core/src/docker/Dockerfile \
             --target runtime-config-check \
             .
     @echo "✓ Dockerfile check passed"
