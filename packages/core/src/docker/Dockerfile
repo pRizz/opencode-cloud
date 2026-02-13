@@ -753,11 +753,26 @@ RUN set -eux; \
 # Stage 3: Runtime Config Check
 # -----------------------------------------------------------------------------
 # Lightweight validation stage for local pre-commit Docker checks.
-# Verifies runtime config assets and COPY paths without rebuilding heavy Rust
-# and JS artifacts in later stages.
-FROM base AS runtime-config-check
+# Verifies runtime config assets and COPY paths without rebuilding base/toolchain
+# layers or heavy Rust/JS artifacts in later stages.
+FROM ubuntu:26.04 AS runtime-config-check
 
 USER root
+RUN set -eux; \
+    if ! getent group opencoder >/dev/null; then \
+        if getent group 1000 >/dev/null; then \
+            groupadd opencoder; \
+        else \
+            groupadd --gid 1000 opencoder; \
+        fi; \
+    fi; \
+    if ! id -u opencoder >/dev/null 2>&1; then \
+        if getent passwd 1000 >/dev/null; then \
+            useradd -m -s /bin/bash --gid opencoder opencoder; \
+        else \
+            useradd -m -s /bin/bash --uid 1000 --gid opencoder opencoder; \
+        fi; \
+    fi
 COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/pam/opencode /etc/pam.d/opencode
 COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode-broker.service /etc/systemd/system/opencode-broker.service
 COPY --chown=root:root --chmod=0644 packages/core/src/docker/files/opencode.service /etc/systemd/system/opencode.service
