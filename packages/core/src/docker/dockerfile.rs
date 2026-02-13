@@ -27,18 +27,22 @@ pub const DOCKERFILE: &str = include_str!("Dockerfile");
 //   prizz/opencode-cloud-sandbox:latest          - Docker Hub (registry omitted)
 //   gcr.io/my-project/myapp:v1.0                 - Google Container Registry
 //
-// We publish to both GHCR (primary) and Docker Hub for maximum accessibility.
+// We publish to both Docker Hub (primary runtime tag) and GHCR (fallback pull source)
+// for maximum accessibility.
 // =============================================================================
 
-/// Docker image name for GitHub Container Registry (primary registry)
+/// Docker image name for Docker Hub (primary runtime image label).
+///
+/// Format: `{dockerhub-username}/{image-name}` (registry prefix omitted for Docker Hub)
+pub const IMAGE_NAME_DOCKERHUB: &str = "prizz/opencode-cloud-sandbox";
+
+/// Docker image name for GitHub Container Registry (fallback pull source).
 ///
 /// Format: `ghcr.io/{github-username}/{image-name}`
 pub const IMAGE_NAME_GHCR: &str = "ghcr.io/prizz/opencode-cloud-sandbox";
 
-/// Docker image name for Docker Hub (secondary registry)
-///
-/// Format: `{dockerhub-username}/{image-name}` (registry prefix omitted for Docker Hub)
-pub const IMAGE_NAME_DOCKERHUB: &str = "prizz/opencode-cloud-sandbox";
+/// Canonical local image repository used for runtime operations.
+pub const IMAGE_NAME_PRIMARY: &str = IMAGE_NAME_DOCKERHUB;
 
 /// Default image tag
 pub const IMAGE_TAG_DEFAULT: &str = "latest";

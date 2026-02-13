@@ -42,11 +42,11 @@ pub async fn get_image_version(
 pub async fn get_registry_latest_version(
     client: &DockerClient,
 ) -> Result<Option<String>, DockerError> {
-    match fetch_ghcr_registry_version(client).await {
+    match fetch_dockerhub_registry_version(client).await {
         Ok(version) => Ok(version),
-        Err(ghcr_err) => fetch_dockerhub_registry_version(client).await.map_err(|dockerhub_err| {
+        Err(dockerhub_err) => fetch_ghcr_registry_version(client).await.map_err(|ghcr_err| {
             DockerError::Connection(format!(
-                "Failed to fetch registry version. GHCR: {ghcr_err}. Docker Hub: {dockerhub_err}"
+                "Failed to fetch registry version. Docker Hub: {dockerhub_err}. GHCR: {ghcr_err}"
             ))
         }),
     }

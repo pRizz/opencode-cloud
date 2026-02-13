@@ -6,8 +6,8 @@
 use super::progress::ProgressReporter;
 use super::{
     CONTAINER_NAME, DOCKERFILE, DockerClient, DockerError, ENTRYPOINT_SH, HEALTHCHECK_SH,
-    IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, OPENCODE_CLOUD_BOOTSTRAP_SH,
-    active_resource_names, remap_image_tag,
+    IMAGE_NAME_DOCKERHUB, IMAGE_NAME_GHCR, IMAGE_NAME_PRIMARY, IMAGE_TAG_DEFAULT,
+    OPENCODE_CLOUD_BOOTSTRAP_SH, active_resource_names, remap_image_tag,
 };
 use bollard::moby::buildkit::v1::StatusResponse as BuildkitStatusResponse;
 use bollard::models::BuildInfoAux;
@@ -266,7 +266,7 @@ pub async fn build_image(
     build_args: Option<HashMap<String, String>>,
 ) -> Result<String, DockerError> {
     let tag = effective_image_tag(tag.unwrap_or(IMAGE_TAG_DEFAULT));
-    let full_name = format!("{IMAGE_NAME_GHCR}:{tag}");
+    let full_name = format!("{IMAGE_NAME_PRIMARY}:{tag}");
     debug!("Building image: {} (no_cache: {})", full_name, no_cache);
 
     let build_args = build_args.unwrap_or_default();
@@ -774,6 +774,8 @@ pub async fn pull_image(
         requested_tag
     };
 
+    let primary_tag_name = format!("{IMAGE_NAME_PRIMARY}:{resolved_tag}");
+
     // Try GHCR first
     debug!(
         "Attempting to pull from GHCR: {}:{}",
@@ -782,16 +784,18 @@ pub async fn pull_image(
     let ghcr_err =
         match pull_from_registry(client, IMAGE_NAME_GHCR, registry_pull_tag, progress).await {
             Ok(()) => {
-                if isolated_default_tag {
-                    retag_local_image(
-                        client,
-                        &format!("{IMAGE_NAME_GHCR}:{registry_pull_tag}"),
-                        &resolved_tag,
-                    )
-                    .await?;
-                }
-                let full_name = format!("{IMAGE_NAME_GHCR}:{resolved_tag}");
-                return Ok(full_name);
+                retag_local_image(
+                    client,
+                    &format!("{IMAGE_NAME_GHCR}:{registry_pull_tag}"),
+                    IMAGE_NAME_PRIMARY,
+                    if isolated_default_tag {
+                        &resolved_tag
+                    } else {
+                        registry_pull_tag
+                    },
+                )
+                .await?;
+                return Ok(primary_tag_name);
             }
             Err(e) => e,
         };
@@ -812,13 +816,12 @@ pub async fn pull_image(
                 retag_local_image(
                     client,
                     &format!("{IMAGE_NAME_DOCKERHUB}:{registry_pull_tag}"),
+                    IMAGE_NAME_PRIMARY,
                     &resolved_tag,
                 )
                 .await?;
-                return Ok(format!("{IMAGE_NAME_GHCR}:{resolved_tag}"));
             }
-            let full_name = format!("{IMAGE_NAME_DOCKERHUB}:{resolved_tag}");
-            Ok(full_name)
+            Ok(primary_tag_name)
         }
         Err(dockerhub_err) => Err(DockerError::Pull(format!(
             "Failed to pull from both registries. GHCR: {ghcr_err}. Docker Hub: {dockerhub_err}"
@@ -829,10 +832,11 @@ pub async fn pull_image(
 async fn retag_local_image(
     client: &DockerClient,
     source_image: &str,
+    target_repo: &str,
     target_tag: &str,
 ) -> Result<(), DockerError> {
     let options = TagImageOptions {
-        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        repo: Some(target_repo.to_string()),
         tag: Some(target_tag.to_string()),
     };
     client
@@ -841,7 +845,7 @@ async fn retag_local_image(
         .await
         .map_err(|e| {
             DockerError::Pull(format!(
-                "Failed to retag pulled image {source_image} as {IMAGE_NAME_GHCR}:{target_tag}: {e}"
+                "Failed to retag pulled image {source_image} as {target_repo}:{target_tag}: {e}"
             ))
         })?;
     Ok(())

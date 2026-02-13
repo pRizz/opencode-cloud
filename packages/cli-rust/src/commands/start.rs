@@ -24,8 +24,8 @@ use opencode_cloud_core::bollard::query_parameters::LogsOptions;
 use opencode_cloud_core::config::save_config;
 use opencode_cloud_core::docker::{
     CONTAINER_NAME, DEFAULT_STOP_TIMEOUT_SECS, DOCKERFILE, DockerClient, DockerError,
-    IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState, ParsedMount, ProgressReporter,
-    active_resource_names, build_image, container_exists, container_is_running,
+    IMAGE_NAME_GHCR, IMAGE_NAME_PRIMARY, IMAGE_TAG_DEFAULT, ImageState, ParsedMount,
+    ProgressReporter, active_resource_names, build_image, container_exists, container_is_running,
     docker_supports_systemd, get_cli_version, get_container_bind_mounts, get_container_ports,
     get_image_version, image_exists, pull_image, save_state, setup_and_start, versions_compatible,
 };
@@ -278,14 +278,24 @@ async fn check_version_compatibility(
         return Ok(VersionMismatchAction::Continue);
     }
 
-    if !image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await? {
+    if !image_exists_with_legacy_fallback(client, IMAGE_TAG_DEFAULT).await? {
         return Ok(VersionMismatchAction::Continue);
     }
 
     let cli_version = get_cli_version();
-    let image_tag = format!("{IMAGE_NAME_GHCR}:{}", active_resource_names().image_tag);
+    let names = active_resource_names();
+    let primary_image_tag = format!("{IMAGE_NAME_PRIMARY}:{}", names.image_tag);
+    let legacy_image_tag = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
+    let maybe_image_version = get_image_version(client, &primary_image_tag)
+        .await
+        .ok()
+        .flatten()
+        .or(get_image_version(client, &legacy_image_tag)
+            .await
+            .ok()
+            .flatten());
 
-    let Ok(Some(image_version)) = get_image_version(client, &image_tag).await else {
+    let Some(image_version) = maybe_image_version else {
         return Ok(VersionMismatchAction::Continue);
     };
 
@@ -613,6 +623,22 @@ fn active_container_name() -> String {
     opencode_cloud_core::docker::active_resource_names().container_name
 }
 
+async fn image_exists_with_legacy_fallback(client: &DockerClient, tag: &str) -> Result<bool> {
+    if image_exists(client, IMAGE_NAME_PRIMARY, tag).await? {
+        return Ok(true);
+    }
+    image_exists(client, IMAGE_NAME_GHCR, tag)
+        .await
+        .map_err(Into::into)
+}
+
+fn should_offer_start_after_local_rebuild(args: &StartArgs, quiet: bool) -> bool {
+    !quiet
+        && !args.yes
+        && args.local_opencode_submodule
+        && (args.cached_rebuild_sandbox_image || args.full_rebuild_sandbox_image)
+}
+
 /// Display network exposure warning
 fn display_network_exposure_warning(bind_addr: &str) {
     eprintln!();
@@ -791,7 +817,8 @@ pub async fn cmd_start(
         recreate_container = rebuild;
     }
 
-    let image_already_exists = image_exists(&client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT).await?;
+    let image_already_exists =
+        image_exists_with_legacy_fallback(&client, IMAGE_TAG_DEFAULT).await?;
 
     // Handle rebuild: remove existing container so a new one is created from the new image
     if recreate_container {
@@ -849,6 +876,27 @@ pub async fn cmd_start(
             args.local_opencode_submodule,
         )
         .await?;
+    }
+
+    if needs_image && should_offer_start_after_local_rebuild(args, quiet) {
+        let start_now = dialoguer::Confirm::new()
+            .with_prompt("Local sandbox rebuild complete. Start the service now?")
+            .default(true)
+            .interact()?;
+        if !start_now {
+            println!();
+            println!(
+                "{}",
+                style("Sandbox image rebuilt from local packages/opencode checkout.").green()
+            );
+            println!(
+                "{} {}",
+                style("Start later with:").dim(),
+                style("occ start").cyan()
+            );
+            println!();
+            return Ok(());
+        }
     }
 
     let env_vars = std::env::var("OPENCODE_CLOUD_ENV")
@@ -1225,7 +1273,7 @@ fn prompt_image_source_choice(
     println!("Choose how to get the opencode-cloud Docker image:");
     println!();
     println!("  {} Pull prebuilt image (~2 min)", style("[1]").bold());
-    println!("      Fast download from GitHub Container Registry");
+    println!("      Fast download from Docker Hub (with GHCR fallback)");
     println!("      Published automatically, verified builds");
     println!();
     println!("  {} Build from source (30-60 min)", style("[2]").bold());
@@ -1779,6 +1827,37 @@ mod tests {
             ..Default::default()
         };
         validate_local_opencode_submodule_args(&args).expect("full rebuild should be accepted");
+    }
+
+    #[test]
+    fn should_offer_start_after_local_rebuild_requires_local_rebuild_flags() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            cached_rebuild_sandbox_image: true,
+            ..Default::default()
+        };
+        assert!(should_offer_start_after_local_rebuild(&args, false));
+    }
+
+    #[test]
+    fn should_offer_start_after_local_rebuild_skips_when_quiet() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            cached_rebuild_sandbox_image: true,
+            ..Default::default()
+        };
+        assert!(!should_offer_start_after_local_rebuild(&args, true));
+    }
+
+    #[test]
+    fn should_offer_start_after_local_rebuild_skips_when_yes_flag_set() {
+        let args = StartArgs {
+            local_opencode_submodule: true,
+            cached_rebuild_sandbox_image: true,
+            yes: true,
+            ..Default::default()
+        };
+        assert!(!should_offer_start_after_local_rebuild(&args, false));
     }
 
     #[test]

@@ -448,7 +448,7 @@ Admin path:
 Login UX:
 - Passkey sign-in is the primary option on the login page.
 - Username/password sign-in remains available as fallback.
-- 2FA setup/management is available from the upper-right session menu after login.
+- TOTP setup/management is available from the upper-right session menu after login.
 
 ### Creating Users
 
