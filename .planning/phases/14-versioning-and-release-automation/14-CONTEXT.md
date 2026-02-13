@@ -6,7 +6,7 @@ This phase combines version tracking in the CLI with CI/CD automation for Docker
 
 ## Goals
 
-1. **GitHub Actions for Docker image builds** - Automated builds on release, multi-arch (amd64, arm64) via buildx, push to GHCR
+1. **GitHub Actions for Docker image builds** - Automated builds on release, multi-arch (amd64, arm64) via buildx, push to Docker Hub (primary) with GHCR mirror fallback
 2. **Version detection in CLI** - Detect CLI/image version mismatch, prompt user to pull new image
 3. **Version bump workflow** - Automated workflow to bump versions across all files, create git tags
 
@@ -32,11 +32,11 @@ This phase combines version tracking in the CLI with CI/CD automation for Docker
 **Docker image:**
 - Embedded in `packages/core/src/docker/Dockerfile`
 - Has OCI labels but no version label
-- Image name: `opencode-cloud` (local build only, no registry)
+- Image name: `opencode-cloud-sandbox` (local build only in the pre-publish baseline)
 
 ### Missing Capabilities
 
-1. No Docker image publishing to GHCR
+1. No Docker image publishing automation to Docker Hub/GHCR
 2. No version label in Docker image
 3. CLI cannot detect image version
 4. No automated version bump workflow
@@ -44,7 +44,8 @@ This phase combines version tracking in the CLI with CI/CD automation for Docker
 ## Decisions
 
 ### Docker Registry
-- Use GHCR (GitHub Container Registry) at `ghcr.io/prizz/opencode-cloud`
+- Use Docker Hub as primary registry at `prizz/opencode-cloud-sandbox`
+- Keep GHCR mirror/fallback at `ghcr.io/prizz/opencode-cloud-sandbox`
 - Public access for pulling images
 - Automated push on release tags
 
@@ -77,7 +78,7 @@ This phase combines version tracking in the CLI with CI/CD automation for Docker
 - Trigger on release tags (same as publish.yml)
 - Build multi-arch image via buildx (amd64, arm64)
 - Add version label at build time (from git tag)
-- Push to ghcr.io/prizz/opencode-cloud with version tag and :latest
+- Push to Docker Hub (`prizz/opencode-cloud-sandbox`) with version tag and `:latest`, and keep GHCR mirror tags in sync
 
 ### 14-02: Version Detection in CLI
 - Add version label to Dockerfile template (build-time substitution)
@@ -96,9 +97,9 @@ This phase combines version tracking in the CLI with CI/CD automation for Docker
 
 ## Success Criteria
 
-1. GitHub Action workflow builds and pushes Docker images to GHCR on release
+1. GitHub Action workflow builds and pushes Docker images to Docker Hub on release (with GHCR mirror)
 2. Multi-arch images (amd64, arm64) built via buildx
-3. Images tagged with version (e.g., `ghcr.io/prizz/opencode-cloud:1.0.8`) and `:latest`
+3. Images tagged with version (e.g., `prizz/opencode-cloud-sandbox:1.0.8`) and `:latest` (with matching GHCR mirror tags)
 4. Docker images include version label (`org.opencode-cloud.version`)
 5. On `occ start`, CLI detects if image version differs from CLI version
 6. User is prompted to pull new image when version mismatch detected

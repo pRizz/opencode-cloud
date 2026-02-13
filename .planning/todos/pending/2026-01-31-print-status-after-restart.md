@@ -14,7 +14,7 @@ After a successful restart, users do not see the same status output that the sta
 
 After restart succeeds, display the same status output as State:       exited
 Container:   opencode-cloud (572be8ab7468)
-Image:       ghcr.io/prizz/opencode-cloud-sandbox:latest
+Image:       prizz/opencode-cloud-sandbox:latest
 CLI:         v3.1.4
 Image src:   built from source
 Health:      unhealthy
