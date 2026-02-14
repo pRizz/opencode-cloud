@@ -171,7 +171,7 @@ Recent decisions affecting current work:
 - [11-03]: Host resolution order: explicit --host > default_host from hosts.json > local Docker
 - [11-03]: format_host_message helper ensures consistent [hostname] prefix formatting
 - [11-03]: User subcommands accept DockerClient reference instead of creating own
-- [14-01]: Docker Hub as primary Docker registry with GHCR fallback mirror: prizz/opencode-cloud-sandbox
+- [14-01]: GHCR as primary Docker registry: ghcr.io/prizz/opencode-cloud
 - [14-01]: Version label: org.opencode-cloud.version in Dockerfile
 - [14-01]: Multi-arch via QEMU: Simpler than ARM runners, acceptable for slow image builds
 - [14-01]: VERSION file at /etc/opencode-cloud-version for runtime access
@@ -180,7 +180,7 @@ Recent decisions affecting current work:
 - [14-02]: Prompt offers rebuild (not pull): Pull option deferred to Phase 15 (Prebuilt Image)
 - [14-03]: Two-tag strategy: Both v* and release/v* for backward compatibility
 - [14-03]: GitHub Actions bot for commits: Clear audit trail, avoids CI loops
-- [15-01]: Image source defaults to "prebuilt": Most users want fast setup; pulling prebuilt (Docker Hub primary, GHCR fallback) is faster than local build
+- [15-01]: Image source defaults to "prebuilt": Most users want fast setup; pull from GHCR is faster than local build
 - [15-01]: Update check defaults to "always": Security patches should be discovered automatically
 - [15-01]: State file location in data directory: Image state is operational/ephemeral (which image is current)
 - [15-01]: ISO8601 timestamps via chrono::Utc: Standardized format, timezone-aware, sortable
@@ -250,7 +250,7 @@ Recent decisions affecting current work:
 - Phase 34 added: Disable Cockpit user-facing surface (hide UI/CLI/docs, keep code)
 - Phase 35 added: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary
 - Phase 35 completed: update cli self-update flow and docs
-- Phase 36 added: Investigate and persist the TOTP setup file (~/.google_authenticator) across container upgrades
+- Phase 36 added: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades
 - Phase 37 added: extract the "/usr/local/bin/opencode-cloud-setup.sh" content from infra/aws/cloudformation/opencode-cloud-quick.yaml into a script or multiple scrips in the opencode-cloud repo and use those instead of having the content in infra/aws/cloudformation/opencode-cloud-quick.yaml; we should do the same for infra/aws/cloud-init/opencode-cloud-quick.yaml; we should do this to improve provisioning reusability for other cloud providers
 - Phase 37 completed: extracted shared provisioning scripts and bootstrapped AWS templates
 

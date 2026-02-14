@@ -41,7 +41,7 @@ metrics:
 
 - **opencode-broker build:** Added section to clone fork, build Rust broker binary from `packages/opencode-broker`, install to `/usr/local/bin/opencode-broker` with setuid permissions (4755) for PAM access.
 
-- **PAM configuration:** Created `/etc/pam.d/opencode` with standard UNIX authentication (`pam_unix.so`) for both auth and account modules. Includes commented TOTP option for future use.
+- **PAM configuration:** Created `/etc/pam.d/opencode` with standard UNIX authentication (`pam_unix.so`) for both auth and account modules. Includes commented 2FA option for future use.
 
 - **opencode-broker.service:** Created systemd unit file with Type=notify, security hardening settings, RuntimeDirectory for socket creation, and enabled via symlink.
 
@@ -62,6 +62,6 @@ metrics:
 
 - Bun is installed inline during opencode build (not pre-installed in Dockerfile)
 - Broker build runs as root to set setuid permissions, then switches back to opencode user
-- PAM config uses standard UNIX authentication; TOTP support is commented for future use
+- PAM config uses standard UNIX authentication; 2FA support is commented for future use
 - opencode.json config is created during build to ensure auth is enabled by default
 - Both services are enabled via symlinks (systemctl doesn't work during Docker build)

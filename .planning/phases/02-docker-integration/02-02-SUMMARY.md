@@ -10,7 +10,7 @@ requires:
     provides: DockerClient wrapper, DockerError types, embedded DOCKERFILE
 provides:
   - Image build from embedded Dockerfile with streaming progress
-  - Image pull with Docker Hub to GHCR fallback
+  - Image pull with GHCR to Docker Hub fallback
   - Per-layer progress bars for downloads
   - image_exists check for local cache
 affects: [02-03-container-lifecycle, 03-cloud-connectivity]
@@ -36,7 +36,7 @@ key-decisions:
 
 patterns-established:
   - "ProgressReporter pattern: shared progress manager with HashMap of bars/spinners"
-  - "Registry fallback pattern: try Docker Hub first, GHCR as fallback mirror"
+  - "Registry fallback pattern: try GHCR first, Docker Hub as fallback"
   - "Build context pattern: create tar.gz from embedded DOCKERFILE"
 
 # Metrics
@@ -46,7 +46,7 @@ completed: 2026-01-19
 
 # Phase 2 Plan 2: Image Operations Summary
 
-**Docker image build from embedded Dockerfile and pull with Docker Hub/GHCR fallback, using indicatif progress bars for real-time layer-by-layer feedback**
+**Docker image build from embedded Dockerfile and pull with GHCR/Docker Hub fallback, using indicatif progress bars for real-time layer-by-layer feedback**
 
 ## Performance
 
@@ -60,7 +60,7 @@ completed: 2026-01-19
 
 - ProgressReporter with multi-layer download tracking and build spinners
 - Image build using embedded DOCKERFILE via tar.gz context
-- Image pull with automatic Docker Hub to GHCR fallback
+- Image pull with automatic GHCR to Docker Hub fallback
 - Retry logic with exponential backoff for transient failures
 
 ## Task Commits

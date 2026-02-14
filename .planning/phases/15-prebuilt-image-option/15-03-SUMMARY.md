@@ -57,7 +57,7 @@ completed: 2026-01-24
 ## Accomplishments
 - Setup wizard asks user whether to pull prebuilt image (~2 min) or build from source (30-60 min)
 - Update command branches to build_image or pull_image based on config.image_source setting
-- Status command shows "Image src: prebuilt from docker.io" or "Image src: built from source" when state file exists
+- Status command shows "Image src: prebuilt from ghcr.io" or "Image src: built from source" when state file exists
 
 ## Task Commits
 

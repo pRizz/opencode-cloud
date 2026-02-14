@@ -39,7 +39,7 @@ expected: With `image_source=prebuilt` in config, `just run update` should pull 
 result: pass
 
 ### 7. Status shows image provenance
-expected: When image-state.json exists, `just run status` should show "Image src: prebuilt from docker.io" (or "built from source")
+expected: When image-state.json exists, `just run status` should show "Image src: prebuilt from ghcr.io" (or "built from source")
 result: pass
 note: Verified by creating test state file - works correctly when state exists
 

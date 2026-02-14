@@ -337,7 +337,7 @@ User runs: occ config set key value
 
 ### Docker
 
-- Image: `prizz/opencode-cloud-sandbox` (Docker Hub primary, with GHCR mirror fallback). Built via `docker-publish` workflow. Dockerfile lives in `packages/core` and is embedded in the Rust build.
+- Image: `ghcr.io/prizz/opencode-cloud-sandbox`. Built via `docker-publish` workflow. Dockerfile lives in `packages/core` and is embedded in the Rust build.
 
 ---
 

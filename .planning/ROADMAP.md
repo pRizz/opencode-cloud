@@ -47,7 +47,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 33: Investigate and implement a way for users that get created and configured in the container are persisted after we update the container** - Persist container users across updates
 - [ ] **Phase 34: Disable Cockpit User-Facing Surface** - TBD
 - [x] **Phase 35: Can we add a new update subcommand to update the opencode-cloud binary itself? We might need to be careful with respect to how the binary was installed with which package manager and whether it is the rust or npm binary** - Add update CLI subcommand for self-updating opencode-cloud
-- [ ] **Phase 36: Investigate and persist the TOTP setup file (~/.google_authenticator) across container upgrades** - TBD
+- [ ] **Phase 36: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades** - TBD
 - [x] **Phase 37: extract the "/usr/local/bin/opencode-cloud-setup.sh" content from infra/aws/cloudformation/opencode-cloud-quick.yaml into a script or multiple scrips in the opencode-cloud repo and use those instead of having the content in infra/aws/cloudformation/opencode-cloud-quick.yaml; we should do the same for infra/aws/cloud-init/opencode-cloud-quick.yaml; we should do this to improve provisioning reusability for other cloud providers** - Complete
 
 ## Phase Details
@@ -275,11 +275,11 @@ Plans:
 **Goal**: Automated CI/CD for Docker images with version tracking and mismatch detection in CLI
 **Depends on**: Phase 11 (Remote Host Management)
 **Requirements**: None (enhancement)
-**Note**: Combines version tracking with CI/CD automation. GitHub Actions build and push versioned Docker images to Docker Hub (primary) with GHCR as fallback mirror. CLI detects when local image version differs from CLI version and prompts to pull/rebuild. Includes version bump workflows for releases.
+**Note**: Combines version tracking with CI/CD automation. GitHub Actions build and push versioned Docker images to GHCR. CLI detects when local image version differs from CLI version and prompts to pull/rebuild. Includes version bump workflows for releases.
 **Success Criteria** (what must be TRUE):
-  1. GitHub Action workflow builds and pushes Docker images to Docker Hub on release (and updates GHCR mirror)
+  1. GitHub Action workflow builds and pushes Docker images to GHCR on release
   2. Multi-arch images (amd64, arm64) built via buildx
-  3. Images tagged with version (e.g., `prizz/opencode-cloud-sandbox:1.0.8`) and `:latest` (with matching GHCR mirror tags)
+  3. Images tagged with version (e.g., `ghcr.io/prizz/opencode-cloud:1.0.8`) and `:latest`
   4. Docker images include version label (`org.opencode-cloud.version`)
   5. On `occ start`, CLI detects if image version differs from CLI version
   6. User is prompted to pull new image when version mismatch detected
@@ -289,7 +289,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [x] 14-01-PLAN.md — GitHub Actions Docker build workflow (buildx multi-arch, Docker Hub primary + GHCR mirror push, version labels)
+- [x] 14-01-PLAN.md — GitHub Actions Docker build workflow (buildx multi-arch, GHCR push, version labels)
 - [x] 14-02-PLAN.md — Version detection in CLI (image version check, mismatch prompt, status display)
 - [x] 14-03-PLAN.md — Version bump workflow (workflow_dispatch, semver calculation, tag creation)
 
@@ -625,7 +625,7 @@ Plans:
 **Details:**
 Implemented `occ update cli` with install detection, restart flow, and docs guidance.
 
-### Phase 36: Investigate and persist the TOTP setup file (~/.google_authenticator) across container upgrades
+### Phase 36: Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades
 
 **Goal:** [To be planned]
 **Depends on:** Phase 35
@@ -691,7 +691,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 33 -> 34 -> 35 -> 36 -> 3
 | 33. Investigate and implement a way for users that get created and configured in the container are persisted after we update the container | 1/1 | Complete | 2026-02-01 |
 | 34. Disable Cockpit User-Facing Surface | 0/0 | Not started | - |
 | 35. Update opencode-cloud self-update | 1/1 | Complete | 2026-01-31 |
-| 36. Investigate and persist the TOTP setup file (~/.google_authenticator) across container upgrades | 0/0 | Not started | - |
+| 36. Investigate and persist the 2FA setup file (~/.google_authenticator) across container upgrades | 0/0 | Not started | - |
 | 37. Extract opencode-cloud setup scripts | 1/1 | Complete | 2026-02-02 |
 
 ---
