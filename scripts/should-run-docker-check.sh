@@ -24,6 +24,7 @@ fi
 
 is_docker_risk_path() {
   case "$1" in
+    justfile) return 0 ;;
     .dockerignore) return 0 ;;
     docker-compose.yml) return 0 ;;
     packages/core/src/docker/*) return 0 ;;

@@ -19,11 +19,12 @@ use dialoguer::{Confirm, MultiSelect};
 use opencode_cloud_core::config::load_config_or_default;
 use opencode_cloud_core::docker::update::tag_current_as_previous;
 use opencode_cloud_core::docker::{
-    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT, ImageState,
-    ProgressReporter, active_resource_names, build_image, container_exists, container_is_running,
-    docker_supports_systemd, exec_command, exec_command_with_status, get_cli_version,
-    get_image_version, get_registry_latest_version, has_previous_image, image_exists, pull_image,
-    rollback_image, save_state, setup_and_start, stop_service,
+    CONTAINER_NAME, DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_NAME_PRIMARY,
+    IMAGE_TAG_DEFAULT, ImageState, ProgressReporter, active_resource_names, build_image,
+    container_exists, container_is_running, docker_supports_systemd, exec_command,
+    exec_command_with_status, get_cli_version, get_image_version, get_registry_latest_version,
+    has_previous_image, image_exists, pull_image, rollback_image, save_state, setup_and_start,
+    stop_service,
 };
 use serde::Deserialize;
 use std::process::Command;
@@ -135,6 +136,24 @@ impl UpdateCandidate {
 
 fn format_value(value: &str) -> String {
     format!("{}", style(value).dim())
+}
+
+async fn resolve_runtime_image_name(client: &DockerClient, tag: &str) -> Option<String> {
+    if image_exists(client, IMAGE_NAME_PRIMARY, tag)
+        .await
+        .ok()
+        .is_some_and(|exists| exists)
+    {
+        return Some(format!("{IMAGE_NAME_PRIMARY}:{tag}"));
+    }
+    if image_exists(client, IMAGE_NAME_GHCR, tag)
+        .await
+        .ok()
+        .is_some_and(|exists| exists)
+    {
+        return Some(format!("{IMAGE_NAME_GHCR}:{tag}"));
+    }
+    None
 }
 
 /// Update the opencode image to the latest version
@@ -411,12 +430,10 @@ async fn build_container_candidate(
     };
 
     let resources = active_resource_names();
-    let image_name = format!("{IMAGE_NAME_GHCR}:{}", resources.image_tag);
-    let image_present = image_exists(client, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT)
-        .await
-        .unwrap_or(false);
-    let current_version = if image_present {
-        get_image_version(client, &image_name).await.ok().flatten()
+    let maybe_image_name = resolve_runtime_image_name(client, &resources.image_tag).await;
+    let image_present = maybe_image_name.is_some();
+    let current_version = if let Some(image_name) = maybe_image_name.as_deref() {
+        get_image_version(client, image_name).await.ok().flatten()
     } else {
         None
     };
@@ -1639,7 +1656,9 @@ async fn handle_update(
     let bind_addr = &config.bind_address;
     let use_build = config.image_source == "build";
     let resources = active_resource_names();
-    let image_name = format!("{IMAGE_NAME_GHCR}:{}", resources.image_tag);
+    let image_name = resolve_runtime_image_name(client, &resources.image_tag)
+        .await
+        .unwrap_or_else(|| format!("{IMAGE_NAME_PRIMARY}:{}", resources.image_tag));
     let maybe_current_image_version = get_image_version(client, &image_name).await.ok().flatten();
     if maybe_current_image_version.as_deref() == Some("dev") {
         if !quiet {
@@ -1799,11 +1818,16 @@ async fn handle_update(
         prebuilt_pulled = true;
         maybe_target_version = get_image_version(client, &full_image).await.ok().flatten();
 
-        let previous_image = format!("{IMAGE_NAME_GHCR}:{}", resources.previous_image_tag);
-        let maybe_previous_version = get_image_version(client, &previous_image)
-            .await
-            .ok()
-            .flatten();
+        let maybe_previous_version = if let Some(previous_image) =
+            resolve_runtime_image_name(client, &resources.previous_image_tag).await
+        {
+            get_image_version(client, &previous_image)
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
         if maybe_previous_version.is_some() && maybe_target_version == maybe_previous_version {
             if !quiet {
                 let check = style("✓").green();
@@ -1890,7 +1914,7 @@ async fn handle_update(
         }
 
         let full_image = if prebuilt_pulled {
-            image_name.clone()
+            format!("{IMAGE_NAME_PRIMARY}:{}", resources.image_tag)
         } else {
             // First, tag current as previous for rollback
             tag_current_as_previous(client)

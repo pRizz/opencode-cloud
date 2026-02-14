@@ -108,7 +108,7 @@ print_welcome_banner() {
     log "  4) Cloud note: external URL may differ based on DNS, reverse proxy/load balancer,"
     log "     ingress, TLS termination, and port mappings."
     log "  5) Sign in with a passkey (recommended) or username/password fallback."
-    log "     2FA setup and management are available from the upper-right session menu."
+    log "     TOTP setup and management are available from the upper-right session menu."
     log "Docs: https://github.com/pRizz/opencode-cloud#readme"
     log "Deploy guides: https://github.com/pRizz/opencode-cloud/tree/main/docs/deploy"
     log "----------------------------------------------------------------------"

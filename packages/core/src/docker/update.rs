@@ -6,7 +6,7 @@
 use super::image::{image_exists, pull_image};
 use super::profile::active_resource_names;
 use super::progress::ProgressReporter;
-use super::{DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_TAG_DEFAULT};
+use super::{DockerClient, DockerError, IMAGE_NAME_GHCR, IMAGE_NAME_PRIMARY, IMAGE_TAG_DEFAULT};
 use bollard::query_parameters::TagImageOptions;
 use tracing::debug;
 
@@ -22,6 +22,32 @@ pub enum UpdateResult {
     AlreadyLatest,
 }
 
+async fn resolve_current_image_repo(
+    client: &DockerClient,
+    names: &super::DockerResourceNames,
+) -> Result<Option<&'static str>, DockerError> {
+    if image_exists(client, IMAGE_NAME_PRIMARY, &names.image_tag).await? {
+        return Ok(Some(IMAGE_NAME_PRIMARY));
+    }
+    if image_exists(client, IMAGE_NAME_GHCR, &names.image_tag).await? {
+        return Ok(Some(IMAGE_NAME_GHCR));
+    }
+    Ok(None)
+}
+
+async fn resolve_previous_image_repo(
+    client: &DockerClient,
+    names: &super::DockerResourceNames,
+) -> Result<Option<&'static str>, DockerError> {
+    if image_exists(client, IMAGE_NAME_PRIMARY, &names.previous_image_tag).await? {
+        return Ok(Some(IMAGE_NAME_PRIMARY));
+    }
+    if image_exists(client, IMAGE_NAME_GHCR, &names.previous_image_tag).await? {
+        return Ok(Some(IMAGE_NAME_GHCR));
+    }
+    Ok(None)
+}
+
 /// Tag the current image as "previous" for rollback support
 ///
 /// This allows users to rollback to the version they had before updating.
@@ -31,23 +57,21 @@ pub enum UpdateResult {
 /// * `client` - Docker client
 pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), DockerError> {
     let names = active_resource_names();
-    let current_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
-    let previous_image = format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag);
+    let Some(current_repo) = resolve_current_image_repo(client, &names).await? else {
+        debug!("Current image not found, skipping backup tag");
+        return Ok(());
+    };
+    let current_image = format!("{current_repo}:{}", names.image_tag);
+    let previous_image = format!("{IMAGE_NAME_PRIMARY}:{}", names.previous_image_tag);
 
     debug!(
         "Tagging current image {} as {}",
         current_image, previous_image
     );
 
-    // Check if current image exists
-    if !image_exists(client, IMAGE_NAME_GHCR, &names.image_tag).await? {
-        debug!("Current image not found, skipping backup tag");
-        return Ok(());
-    }
-
     // Tag current as previous
     let options = TagImageOptions {
-        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        repo: Some(IMAGE_NAME_PRIMARY.to_string()),
         tag: Some(names.previous_image_tag),
     };
 
@@ -71,7 +95,7 @@ pub async fn tag_current_as_previous(client: &DockerClient) -> Result<(), Docker
 /// * `client` - Docker client
 pub async fn has_previous_image(client: &DockerClient) -> Result<bool, DockerError> {
     let names = active_resource_names();
-    image_exists(client, IMAGE_NAME_GHCR, &names.previous_image_tag).await
+    Ok(resolve_previous_image_repo(client, &names).await?.is_some())
 }
 
 /// Update the opencode image to the latest version
@@ -121,14 +145,20 @@ pub async fn rollback_image(client: &DockerClient) -> Result<(), DockerError> {
     }
 
     let names = active_resource_names();
-    let previous_image = format!("{IMAGE_NAME_GHCR}:{}", names.previous_image_tag);
-    let current_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
+    let Some(previous_repo) = resolve_previous_image_repo(client, &names).await? else {
+        return Err(DockerError::Container(
+            "No previous image available for rollback. Update at least once before using rollback."
+                .to_string(),
+        ));
+    };
+    let previous_image = format!("{previous_repo}:{}", names.previous_image_tag);
+    let current_image = format!("{IMAGE_NAME_PRIMARY}:{}", names.image_tag);
 
     debug!("Rolling back from {} to {}", current_image, previous_image);
 
     // Re-tag previous as latest
     let options = TagImageOptions {
-        repo: Some(IMAGE_NAME_GHCR.to_string()),
+        repo: Some(IMAGE_NAME_PRIMARY.to_string()),
         tag: Some(names.image_tag),
     };
 

@@ -3,7 +3,7 @@
 //! This module provides functions to create, start, stop, and remove
 //! Docker containers for the opencode-cloud service.
 
-use super::dockerfile::IMAGE_NAME_GHCR;
+use super::dockerfile::IMAGE_NAME_PRIMARY;
 use super::mount::ParsedMount;
 use super::profile::{INSTANCE_LABEL_KEY, active_resource_names, remap_container_name};
 use super::volume::{
@@ -43,7 +43,7 @@ fn resolved_container_name(name: &str) -> String {
 /// # Arguments
 /// * `client` - Docker client
 /// * `name` - Container name (defaults to CONTAINER_NAME)
-/// * `image` - Image to use (defaults to IMAGE_NAME_GHCR:IMAGE_TAG_DEFAULT)
+/// * `image` - Image to use (defaults to IMAGE_NAME_PRIMARY:IMAGE_TAG_DEFAULT)
 /// * `opencode_web_port` - Port to bind on host for opencode web UI (defaults to OPENCODE_WEB_PORT)
 /// * `env_vars` - Additional environment variables (optional)
 /// * `bind_address` - IP address to bind on host (defaults to "127.0.0.1")
@@ -68,7 +68,7 @@ pub async fn create_container(
     let container_name = name
         .map(resolved_container_name)
         .unwrap_or(names.container_name);
-    let default_image = format!("{IMAGE_NAME_GHCR}:{}", names.image_tag);
+    let default_image = format!("{IMAGE_NAME_PRIMARY}:{}", names.image_tag);
     let image_name = image.unwrap_or(&default_image);
     let port = opencode_web_port.unwrap_or(OPENCODE_WEB_PORT);
     let cockpit_port_val = cockpit_port.unwrap_or(9090);
@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn default_image_format() {
-        let expected = format!("{IMAGE_NAME_GHCR}:{IMAGE_TAG_DEFAULT}");
-        assert_eq!(expected, "ghcr.io/prizz/opencode-cloud-sandbox:latest");
+        let expected = format!("{IMAGE_NAME_PRIMARY}:{IMAGE_TAG_DEFAULT}");
+        assert_eq!(expected, "prizz/opencode-cloud-sandbox:latest");
     }
 }
