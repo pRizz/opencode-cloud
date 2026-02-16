@@ -578,10 +578,15 @@ Data (PID files, etc.) is stored at:
 
 ## Development
 
-```bash
-# Bun is required for this repo
-bun --version
+### Prerequisites
 
+- **Rust 1.85+** — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Bun 1.3.9+** — `curl -fsSL https://bun.sh/install | bash`
+- **just** (task runner) — `cargo install just` or `brew install just`
+- **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine
+- **Node.js 20+** — for the Node CLI wrapper
+
+```bash
 # One-time setup (hooks + deps + submodule bootstrap)
 just setup
 

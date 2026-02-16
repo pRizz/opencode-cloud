@@ -10,6 +10,7 @@ Thank you for your interest in contributing to opencode-cloud! This document pro
 - **Node.js 20+**
 - **Bun 1.3.9+**
 - **just** (task runner)
+- **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine (for building/running the sandbox container)
 
 ### Installation
 
