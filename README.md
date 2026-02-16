@@ -282,10 +282,10 @@ git clone https://github.com/pRizz/opencode-cloud.git
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
-# Bun is required for this repo
-bun --version
+# Check prerequisites (run this before anything else)
+bash scripts/check-dev-prereqs.sh
 
-# First command after clone/worktree init
+# First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
 just build
 just dev    # Recommended local dev start shortcut
@@ -587,6 +587,9 @@ Data (PID files, etc.) is stored at:
 - **Node.js 20+** — for the Node CLI wrapper
 
 ```bash
+# Check prerequisites (can run before installing just)
+bash scripts/check-dev-prereqs.sh
+
 # First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
 

@@ -52,7 +52,7 @@ just run <args>  # Run CLI with arguments (e.g., just run status)
 just dev         # Start local runtime (local submodule + cached sandbox rebuild)
 ```
 
-Run `just setup` before any other project command after cloning this repo. In new worktrees, initialize the submodule first with `git submodule update --init --recursive`, then run `just setup`.
+Run `bash scripts/check-dev-prereqs.sh` to verify all required and optional tools are installed. Then run `just setup` before any other project command after cloning this repo. In new worktrees, initialize the submodule first with `git submodule update --init --recursive`, then run `just setup`.
 
 Setup reference:
 - Rust toolchain: `1.89` (from `rust-toolchain.toml`)

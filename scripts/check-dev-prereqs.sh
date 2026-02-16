@@ -70,9 +70,25 @@ warn_if_missing() {
 echo "Checking development prerequisites..."
 
 require_command "git" "Install Git (https://git-scm.com/downloads)."
+require_command "just" "Install just: 'brew install just' or 'cargo install just' (https://github.com/casey/just)."
 require_command "bun" "Install Bun (https://bun.sh)."
 require_command "cargo" "Install Rust via rustup (https://rustup.rs)."
 require_command "rustc" "Install Rust via rustup (https://rustup.rs)."
+require_command "node" "Install Node.js 20+ (https://nodejs.org)."
+
+if command -v node >/dev/null 2>&1; then
+  node_raw="$(node --version | sed 's/^v//')"
+  node_version="$(version_parts_or_empty "$node_raw")"
+  if [[ -z "$node_version" ]]; then
+    print_error "Could not parse Node.js version from: $node_raw"
+    required_failures=$((required_failures + 1))
+  elif version_ge "$node_version" "20.0.0"; then
+    print_ok "node version $node_version >= 20.0.0"
+  else
+    print_error "node version $node_version is too old. Required: >= 20.0.0"
+    required_failures=$((required_failures + 1))
+  fi
+fi
 
 if command -v bun >/dev/null 2>&1; then
   bun_raw="$(bun --version | head -n1)"

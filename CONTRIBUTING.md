@@ -33,8 +33,8 @@ git clone https://github.com/pRizz/opencode-cloud.git
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
-# Bun is required for this repo
-bun --version
+# Check prerequisites (can run before installing just)
+bash scripts/check-dev-prereqs.sh
 
 # First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
