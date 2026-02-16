@@ -40,6 +40,7 @@ The `packages/opencode/` submodule is a fork that syncs from upstream every 2 ho
 ## Key Commands
 
 ```bash
+just setup       # First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just build       # Build all packages
 just test        # Run all tests
 just e2e         # Run e2e tests (Playwright, boots server in-process)
@@ -50,6 +51,14 @@ just clean       # Clean build artifacts
 just run <args>  # Run CLI with arguments (e.g., just run status)
 just dev         # Start local runtime (local submodule + cached sandbox rebuild)
 ```
+
+Run `just setup` before any other project command after cloning this repo. In new worktrees, initialize the submodule first with `git submodule update --init --recursive`, then run `just setup`.
+
+Setup reference:
+- Rust toolchain: `1.89` (from `rust-toolchain.toml`)
+- Bun: `1.3.9+`
+- Optional tools (`docker`, `jq`, `shellcheck`, `actionlint`, `cfn-lint`) are required only for specific flows (`just dev`, `just lint`, and CloudFormation hook checks).
+- Rerun `just setup` for new clones/worktrees, if hooks are reset, or if dependency bootstrap looks stale.
 
 ## Git Hooks
 
@@ -81,7 +90,7 @@ This ensures tests run against the locally-built development version.
 ## Architecture Notes
 
 - npm package uses compile-on-install (no prebuilt binaries)
-- Users need Rust 1.82+ installed for npm install
+- Users need Rust 1.89+ installed for npm install
 - Config stored at `~/.config/opencode-cloud/config.json`
 - Data stored at `~/.local/share/opencode-cloud/`
 

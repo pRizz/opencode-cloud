@@ -201,7 +201,7 @@ occ start  # Pulls or builds the image as needed
 
 ## Requirements
 
-- **Rust 1.85+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Rust 1.89+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Docker** - For running the opencode container
 - **Supported platforms** - Linux and macOS
 
@@ -281,11 +281,11 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
-git submodule update --init --recursive packages/opencode
- 
+
 # Bun is required for this repo
 bun --version
 
+# First command after clone/worktree init
 just setup
 just build
 just dev    # Recommended local dev start shortcut
@@ -580,14 +580,14 @@ Data (PID files, etc.) is stored at:
 
 ### Prerequisites
 
-- **Rust 1.85+** — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Rust 1.89+** — `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Bun 1.3.9+** — `curl -fsSL https://bun.sh/install | bash`
 - **just** (task runner) — `cargo install just` or `brew install just`
 - **Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine
 - **Node.js 20+** — for the Node CLI wrapper
 
 ```bash
-# One-time setup (hooks + deps + submodule bootstrap)
+# First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
 
 # Build everything
@@ -606,6 +606,13 @@ just test
 just fmt
 just lint
 ```
+
+Setup reference:
+- Rust toolchain: `1.89` (from `rust-toolchain.toml`)
+- Bun: `1.3.9+`
+- First command after clone/worktree init: `just setup`
+- Optional tools (`docker`, `jq`, `shellcheck`, `actionlint`, `cfn-lint`) are required only for specific flows (`just dev`, `just lint`, and CloudFormation hook checks). `just setup` warns if they are missing.
+- Rerun `just setup` for new clones/worktrees, if hooks are reset, or if dependency bootstrap looks stale.
 
 ### Visual E2E (Playwright)
 

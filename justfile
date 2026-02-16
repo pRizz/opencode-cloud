@@ -7,13 +7,16 @@ default: list
 list:
     @just --list
 
+# Check required and optional local development tooling.
+check-dev-prereqs:
+    ./scripts/check-dev-prereqs.sh
+
 # Setup development environment (run once after cloning)
-setup:
+setup: check-dev-prereqs
     git config core.hooksPath .githooks
     git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
-    @command -v bun >/dev/null 2>&1 || (echo "Error: bun is required for this repo. Install from https://bun.sh and rerun just setup." && exit 1)
     bun install --cwd packages/opencode --frozen-lockfile
-    bun install
+    bun install --frozen-lockfile
     @echo "✓ Development environment ready!"
     @echo "Next: just dev"
 

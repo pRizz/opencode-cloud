@@ -6,7 +6,7 @@ Thank you for your interest in contributing to opencode-cloud! This document pro
 
 ### Prerequisites
 
-- **Rust 1.85+** (for Rust 2024 edition)
+- **Rust 1.89+** (for Rust 2024 edition; matches `rust-toolchain.toml`)
 - **Node.js 20+**
 - **Bun 1.3.9+**
 - **just** (task runner)
@@ -33,13 +33,10 @@ git clone https://github.com/pRizz/opencode-cloud.git
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
 
-# Initialize submodule checkout
-git submodule update --init --recursive packages/opencode
-
 # Bun is required for this repo
 bun --version
 
-# One-time setup (hooks + deps + submodule bootstrap)
+# First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
 
 # Build everything
@@ -48,6 +45,13 @@ just build
 # Recommended local dev runtime (local submodule + cached sandbox rebuild)
 just dev
 ```
+
+Setup reference:
+- Rust toolchain: `1.89` (from `rust-toolchain.toml`)
+- Bun: `1.3.9+`
+- First command after clone/worktree init: `just setup`
+- Optional tools (`docker`, `jq`, `shellcheck`, `actionlint`, `cfn-lint`) are required only for specific flows (`just dev`, `just lint`, and CloudFormation hook checks). `just setup` warns if they are missing.
+- Rerun `just setup` for new clones/worktrees, if hooks are reset, or if dependency bootstrap looks stale.
 
 ### Running Tests
 

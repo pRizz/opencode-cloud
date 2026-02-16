@@ -1,5 +1,7 @@
 # opencode-cloud
 
+<!-- BEGIN:opencode-cloud-readme-badges -->
+[![GitHub Stars](https://img.shields.io/github/stars/pRizz/opencode-cloud)](https://github.com/pRizz/opencode-cloud)
 [![CI](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/pRizz/opencode-cloud/actions/workflows/ci.yml)
 [![Mirror](https://img.shields.io/badge/mirror-gitea-blue?logo=gitea)](https://gitea.com/pRizz/opencode-cloud)
 [![crates.io](https://img.shields.io/crates/v/opencode-cloud.svg)](https://crates.io/crates/opencode-cloud)
@@ -11,6 +13,7 @@
 [![docs.rs](https://docs.rs/opencode-cloud/badge.svg)](https://docs.rs/opencode-cloud)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<!-- END:opencode-cloud-readme-badges -->
 
 > [!WARNING]
 > This tool is still a work in progress and is rapidly evolving. Expect bugs, frequent updates, and breaking changes. Follow updates on [GitHub](https://github.com/pRizz/opencode-cloud) ([Gitea mirror](https://gitea.com/pRizz/opencode-cloud)) and [X (Twitter)](https://x.com/pryszkie). Stability will be announced at some point. Use with caution.
@@ -81,6 +84,7 @@ Credentials: `docs/deploy/aws.md#retrieving-credentials`
 One-click deploy provisions a Railway service with automatic HTTPS.
 
 > **Important:** Attach a Railway Volume mounted to `/home/opencoder/.local/share/opencode` to prevent data loss across redeploys.
+> For manual template import, use `docker-compose.railway-template-base.yml` as a Railway importer compatibility base (not as the canonical runtime compose).
 
 Docs: `docs/deploy/railway.md`
 
@@ -95,6 +99,22 @@ docker compose up -d
 ```
 
 This uses the included `docker-compose.yml` which configures all persistent volumes automatically.
+
+Optional `.env` overrides (same directory as `docker-compose.yml`):
+
+```bash
+# Example: expose publicly and pin a reproducible image tag
+cat > .env <<'EOF'
+OPENCODE_PORT_MAPPING=3000:3000
+OPENCODE_IMAGE=prizz/opencode-cloud-sandbox:15.2.0
+EOF
+```
+
+By default, Compose uses `OPENCODE_PULL_POLICY=missing`. To force-refresh to newer image layers:
+
+```bash
+docker compose pull && docker compose up -d
+```
 
 Retrieve the Initial One-Time Password (IOTP) and open `http://localhost:3000`:
 
@@ -129,6 +149,7 @@ Docs: `docs/deploy/digitalocean-droplet.md`
 ## Features
 
 - **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
+- **Passkey-first authentication** - WebAuthn/FIDO2 passkeys as the primary login method, with username/password and TOTP 2FA as fallback options
 - **Persistent environment** - Your projects, settings, and shell history persist across restarts
 - **Cross-platform CLI** (`opencode-cloud` / `occ`) - Works on Linux and macOS
 - **Service lifecycle commands** - start, stop, restart, status, logs
@@ -180,7 +201,7 @@ occ start  # Pulls or builds the image as needed
 
 ## Requirements
 
-- **Rust 1.85+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Rust 1.89+** - Install via [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Docker** - For running the opencode container
 - **Supported platforms** - Linux and macOS
 
@@ -260,13 +281,14 @@ git clone https://github.com/pRizz/opencode-cloud.git
 # Gitea (mirror)
 git clone https://gitea.com/pRizz/opencode-cloud.git
 cd opencode-cloud
-git submodule update --init --recursive packages/opencode
- 
+
 # Bun is required for this repo
 bun --version
 
+# First command after clone/worktree init
 just setup
 just build
+just dev    # Recommended local dev start shortcut
 cargo run -p opencode-cloud -- --version
 ```
 
@@ -426,9 +448,9 @@ occ config show
 
 ## Authentication
 
-Security details: `docs/security/passkey-registration.md` (IOTP bootstrap and passkey enrollment flow)
+opencode-cloud uses **passkey-first authentication** — WebAuthn/FIDO2 passkeys are the primary login method, providing phishing-resistant, passwordless sign-in. Username/password (via PAM) and TOTP two-factor authentication are available as fallback options.
 
-opencode-cloud uses **PAM (Pluggable Authentication Modules)** for authentication.
+Security details: `docs/security/passkey-registration.md`
 
 First boot path:
 - If no managed users are configured, startup logs print an Initial One-Time Password (IOTP).
@@ -446,9 +468,9 @@ Admin path:
 - You can always create/manage users directly via `occ user add`, `occ user passwd`, and related user commands.
 
 Login UX:
-- Passkey sign-in is the primary option on the login page.
-- Username/password sign-in remains available as fallback.
-- 2FA setup/management is available from the upper-right session menu after login.
+- **Passkey sign-in is front and center** — the login page leads with WebAuthn for fast, phishing-resistant authentication.
+- Username/password sign-in remains available as a fallback.
+- TOTP two-factor authentication can be enabled per-user from the session menu after login.
 
 ### Creating Users
 
@@ -507,8 +529,11 @@ occ start --full-rebuild-sandbox-image
 
 **Local submodule dev rebuild (no push required):**
 ```bash
-# Fast rebuild using local packages/opencode checkout (including uncommitted edits)
-just run start --cached-rebuild-sandbox-image --local-opencode-submodule
+# Recommended shortcut for fast rebuild using local packages/opencode checkout (including uncommitted edits)
+just dev
+
+# Equivalent long form:
+just run start --yes --local-opencode-submodule --cached-rebuild-sandbox-image
 
 # Full no-cache rebuild from local packages/opencode checkout
 just run start --full-rebuild-sandbox-image --local-opencode-submodule
@@ -557,11 +582,14 @@ Data (PID files, etc.) is stored at:
 # Bun is required for this repo
 bun --version
 
-# One-time setup (hooks + deps + submodule bootstrap)
+# First command after clone/worktree init (hooks + deps + submodule bootstrap)
 just setup
 
 # Build everything
 just build
+
+# Recommended local dev runtime (local submodule + cached sandbox rebuild)
+just dev
 
 # Compile and run occ (arguments automatically get passed to the binary)
 just run --version
@@ -573,6 +601,13 @@ just test
 just fmt
 just lint
 ```
+
+Setup reference:
+- Rust toolchain: `1.89` (from `rust-toolchain.toml`)
+- Bun: `1.3.9+`
+- First command after clone/worktree init: `just setup`
+- Optional tools (`docker`, `jq`, `shellcheck`, `actionlint`, `cfn-lint`) are required only for specific flows (`just dev`, `just lint`, and CloudFormation hook checks). `just setup` warns if they are missing.
+- Rerun `just setup` for new clones/worktrees, if hooks are reset, or if dependency bootstrap looks stale.
 
 ### Visual E2E (Playwright)
 
