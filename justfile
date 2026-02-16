@@ -355,7 +355,10 @@ do-marketplace-build:
 
 # Pre-commit checks with conditional Docker stage build for Docker-risk changes.
 # This keeps routine commits fast while still catching Docker context regressions.
-pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast e2e
+pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast
+    @PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-1}" \
+    OPENCODE_E2E_CLEAN_SESSION_STATE="${OPENCODE_E2E_CLEAN_SESSION_STATE:-0}" \
+    just e2e
     @if ./scripts/should-run-docker-check.sh; then \
         echo "Running Docker stage check because Docker-risk files changed..."; \
         just check-docker; \
@@ -364,7 +367,10 @@ pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build 
     fi
 
 # Pre-commit checks including Docker build (requires Docker)
-pre-commit-full: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast e2e build-docker
+pre-commit-full: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast build-docker
+    @PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-1}" \
+    OPENCODE_E2E_CLEAN_SESSION_STATE="${OPENCODE_E2E_CLEAN_SESSION_STATE:-0}" \
+    just e2e
     @echo "✓ Full pre-commit checks passed (including Docker build)"
 
 # Format everything
