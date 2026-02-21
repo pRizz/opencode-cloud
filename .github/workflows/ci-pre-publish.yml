@@ -86,6 +86,9 @@ jobs:
       - name: Audit dependencies
         run: bun audit --audit-level=high
 
+      - name: Run opencode guardrails
+        run: just check-opencode-guardrails
+
       # Project checks should run via shared just targets.
       - name: Run CI checks
         run: just ci-checks

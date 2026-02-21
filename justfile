@@ -112,6 +112,12 @@ opencode-install-if-needed: opencode-submodule-check
 sync-opencode-sdk: opencode-install-if-needed
     bun run --cwd packages/opencode script/generate.ts
 
+# Run opencode guardrails that catch parity/boundary drift early.
+check-opencode-guardrails: opencode-install-if-needed
+    bun run --cwd packages/opencode rules:parity:check
+    bun run --cwd packages/opencode sdk:parity:check
+    bun run --cwd packages/opencode fork:boundary:check
+
 # Typecheck opencode workspace
 # Keep scripts.typecheck defined in each fork-* package so Turbo executes its task.
 lint-opencode: opencode-install-if-needed check-fork-typecheck-wiring
@@ -316,7 +322,7 @@ ci-e2e *args:
     fi; \
     CI="${CI:-true}" OPENCODE_DISABLE_MODELS_FETCH="${OPENCODE_DISABLE_MODELS_FETCH:-true}" OPENCODE_MODELS_PATH="$models_path" PLAYWRIGHT_BROWSERS_PATH="$playwright_browsers_path" bun run --cwd packages/opencode/packages/app test:e2e:local -- "$@"
 
-ci-lint: lint-rust check-opencode-stack
+ci-lint: lint-rust check-opencode-guardrails check-opencode-stack
 
 ci-build: build-rust build-core-bindings
 
@@ -355,7 +361,7 @@ do-marketplace-build:
 
 # Pre-commit checks with conditional Docker stage build for Docker-risk changes.
 # This keeps routine commits fast while still catching Docker context regressions.
-pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast
+pre-commit: check-opencode-submodule-published sync-opencode-sdk check-opencode-guardrails fmt lint build test-all-fast
     @PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-1}" \
     OPENCODE_E2E_CLEAN_SESSION_STATE="${OPENCODE_E2E_CLEAN_SESSION_STATE:-0}" \
     just e2e
@@ -367,7 +373,7 @@ pre-commit: check-opencode-submodule-published sync-opencode-sdk fmt lint build 
     fi
 
 # Pre-commit checks including Docker build (requires Docker)
-pre-commit-full: check-opencode-submodule-published sync-opencode-sdk fmt lint build test-all-fast build-docker
+pre-commit-full: check-opencode-submodule-published sync-opencode-sdk check-opencode-guardrails fmt lint build test-all-fast build-docker
     @PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-1}" \
     OPENCODE_E2E_CLEAN_SESSION_STATE="${OPENCODE_E2E_CLEAN_SESSION_STATE:-0}" \
     just e2e

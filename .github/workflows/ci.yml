@@ -126,6 +126,31 @@ jobs:
             type=registry,ref=ghcr.io/prizz/opencode-cloud-sandbox:buildcache-amd64
           cache-to: type=gha,scope=opencode-cloud-sandbox-context-guard,mode=min,version=2
 
+  opencode-guardrails:
+    name: Opencode Guardrails
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize opencode submodule
+        run: |
+          git -c url."https://github.com/".insteadOf=git@github.com: submodule update --init --recursive packages/opencode
+          git submodule status --recursive
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Ensure submodule dev ref exists
+        run: |
+          git -C packages/opencode show-ref --verify --quiet refs/heads/dev || git -C packages/opencode branch dev HEAD
+
+      - name: Run opencode guardrails
+        run: just check-opencode-guardrails
+
   # Build, lint, and test on multiple platforms
   # Clippy/build/test must run on each platform because #[cfg(target_os)] causes
   # different code to compile (e.g., systemd.rs on Linux, launchd.rs on macOS)
@@ -133,6 +158,7 @@ jobs:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    needs: [opencode-guardrails]
     strategy:
       fail-fast: false
       matrix:
