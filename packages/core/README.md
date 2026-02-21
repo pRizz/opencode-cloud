@@ -20,7 +20,7 @@
 
 A production-ready toolkit for deploying and managing our [opencode fork](https://github.com/pRizz/opencode) (forked from [anomalyco/opencode](https://github.com/anomalyco/opencode)) as a persistent cloud service, **sandboxed inside a Docker container** for isolation and security.
 
-This fork adds **passkey-first authentication** (WebAuthn/FIDO2), two-factor authentication, and enterprise security features for cloud deployment.
+This fork adds **passkey-first authentication** (WebAuthn/FIDO2), two-factor authentication, **multi-user support** (one shared instance can host multiple independent managed users with separate accounts and authenticated sessions), and enterprise security features for cloud deployment.
 
 ## Quick Deploy (Docker)
 
@@ -150,6 +150,7 @@ Docs: `docs/deploy/digitalocean-droplet.md`
 
 - **Sandboxed execution** - opencode runs inside a Docker container, isolated from your host system
 - **Passkey-first authentication** - WebAuthn/FIDO2 passkeys as the primary login method, with username/password and TOTP 2FA as fallback options
+- **Multi-user setup on one instance** - A single shared service can host multiple independent managed users with separate accounts and authenticated sessions
 - **Persistent environment** - Your projects, settings, and shell history persist across restarts
 - **Cross-platform CLI** (`opencode-cloud` / `occ`) - Works on Linux and macOS
 - **Service lifecycle commands** - start, stop, restart, status, logs
@@ -449,6 +450,7 @@ occ config show
 ## Authentication
 
 opencode-cloud uses **passkey-first authentication** — WebAuthn/FIDO2 passkeys are the primary login method, providing phishing-resistant, passwordless sign-in. Username/password (via PAM) and TOTP two-factor authentication are available as fallback options.
+It supports a multi-user setup: one shared instance can host multiple independent managed users with separate accounts and authenticated sessions.
 
 Security details: `docs/security/passkey-registration.md`
 

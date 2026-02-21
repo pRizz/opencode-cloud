@@ -33,7 +33,7 @@ The container uses 7 persistent storage locations:
 | `opencode-data` | `/home/opencoder/.local/share/opencode` | `~/.local/share/opencode` | Session data, project metadata, SSH key metadata | Critical |
 | `opencode-workspace` | `/home/opencoder/workspace` | `~/opencode` | Cloned repositories, project files | Critical |
 | `opencode-ssh` | `/home/opencoder/.ssh` | `~/.local/share/opencode-cloud/ssh` | SSH private/public keys, SSH config | High |
-| `opencode-users` | `/var/lib/opencode-users` | *(named volume only)* | User account records (password hashes, lock status) | High |
+| `opencode-users` | `/var/lib/opencode-users` | *(named volume only)* | Managed user account records (password hashes, lock status) for independent users on a shared instance | High |
 | `opencode-config` | `/home/opencoder/.config/opencode` | `~/.config/opencode-cloud/opencode` | opencode app configuration (auth settings, workspace root) | Medium |
 | `opencode-state` | `/home/opencoder/.local/state/opencode` | `~/.local/state/opencode` | Application state, update command files | Medium |
 | `opencode-cache` | `/home/opencoder/.cache/opencode` | `~/.cache/opencode` | Cache data (regenerable) | Low |
@@ -41,7 +41,8 @@ The container uses 7 persistent storage locations:
 **Note:** `opencode-users` has no default bind mount in CLI mode. It always
 uses a named Docker volume because `/var/lib/opencode-users` is a system path
 managed internally by the CLI. Users don't need direct filesystem access to
-this data.
+this data. This store underpins the multi-user setup by preserving independent
+managed user accounts on one shared instance.
 
 ## What Survives What
 
