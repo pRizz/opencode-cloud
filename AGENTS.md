@@ -8,15 +8,29 @@ Only proceed with the commit if it passes. If it fails, fix the issues first.
 
 **Exception:** If the commit contains only documentation and markdown changes (`.md` files), you may skip `just pre-commit`.
 
-`just pre-commit` now runs the opencode generation flow (`packages/opencode/script/generate.ts`), which also runs formatting/linting steps in the submodule. It is expected that this can modify files you did not directly edit.
+`just pre-commit` intentionally runs generation and formatting steps that may modify files you did not edit directly (including markdown). Treat these diffs as expected outputs of the check pipeline.
 
-When this happens, review those extra diffs before committing and confirm they are mechanical generation/format/lint changes (no unintended behavior changes).
+If those diffs are mechanical (generation/format/lint output only), they should be committed with the related change. Do not treat them as noise and do not leave them uncommitted.
+
+Common expected examples (non-exhaustive):
+- `packages/opencode/packages/sdk/openapi.json`
+- `packages/opencode/README.md` (including normalized markdown formatting / generated sections)
+- `packages/core/README.md` (synced by hook)
+- `bun.lock` files
+
+Required post-`just pre-commit` checklist:
+1. Check `git status` (superproject) and `git -C packages/opencode status` (submodule).
+2. Review all newly changed files and confirm they are mechanical (no unintended behavior changes).
+3. Commit/push submodule generated changes first when present.
+4. Run `just update-opencode-commit`.
+5. Commit/push the superproject pointer + Dockerfile pin update when changed.
 
 ## Bun Lockfile Updates
 
 `bun.lock` file updates are expected in this repository across all `bun.lock` files when changing versions of our own packages (for example `packages/cli-node`, `packages/core`, and related workspace packages). They can also be produced by normal `just pre-commit`/build flows.
 
 When these `bun.lock` changes are tied to intended package/version updates, they are valid and should be committed with the related change. Do not treat them as unexpected noise.
+This same expected-and-commit rule applies to other mechanical formatter/generator outputs from `just pre-commit`, including markdown rewrites.
 
 ## Project Structure
 
