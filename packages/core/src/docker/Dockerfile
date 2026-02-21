@@ -556,7 +556,7 @@ COPY --chown=opencoder:opencoder packages/opencode /tmp/opencode-local
 # Update it by running: ./scripts/update-opencode-commit.sh
 RUN set -eux; \
     OPENCODE_COMMIT_OVERRIDE="${OPENCODE_COMMIT:-}"; \
-    OPENCODE_COMMIT="d5432b5dbce9bf11d422cc2516119260ab156859"; \
+    OPENCODE_COMMIT="630d80c2e507f0fb02a79dc794995f169cb31e22"; \
     if [ -n "${OPENCODE_COMMIT_OVERRIDE}" ]; then OPENCODE_COMMIT="${OPENCODE_COMMIT_OVERRIDE}"; fi; \
     rm -rf /tmp/opencode-repo; \
     if [ "${OPENCODE_SOURCE}" = "local" ]; then \
