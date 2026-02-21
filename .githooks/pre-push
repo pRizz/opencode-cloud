@@ -1,4 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-./scripts/check-opencode-submodule-published.sh
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ZERO_SHA="0000000000000000000000000000000000000000"
+
+"$REPO_ROOT"/scripts/check-opencode-submodule-published.sh
+
+needs_guardrails=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "${local_ref:-}" ] && continue
+    [ "${local_sha:-$ZERO_SHA}" = "$ZERO_SHA" ] && continue
+
+    if [ "${remote_sha:-$ZERO_SHA}" = "$ZERO_SHA" ]; then
+        revs="$(git -C "$REPO_ROOT" rev-list "$local_sha" --not --all)"
+    else
+        if git -C "$REPO_ROOT" cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+            revs="$(git -C "$REPO_ROOT" rev-list "${remote_sha}..${local_sha}")"
+        else
+            echo "Remote base commit ${remote_sha} is not available locally; running strict opencode guardrails conservatively..."
+            needs_guardrails=1
+            break
+        fi
+    fi
+
+    [ -z "$revs" ] && continue
+
+    if git -C "$REPO_ROOT" diff-tree --stdin --no-commit-id --name-only -r <<<"$revs" | rg -q '^packages/opencode$'; then
+        needs_guardrails=1
+        break
+    fi
+done
+
+if [ "$needs_guardrails" -eq 1 ]; then
+    echo "Detected outgoing packages/opencode pointer update; running strict opencode guardrails..."
+    (cd "$REPO_ROOT" && just check-opencode-guardrails)
+fi

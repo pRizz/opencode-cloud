@@ -10,6 +10,8 @@ Only proceed with the commit if it passes. If it fails, fix the issues first.
 
 `just pre-commit` intentionally runs generation and formatting steps that may modify files you did not edit directly (including markdown). Treat these diffs as expected outputs of the check pipeline.
 
+`just pre-commit` also runs `just check-opencode-guardrails-autofix`, which may auto-sync fork-boundary manifest drift in `packages/opencode/docs/upstream-sync/fork-boundary-manifest.json` when drift is the only issue.
+
 If those diffs are mechanical (generation/format/lint output only), they should be committed with the related change. Do not treat them as noise and do not leave them uncommitted.
 
 Common expected examples (non-exhaustive):
@@ -79,7 +81,7 @@ Setup reference:
 This repo uses git hooks (wired via `git config core.hooksPath .githooks`, set up by `just setup`):
 
 - **pre-commit** — Syncs README to npm packages, guards against unpublished submodule pins, runs cfn-lint on CloudFormation changes.
-- **pre-push** — Validates the opencode submodule commit is published.
+- **pre-push** — Validates the opencode submodule commit is published. When outgoing commits update the `packages/opencode` gitlink, it also runs strict opencode guardrails (`just check-opencode-guardrails`) before push.
 - **post-merge** — After every `git pull`, automatically syncs the submodule and runs `bun install`. No manual action needed.
 
 ## README Badge Sync
@@ -158,6 +160,16 @@ The submodule should always be detached at the superproject-pinned commit. If `g
 ```bash
 git submodule update --recursive
 ```
+
+### Fork Boundary Checks in Detached Submodules
+
+`packages/opencode/script/check-fork-boundary.ts` and `packages/opencode/script/sync-fork-boundary-manifest.ts` resolve target refs as:
+
+1. `FORK_BOUNDARY_TARGET_REF` (when explicitly set)
+2. Current symbolic branch name
+3. `HEAD` fallback when detached
+
+This branch-or-HEAD behavior prevents false passes from stale local `dev` refs in detached submodule states.
 
 ### Fixing stale `core.worktree` errors
 
