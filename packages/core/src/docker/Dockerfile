@@ -353,19 +353,19 @@ RUN set -eux; \
 # lazygit v0.58.1 (2026-01-12) - terminal UI for git
 # Disabled temporarily to reduce Docker build time.
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-#     && go install github.com/jesseduffield/lazygit@v0.59.0
+#     && go install github.com/jesseduffield/lazygit@v0.60.0
 
 # -----------------------------------------------------------------------------
 # Additional Development Tools
 # -----------------------------------------------------------------------------
 # fzf v0.67.0 (2025-11-16) - fuzzy finder
 # Disabled temporarily to reduce Docker build time.
-# RUN git clone --branch v0.67.0 --depth 1 https://github.com/junegunn/fzf.git /home/opencoder/.fzf \
+# RUN git clone --branch v0.70.0 --depth 1 https://github.com/junegunn/fzf.git /home/opencoder/.fzf \
 #     && /home/opencoder/.fzf/install --all --no-bash --no-fish
 
 # yq v4.50.1 (2025-12-14) - YAML processor
 # Disabled temporarily to reduce Docker build time.
-# RUN curl -sL https://github.com/mikefarah/yq/releases/download/v4.52.2/yq_linux_$(dpkg --print-architecture) -o /home/opencoder/.local/bin/yq \
+# RUN curl -sL https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_$(dpkg --print-architecture) -o /home/opencoder/.local/bin/yq \
 #     && chmod +x /home/opencoder/.local/bin/yq
 
 # Install direnv (2026-01-22)
@@ -390,7 +390,7 @@ RUN set -eux; \
 # shfmt v3.12.0 (2025-07-06) - shell formatter
 # Disabled temporarily to reduce Docker build time.
 # RUN eval "$(/home/opencoder/.local/bin/mise activate bash)" \
-#     && go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0
+#     && go install mvdan.cc/sh/v3/cmd/shfmt@v3.13.0
 
 # Install btop system monitor (2026-02-03)
 # Use BuildKit cache mount for APT package lists and cache
@@ -471,7 +471,7 @@ USER opencoder
 # # cargo-audit 0.22.0 - security audit
 # # cargo-deny 0.19.0 - dependency linter
 # RUN . /home/opencoder/.cargo/env \
-#     && cargo install --locked cargo-nextest@0.9.126 cargo-audit@0.22.1 cargo-deny@0.19.0
+#     && cargo install --locked cargo-nextest@0.9.130 cargo-audit@0.22.1 cargo-deny@0.19.0
 #
 # # Install mold fast linker (2026-01-22)
 # USER root
